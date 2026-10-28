@@ -1,11 +1,12 @@
 <Window x:Class="QPGL.Desktop.Views.LoginWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="长远汽配管理系统 V8 - 登录"
+        Title="QP12 配件管理系统 - 登录"
         Width="460" Height="430"
         WindowStartupLocation="CenterScreen"
         WindowStyle="SingleBorderWindow"
         ResizeMode="NoResize"
+        Icon="pack://application:,,,/QP12.ico"
         Background="{StaticResource WindowBackBrush}">
     <Grid>
         <Grid.RowDefinitions>
@@ -17,7 +18,7 @@
         <!-- 品牌抬头 -->
         <Border Background="{StaticResource BrandBrush}">
             <StackPanel VerticalAlignment="Center" Margin="20,0">
-                <TextBlock Text="长远汽配管理系统 V8" FontSize="19" FontWeight="Bold" Foreground="White"/>
+                <TextBlock Text="QP12 配件管理系统" FontSize="19" FontWeight="Bold" Foreground="White"/>
                 <TextBlock Text="新系统重构版 · 客户端直连数据库" FontSize="11" Foreground="#C7D6E8" Margin="0,3,0,0"/>
             </StackPanel>
         </Border>

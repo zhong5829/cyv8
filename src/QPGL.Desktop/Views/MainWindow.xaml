@@ -2,9 +2,10 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:v="clr-namespace:QPGL.Desktop.Views"
-        Title="长远汽配管理系统 V8"
+        Title="QP12 配件管理系统"
         Height="760" Width="1200"
         WindowStartupLocation="CenterScreen"
+        Icon="pack://application:,,,/QP12.ico"
         Background="{StaticResource WindowBackBrush}">
     <Window.InputBindings>
         <KeyBinding Key="F12" Command="{Binding CloseActiveTabCommand}"/>
@@ -15,7 +16,7 @@
             <!-- 标题栏品牌带 -->
             <Border Background="{StaticResource BrandBrush}" Padding="12,6">
                 <DockPanel>
-                    <TextBlock Text="长远汽配管理系统 V8" Foreground="White" FontSize="15" FontWeight="Bold"/>
+                    <TextBlock Text="QP12 配件管理系统" Foreground="White" FontSize="15" FontWeight="Bold"/>
                     <TextBlock DockPanel.Dock="Right" Text="重构版 · 结构零改动 · QPGL.Api" Foreground="#C7D6E8"
                                FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                 </DockPanel>
@@ -153,7 +154,7 @@
         <!-- ===== 底部：状态栏 ===== -->
         <Border DockPanel.Dock="Bottom" Background="{StaticResource BrandBrush}" Padding="10,4">
             <DockPanel>
-                <TextBlock Text="产品名：长远汽配 V8" Foreground="White" FontSize="12"/>
+                <TextBlock Text="产品名：QP12" Foreground="White" FontSize="12"/>
                 <TextBlock DockPanel.Dock="Right" Text="{Binding StatusTime}" Foreground="White" FontSize="12"/>
                 <TextBlock DockPanel.Dock="Right" Margin="0,0,16,0" FontSize="12" Foreground="White">
                     <Run Text="{Binding StatusConnection, Mode=OneWay}"/>

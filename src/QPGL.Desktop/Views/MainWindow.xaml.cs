@@ -26,7 +26,7 @@ public partial class MainWindow : Window
                 var brand = new BrandWindow(mandatory: false);
                 brand.ShowDialog();
                 // 旧 fr_cp T_.row5：只改标题不刷新已开页面（会话变量下次取数生效）
-                Title = $"长远汽车配件管理系统 帐套：{AppSession.DeptNo} 厂牌：[{AppSession.Brand}]";
+                Title = $"QP12 配件管理系统 帐套：{AppSession.DeptNo} 厂牌：[{AppSession.Brand}]";
             }
             else if (e.Key == System.Windows.Input.Key.F3)
             {

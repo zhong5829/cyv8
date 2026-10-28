@@ -111,7 +111,7 @@ public static class UpdateService
                 if (!name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) continue;
                 var url = asset.GetProperty("browser_download_url").GetString();
                 if (string.IsNullOrEmpty(url)) continue;
-                // 优先取安装包命名（长远…_x.y.z_安装包.exe / *setup*.exe），否则任取首个 exe
+                // 优先取安装包命名（QP12…_x.y.z_安装包.exe / *setup*.exe），否则任取首个 exe
                 if (name.Contains("安装包") || name.Contains("setup", StringComparison.OrdinalIgnoreCase))
                     return new UpdateInfo(tag, version, name, url);
                 found ??= new UpdateInfo(tag, version, name, url);

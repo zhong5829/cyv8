@@ -19,7 +19,7 @@ public partial class App : Application
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"启动配置错误：{ex.Message}", "长远汽配 V8",
+            MessageBox.Show($"启动配置错误：{ex.Message}", "QP12",
                 MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown(1);
             return;
@@ -31,7 +31,7 @@ public partial class App : Application
             MessageBox.Show(
                 $"数据库连接失败（{check.ElapsedMs}ms）：{check.Error}\n\n" +
                 "请检查 appsettings.json 连接配置与数据库状态。",
-                "长远汽配 V8 - 无法连接数据库",
+                "QP12 - 无法连接数据库",
                 MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown(1);
             return;
