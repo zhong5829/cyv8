@@ -29,14 +29,64 @@ public partial class PrnotyViewModel : ObservableObject
 
     private string Dpmusem => "A";
 
+    // ==== 三条件过滤（编码/名称/车型；内存过滤，实时+500ms 防抖，名称框支持拼音码）====
+    [ObservableProperty] private string _filterNno = "";
+    [ObservableProperty] private string _filterNa1 = "";
+    [ObservableProperty] private string _filterTy = "";
+    private List<PrnotyRow> _allRows = [];                                  // 未过滤全集
+    private Dictionary<string, string> _pyMap = new(StringComparer.Ordinal); // 零件名称→拼音码（tbname0）
+    private readonly System.Windows.Threading.DispatcherTimer _filterDebounce = new()
+    {
+        Interval = TimeSpan.FromMilliseconds(500),
+    };
+
+    public PrnotyViewModel()
+    {
+        _filterDebounce.Tick += (_, _) => ApplyFilter();   // 必须订阅 Tick，否则输入后无响应
+    }
+
+    /// <summary>过滤输入变化时调用：重置防抖计时（View 的 TextChanged 转发）。</summary>
+    public void DebounceFilter()
+    {
+        _filterDebounce.Stop();
+        _filterDebounce.Start();
+    }
+
+    /// <summary>三条件内存过滤（语义同销售开单页）：编码=Nno 包含；名称=Na1/Nno/Ty 包含或拼音码前缀；车型=Ty/Na1 包含。</summary>
+    public void ApplyFilter()
+    {
+        _filterDebounce.Stop();
+        var nnoKw = FilterNno.Trim();
+        var na1Kw = FilterNa1.Trim();
+        var tyKw = FilterTy.Trim();
+        IEnumerable<PrnotyRow> q = _allRows;
+        if (nnoKw.Length > 0)
+            q = q.Where(r => r.Nno.Contains(nnoKw, StringComparison.OrdinalIgnoreCase));
+        if (na1Kw.Length > 0)
+            q = q.Where(r =>
+                r.Na1.Contains(na1Kw, StringComparison.OrdinalIgnoreCase) ||
+                r.Nno.Contains(na1Kw, StringComparison.OrdinalIgnoreCase) ||
+                r.Ty.Contains(na1Kw, StringComparison.OrdinalIgnoreCase) ||
+                (_pyMap.TryGetValue(r.Na1, out var code) && code.StartsWith(na1Kw, StringComparison.OrdinalIgnoreCase)));
+        if (tyKw.Length > 0)
+            q = q.Where(r =>
+                r.Ty.Contains(tyKw, StringComparison.OrdinalIgnoreCase) ||
+                r.Na1.Contains(tyKw, StringComparison.OrdinalIgnoreCase));
+        Rows = new ObservableCollection<PrnotyRow>(q.ToList());
+    }
+
     [RelayCommand]
     public async Task SearchAsync()
     {
         try
         {
             var rows = await Db.Prnoty.SearchAsync(FindWhere, Cp, Dpmusem);
-            Rows = new ObservableCollection<PrnotyRow>(rows);
-            Message = rows.Count == 0 ? "没有符合条件的记录！" : $"共 {rows.Count} 行";
+            _allRows = rows.ToList();
+            // 拼音码映射整表一次取回（tbname0 数千行；名称框拼音过滤，销售页同源）
+            try { _pyMap = new Dictionary<string, string>(await Db.SaleReturns.GetPinyinMapAsync(), StringComparer.Ordinal); }
+            catch { _pyMap = []; }
+            ApplyFilter();   // 无过滤条件时=全部；有条件时按当前关键字过滤新数据
+            Message = _allRows.Count == 0 ? "没有符合条件的记录！" : $"共 {_allRows.Count} 行";
         }
         catch (Exception ex) { Message = "查询失败：" + ex.Message; }
     }
@@ -45,16 +95,24 @@ public partial class PrnotyViewModel : ObservableObject
     private async Task SaveAsync()
     {
         if (Selected is null) { Message = "请先查询并选中行（新增用新增按钮）"; return; }
+        await SaveRowAsync(Selected);
+    }
+
+    /// <summary>
+    /// 保存行（工具栏保存/属性编辑窗共用）。
+    /// oldNno：编辑弹窗传入改码前旧编码（网格编辑路径编码已被绑定覆盖，无法取旧值）。
+    /// </summary>
+    public async Task<bool> SaveRowAsync(PrnotyRow r, string? oldNno = null)
+    {
         try
         {
-            var r = Selected;
             var result = await Db.Prnoty.SaveAsync(new PrnotySaveCommand
             {
                 IsAdd = r.Id == 0,
                 Id = r.Id,
                 Cp = r.Cp,
                 Nno = r.Nno,
-                OldNno = r.Id == 0 ? "" : r.Nno,
+                OldNno = oldNno ?? (r.Id == 0 ? "" : r.Nno),
                 Na1 = r.Na1, Ty = r.Ty, Fa = r.Fa, Dc = r.Dc, Unit = r.Unit, Iprj = r.Iprj,
                 Code_ts = r.Code_ts, Eng = r.Eng, Nnp = r.Nnp, Nnq = r.Nnq, Uqty = r.Uqty,
                 Xno = r.Xno, Tno = r.Tno, Amjj = r.Amjj, Bmjj = r.Bmjj, Nvol = decimal.TryParse(r.Nvol, out var nv) ? nv : 0,
@@ -62,17 +120,46 @@ public partial class PrnotyViewModel : ObservableObject
             }, Cp, Dpmusem);
             r.Cxnno = result.Cxnno; r.Xno = result.Xno; r.Tno = result.Tno;
             Message = $"保存成功 id={result.Id}（触发器回填 cxnno={result.Cxnno} xno={result.Xno} tno={result.Tno}）";
+            return true;
         }
-        catch (Exception ex) { Message = "保存失败：" + ex.Message; }
+        catch (Exception ex) { Message = "保存失败：" + ex.Message; return false; }
     }
 
+    /// <summary>新增：弹零件属性编辑窗（复刻旧 frmAdd），确定后保存并加入列表。</summary>
     [RelayCommand]
-    private void NewRow()
+    private async Task NewRowAsync()
     {
-        var r = new PrnotyRow { Cp = Cp };
-        Rows.Insert(0, r);
-        Selected = r;
-        Message = "新行已加入（编辑后点保存）";
+        var dlg = new PartAttributeEditWindow(null, Cp) { Owner = Application.Current.MainWindow };
+        if (dlg.ShowDialog() != true) return;
+        var r = dlg.Row;
+        if (await SaveRowAsync(r))
+        {
+            _allRows.Insert(0, r);
+            ApplyFilter();
+            Selected = r;
+        }
+    }
+
+    /// <summary>修改：双击行/修改按钮 → 编辑窗（副本编辑，取消不动原行），确定后写回保存。</summary>
+    [RelayCommand]
+    public async Task EditRowAsync()
+    {
+        if (Selected is not { Id: > 0 } row) { Message = "请选中已保存的行"; return; }
+        var oldNno = row.Nno;   // 弹窗只改副本，原行在确定前不变
+        var dlg = new PartAttributeEditWindow(row, Cp) { Owner = Application.Current.MainWindow };
+        if (dlg.ShowDialog() != true) return;
+        CopyInto(row, dlg.Row);
+        await SaveRowAsync(row, oldNno);
+    }
+
+    public static void CopyInto(PrnotyRow dst, PrnotyRow src)
+    {
+        dst.Nno = src.Nno; dst.Na1 = src.Na1; dst.Ty = src.Ty; dst.Fa = src.Fa; dst.Dc = src.Dc;
+        dst.Unit = src.Unit; dst.Note = src.Note; dst.Iprj = src.Iprj; dst.Nnp = src.Nnp;
+        dst.Nnq = src.Nnq; dst.Uqty = src.Uqty; dst.Code_ts = src.Code_ts; dst.Eng = src.Eng;
+        dst.Nvol = src.Nvol; dst.Suttle = src.Suttle; dst.Note1 = src.Note1;
+        dst.Oprc_cp = src.Oprc_cp; dst.Oprc_min = src.Oprc_min;
+        dst.Xno = src.Xno; dst.Tno = src.Tno;
     }
 
     [RelayCommand]
@@ -82,6 +169,7 @@ public partial class PrnotyViewModel : ObservableObject
         if (MessageBox.Show($"确认删除属性 {Selected.Nno} 吗？（无引用拦截，物理删除）", "删除",
                 MessageBoxButton.OKCancel, MessageBoxImage.Warning) != MessageBoxResult.OK) return;
         await Db.Prnoty.DeleteAsync(Selected.Id);
+        _allRows.Remove(Selected);
         Rows.Remove(Selected);
         Message = "已删除";
     }

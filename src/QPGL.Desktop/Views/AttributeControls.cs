@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using QPGL.Desktop.ViewModels;
 
 namespace QPGL.Desktop.Views;
@@ -16,6 +17,51 @@ public partial class PrnotyControl : UserControl
     }
 
     private async void UserControl_Loaded(object sender, RoutedEventArgs e) => await _vm.SearchAsync();
+
+    // ==== 三条件过滤框（编码/名称/车型）：实时+防抖；聚焦/点击全选；←/→ 在文本边界切换相邻框 ====
+    private void FilterBox_TextChanged(object sender, TextChangedEventArgs e) => _vm.DebounceFilter();
+
+    private void FilterBox_GotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        if (sender is TextBox box) box.SelectAll();
+    }
+
+    private void FilterBox_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is TextBox box && !box.IsKeyboardFocusWithin)
+        {
+            box.Focus();
+            box.SelectAll();
+            e.Handled = true;
+        }
+    }
+
+    private void FilterBox_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (sender is not TextBox box) return;
+        var move = e.Key switch
+        {
+            Key.Left when box.CaretIndex == 0 => -1,
+            Key.Right when box.CaretIndex == box.Text.Length => 1,
+            _ => 0,
+        };
+        if (move == 0) return;
+        // 三个查询框按 XAML 顺序相邻切换
+        TextBox? target = (box == CpBox) ? (move > 0 ? Na1Box : null)
+                        : (box == Na1Box) ? (move > 0 ? TyBox : CpBox)
+                        : (move > 0 ? null : Na1Box);
+        if (target is null) return;
+        target.Focus();
+        target.SelectAll();
+        e.Handled = true;
+    }
+
+    /// <summary>双击行 → 零件属性编辑窗（修改）。</summary>
+    private async void RowsGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (RowsGrid.SelectedItem is null) return;
+        await _vm.EditRowAsync();
+    }
 }
 
 /// <summary>A2 零件代码 / A7 税则号 / AA 分类码（三页签）。</summary>

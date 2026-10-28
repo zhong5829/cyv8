@@ -239,11 +239,15 @@ public sealed class PrnotyRepository(SqlConnectionFactory factory, IDmService dm
     public async Task<PrnotySaveResult> SaveAsync(PrnotySaveCommand c, string cp, string dpmusem, CancellationToken ct = default)
     {
         await using var conn = await factory.OpenAsync(ct);
-        if (await conn.ExecuteScalarAsync<int>(new CommandDefinition(
-                "SELECT CASE WHEN EXISTS (SELECT 1 FROM tbprnoty WITH (NOLOCK) WHERE rtrim(nno)=@nno AND rtrim(cp)=@cp) THEN 1 ELSE 0 END",
-                new { nno = new DbString { Value = c.Nno, IsAnsi = true, Length = 18 }, cp = new DbString { Value = c.Cp, IsAnsi = true, Length = 10 } },
-                cancellationToken: ct)) > 0)
-            throw new QPGL.Domain.Common.AppException("NNO_DUP", $"该零件编码 {c.Nno} 已存在（同厂牌），请重新输入！", 409);
+        // 重码拦截（旧 CMDOK 语义）：添加必查；编辑仅在改码时查新码——未改码时旧行自身不算重码
+        if (c.IsAdd || (!string.IsNullOrEmpty(c.OldNno) && c.OldNno != c.Nno))
+        {
+            if (await conn.ExecuteScalarAsync<int>(new CommandDefinition(
+                    "SELECT CASE WHEN EXISTS (SELECT 1 FROM tbprnoty WITH (NOLOCK) WHERE rtrim(nno)=@nno AND rtrim(cp)=@cp) THEN 1 ELSE 0 END",
+                    new { nno = new DbString { Value = c.Nno, IsAnsi = true, Length = 18 }, cp = new DbString { Value = c.Cp, IsAnsi = true, Length = 10 } },
+                    cancellationToken: ct)) > 0)
+                throw new QPGL.Domain.Common.AppException("NNO_DUP", $"该零件编码 {c.Nno} 已存在（同厂牌），请重新输入！", 409);
+        }
 
         var p = new DynamicParameters();
         p.Add("cp", new DbString { Value = c.Cp, IsAnsi = true, Length = 10 });

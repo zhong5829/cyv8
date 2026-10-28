@@ -10,6 +10,7 @@
                 <TextBox Width="90" Text="{Binding FindWhere}" Margin="12,0,6,0" ToolTip="WHERE 片段（tbxzb 自动追加 cp）"/>
                 <Button Content="查询" Command="{Binding SearchCommand}" Margin="0,0,8,0"/>
                 <Button Content="新增" Command="{Binding NewRowCommand}" Margin="0,0,8,0"/>
+                <Button Content="修改" Command="{Binding EditRowCommand}" Margin="0,0,8,0"/>
                 <Button Content="保存" Command="{Binding SaveCommand}" Margin="0,0,8,0"/>
                 <Button Content="删除" Command="{Binding DeleteCommand}" Margin="0,0,8,0"/>
                 <Button Content="通用码" Command="{Binding AssignCodeCommand}" CommandParameter="xno" Margin="0,0,8,0" ToolTip="按厂牌 max+1 + EditAll 联动"/>
@@ -23,7 +24,32 @@
                 <TextBlock Text="{Binding Message}" VerticalAlignment="Center" Foreground="{StaticResource BrandBrush}"/>
             </StackPanel>
         </Border>
+
+        <!-- 三条件过滤条（内存过滤：编码=Nno 包含；名称=拼音码/名称/编码/车型；车型=Ty/名称；实时+500ms 防抖） -->
+        <Border DockPanel.Dock="Top" Background="White" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1"
+                CornerRadius="3" Padding="10,6" Margin="0,0,0,6">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="编码" VerticalAlignment="Center"/>
+                <TextBox x:Name="CpBox" Width="150" Margin="4,0,16,0"
+                         Text="{Binding FilterNno, UpdateSourceTrigger=PropertyChanged}" TextChanged="FilterBox_TextChanged"
+                         GotKeyboardFocus="FilterBox_GotKeyboardFocus" PreviewMouseLeftButtonDown="FilterBox_PreviewMouseLeftButtonDown"
+                         PreviewKeyDown="FilterBox_PreviewKeyDown" ToolTip="查零件编码（包含匹配）"/>
+                <TextBlock Text="名称" VerticalAlignment="Center"/>
+                <TextBox x:Name="Na1Box" Width="200" Margin="4,0,16,0"
+                         Text="{Binding FilterNa1, UpdateSourceTrigger=PropertyChanged}" TextChanged="FilterBox_TextChanged"
+                         GotKeyboardFocus="FilterBox_GotKeyboardFocus" PreviewMouseLeftButtonDown="FilterBox_PreviewMouseLeftButtonDown"
+                         PreviewKeyDown="FilterBox_PreviewKeyDown" ToolTip="支持拼音码/名称/编码/车型"/>
+                <TextBlock Text="车型" VerticalAlignment="Center"/>
+                <TextBox x:Name="TyBox" Width="180" Margin="4,0,16,0"
+                         Text="{Binding FilterTy, UpdateSourceTrigger=PropertyChanged}" TextChanged="FilterBox_TextChanged"
+                         GotKeyboardFocus="FilterBox_GotKeyboardFocus" PreviewMouseLeftButtonDown="FilterBox_PreviewMouseLeftButtonDown"
+                         PreviewKeyDown="FilterBox_PreviewKeyDown"/>
+                <TextBlock Text="输入即滤（0.5 秒），←/→ 在文本边界切换查询框" Foreground="#888" VerticalAlignment="Center"/>
+            </StackPanel>
+        </Border>
         <DataGrid ItemsSource="{Binding Rows}" SelectedItem="{Binding Selected}" AutoGenerateColumns="False" CanUserAddRows="False"
+                  x:Name="RowsGrid" MouseDoubleClick="RowsGrid_MouseDoubleClick"
+                  EnableRowVirtualization="True" VirtualizingPanel.VirtualizationMode="Recycling"
                   GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="厂牌" Binding="{Binding Cp}" Width="60"/>
