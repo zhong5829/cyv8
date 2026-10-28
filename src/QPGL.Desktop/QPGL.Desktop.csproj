@@ -28,13 +28,18 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-    <AssemblyName>长远测试预览版</AssemblyName>
-    <Version>0.0.3</Version>
-    <AssemblyVersion>0.0.3.0</AssemblyVersion>
-    <FileVersion>0.0.3.0</FileVersion>
-    <InformationalVersion>0.0.3 测试预览版</InformationalVersion>
-    <Product>长远测试预览版</Product>
-    <ApplicationIcon>..\..\Ico\LOGO.ICO</ApplicationIcon>
+    <AssemblyName>QP12</AssemblyName>
+    <Version>0.0.4</Version>
+    <AssemblyVersion>0.0.4.0</AssemblyVersion>
+    <FileVersion>0.0.4.0</FileVersion>
+    <InformationalVersion>0.0.4</InformationalVersion>
+    <Product>QP12</Product>
+    <ApplicationIcon>..\..\Ico\QP12.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <!-- 窗口标题栏/任务栏图标（MainWindow/LoginWindow pack URI 引用） -->
+  <ItemGroup>
+    <Resource Include="..\..\Ico\QP12.ico" Link="QP12.ico"/>
+  </ItemGroup>
 
 </Project>
