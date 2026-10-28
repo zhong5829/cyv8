@@ -36,7 +36,8 @@ public static class UpdateService
     private static Config LoadConfig()
     {
         var repo = "zhong5829/cyv8";
-        var proxy = "https://ghproxy.net";
+        // gh-proxy.com 实测可用且支持 api.github.com 前缀代理；ghproxy.net 已失效（SSL 断连）
+        var proxy = "https://gh-proxy.com";
         var autoCheck = true;
         try
         {
@@ -103,15 +104,19 @@ public static class UpdateService
             var version = ParseVersion(tag);
             if (version == null || version <= CurrentVersion) return null;
 
+            UpdateInfo? found = null;
             foreach (var asset in root.GetProperty("assets").EnumerateArray())
             {
                 var name = asset.GetProperty("name").GetString() ?? "";
                 if (!name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) continue;
-                if (!name.Contains("安装包") && !name.Contains("setup", StringComparison.OrdinalIgnoreCase)) continue;
                 var url = asset.GetProperty("browser_download_url").GetString();
                 if (string.IsNullOrEmpty(url)) continue;
-                return new UpdateInfo(tag, version, name, url);
+                // 优先取安装包命名（长远…_x.y.z_安装包.exe / *setup*.exe），否则任取首个 exe
+                if (name.Contains("安装包") || name.Contains("setup", StringComparison.OrdinalIgnoreCase))
+                    return new UpdateInfo(tag, version, name, url);
+                found ??= new UpdateInfo(tag, version, name, url);
             }
+            if (found != null) return found;
             LastError = "最新 Release 中未找到安装包资产";
             return null;
         }
@@ -167,12 +172,12 @@ public static class UpdateService
         Process.Start(new ProcessStartInfo(setupPath, "/SILENT") { UseShellExecute = true });
     }
 
-    /// <summary>直连优先，失败可走代理前缀（ghproxy 类：前缀/原始URL）。</summary>
+    /// <summary>国内环境代理前缀优先（直连 api.github.com 被 SSL 阻断），代理失败再试直连兜底。</summary>
     private static IEnumerable<string> WithProxy(string url)
     {
-        yield return url;
         var p = Options.ProxyPrefix?.TrimEnd('/');
         if (!string.IsNullOrEmpty(p)) yield return $"{p}/{url}";
+        yield return url;
     }
 
     /// <summary>解析 tag 为版本号（容忍 v 前缀与多余段）。</summary>
