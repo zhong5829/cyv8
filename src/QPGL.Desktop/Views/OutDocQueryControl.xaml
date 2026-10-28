@@ -1,0 +1,153 @@
+<UserControl x:Class="QPGL.Desktop.Views.OutDocQueryControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:QPGL.Desktop.ViewModels">
+    <!-- 布局参照 qp11 SellControl 查询模式：条件条 / 上=单据列表（无限加载）/ 下=单头+明细 -->
+    <Grid Margin="8">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="3*"/>
+            <RowDefinition Height="2*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Row0: 查询条件条 -->
+        <Border Grid.Row="0" Background="#F4F6F9" CornerRadius="4" Padding="8,6" Margin="0,0,0,6">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="类型" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                <ComboBox Width="80" ItemsSource="{x:Static vm:OutDocQueryViewModel.DocTypes}"
+                          SelectedItem="{Binding DocType}" VerticalAlignment="Center"/>
+                <TextBlock Text="日期" VerticalAlignment="Center" Margin="12,0,4,0"/>
+                <DatePicker Width="110" SelectedDate="{Binding DateFrom}" VerticalAlignment="Center"/>
+                <TextBlock Text="至" VerticalAlignment="Center" Margin="4,0"/>
+                <DatePicker Width="110" SelectedDate="{Binding DateTo}" VerticalAlignment="Center"/>
+                <TextBlock Text="单号" VerticalAlignment="Center" Margin="12,0,4,0"/>
+                <TextBox Width="100" Text="{Binding PaperFilter, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"/>
+                <TextBlock Text="客户" VerticalAlignment="Center" Margin="12,0,4,0"/>
+                <!-- 客户输入：可编辑联想下拉（与开单模式 GnameBox 同样式：拼音码/编号/名称前缀匹配） -->
+                <Grid Margin="0,0,0,0">
+                    <TextBox x:Name="GnameBox" Width="130" Text="{Binding GnameFilter, UpdateSourceTrigger=PropertyChanged}"
+                             VerticalAlignment="Center" TextChanged="GnameBox_TextChanged" PreviewKeyDown="GnameBox_PreviewKeyDown"/>
+                    <Popup x:Name="CustPopup" PlacementTarget="{Binding ElementName=GnameBox}" Placement="Bottom"
+                           StaysOpen="False" AllowsTransparency="True" MinWidth="320">
+                        <Border Background="White" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1"
+                                CornerRadius="3" Margin="0,2,8,8" SnapsToDevicePixels="True">
+                            <ListBox x:Name="CustList" ItemsSource="{Binding CustomerSuggestions}"
+                                     MaxHeight="500" BorderThickness="0"
+                                     MouseLeftButtonUp="CustList_MouseLeftButtonUp">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal" Margin="2">
+                                            <TextBlock Text="{Binding PartNo}" Width="70" Foreground="#666"/>
+                                            <TextBlock Text="{Binding PartName}" Width="170"/>
+                                            <TextBlock Text="{Binding LinkMan}" Width="70" Foreground="#888"/>
+                                            <TextBlock Text="{Binding Mobile}" Foreground="#888"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </Border>
+                    </Popup>
+                </Grid>
+                <TextBlock Text="操作员" VerticalAlignment="Center" Margin="12,0,4,0"/>
+                <ComboBox Width="80" ItemsSource="{Binding Operators}" Text="{Binding PerFilter}"
+                          IsEditable="True" VerticalAlignment="Center"/>
+                <Button Content="查询" Command="{Binding SearchCommand}"
+                        Margin="16,0,0,0" Padding="20,4" FontWeight="Bold"/>
+                <TextBlock Text="{Binding Message}" Foreground="#C0392B" VerticalAlignment="Center" Margin="12,0,0,0"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Row1: 单据列表（滚动到底自动加载下一页） -->
+        <Border Grid.Row="1" Background="White" BorderBrush="#DDD" BorderThickness="1" CornerRadius="3" Margin="0,0,0,6">
+            <DataGrid x:Name="DgBills" ItemsSource="{Binding Bills}" SelectedItem="{Binding SelectedBill}"
+                      AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single"
+                      CanUserSortColumns="False" GridLinesVisibility="Horizontal"
+                      HeadersVisibility="Column" FontSize="12" Margin="1"
+                      VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="单号" Binding="{Binding Paper}" Width="90"/>
+                    <DataGridTextColumn Header="类型" Binding="{Binding Type}" Width="50"/>
+                    <DataGridTextColumn Header="出库日期" Binding="{Binding Outdate, StringFormat=yyyy-MM-dd}" Width="85"/>
+                    <DataGridTextColumn Header="客户" Binding="{Binding Gname}" Width="150"/>
+                    <DataGridTextColumn Header="行数" Binding="{Binding LineCount}" Width="45"/>
+                    <DataGridTextColumn Header="数量" Binding="{Binding TotalQty}" Width="60"/>
+                    <DataGridTextColumn Header="实收总额" Binding="{Binding TotalOprct, StringFormat=N2}" Width="85"/>
+                    <DataGridTextColumn Header="付款方式" Binding="{Binding Guno}" Width="70"/>
+                    <DataGridTextColumn Header="已收" Binding="{Binding Mark}" Width="45"/>
+                    <DataGridTextColumn Header="状态" Binding="{Binding Sk}" Width="60"/>
+                    <DataGridTextColumn Header="确认日期" Binding="{Binding Qrdate, StringFormat=yyyy-MM-dd}" Width="85"/>
+                    <DataGridTextColumn Header="操作员" Binding="{Binding Per}" Width="70"/>
+                    <DataGridTextColumn Header="备注" Binding="{Binding Remark}" Width="*"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
+
+        <!-- Row2: 单头只读栏 + 明细（选中单据联动） -->
+        <Grid Grid.Row="2">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <Border Grid.Row="0" Background="#FFF0F0F0" CornerRadius="3" Padding="8,4" Margin="0,0,0,4">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="单号:" VerticalAlignment="Center"/>
+                    <TextBox Width="110" IsReadOnly="True" Background="LightGray" Margin="4,0,12,0"
+                             Text="{Binding SelectedSummary.Paper, Mode=OneWay}"/>
+                    <TextBlock Text="日期:" VerticalAlignment="Center"/>
+                    <TextBox Width="90" IsReadOnly="True" Background="LightGray" Margin="4,0,12,0"
+                             Text="{Binding SelectedSummary.Outdate, Mode=OneWay, StringFormat=yyyy-MM-dd}"/>
+                    <TextBlock Text="客户:" VerticalAlignment="Center"/>
+                    <TextBox Width="150" IsReadOnly="True" Background="LightGray" Margin="4,0,12,0"
+                             Text="{Binding SelectedSummary.Gname, Mode=OneWay}"/>
+                    <TextBlock Text="操作员:" VerticalAlignment="Center"/>
+                    <TextBox Width="80" IsReadOnly="True" Background="LightGray" Margin="4,0,12,0"
+                             Text="{Binding SelectedSummary.Per, Mode=OneWay}"/>
+                    <TextBlock Text="付款方式:" VerticalAlignment="Center"/>
+                    <TextBox Width="70" IsReadOnly="True" Background="LightGray" Margin="4,0,12,0"
+                             Text="{Binding SelectedSummary.Guno, Mode=OneWay}"/>
+                    <TextBlock Text="已收:" VerticalAlignment="Center"/>
+                    <TextBox Width="45" IsReadOnly="True" Background="LightGray" Margin="4,0,12,0"
+                             Text="{Binding SelectedSummary.Mark, Mode=OneWay}"/>
+                    <TextBlock Text="合计:" VerticalAlignment="Center" FontWeight="Bold"/>
+                    <TextBlock Text="{Binding SelectedSummary.TotalDiscounted, Mode=OneWay, StringFormat=N2}"
+                               FontWeight="Bold" Foreground="#2E5C8A" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Row="1" Background="White" BorderBrush="#DDD" BorderThickness="1" CornerRadius="3">
+                <DataGrid ItemsSource="{Binding Lines}" AutoGenerateColumns="False" IsReadOnly="True"
+                          VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                          GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12" Margin="1">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="配件编码" Binding="{Binding Cp}" Width="80"/>
+                        <DataGridTextColumn Header="零件号" Binding="{Binding Nno}" Width="110"/>
+                        <DataGridTextColumn Header="名称" Binding="{Binding Na1}" Width="150"/>
+                        <DataGridTextColumn Header="车型" Binding="{Binding Ty}" Width="90"/>
+                        <DataGridTextColumn Header="数量" Binding="{Binding Ckamount}" Width="60"/>
+                        <DataGridTextColumn Header="单价" Binding="{Binding Oprc, StringFormat=N2}" Width="70"/>
+                        <DataGridTextColumn Header="实收价" Binding="{Binding Oprct, StringFormat=N2}" Width="70"/>
+                        <DataGridTextColumn Header="实收总额" Binding="{Binding OprctTotal, StringFormat=N2}" Width="80"/>
+                        <DataGridTextColumn Header="折后单价" Binding="{Binding Yhloprct, StringFormat=N2}" Width="80"/>
+                        <DataGridTextColumn Header="折后金额" Binding="{Binding YhloprctTotal, StringFormat=N2}" Width="85"/>
+                        <DataGridTextColumn Header="货位" Binding="{Binding Posi}" Width="60"/>
+                        <DataGridTextColumn Header="单位" Binding="{Binding Unit}" Width="45"/>
+                        <DataGridTextColumn Header="备注" Binding="{Binding Remark}" Width="*"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Border>
+
+            <DockPanel Grid.Row="2" Margin="0,4,0,0">
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                    <Button Content="修改" Click="EditBill_Click" Padding="14,3" Margin="0,0,8,0"
+                            ToolTip="携带选中单据全部数据切换到开单模式（修改后保存生成新单）"/>
+                    <Button Content="作废" Command="{Binding VoidCommand}" Padding="14,3" Margin="0,0,8,0"/>
+                    <Button Content="重打印" Command="{Binding PrintCommand}" Padding="14,3" Margin="0,0,8,0"/>
+                </StackPanel>
+                <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center"
+                           Text="{Binding SumAmount, StringFormat=已加载折后合计：{0:N2}（共 {1} 行）}" FontWeight="Bold" Foreground="#2E5C8A"/>
+            </DockPanel>
+        </Grid>
+    </Grid>
+</UserControl>

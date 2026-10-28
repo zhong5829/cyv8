@@ -1,0 +1,68 @@
+<UserControl x:Class="QPGL.Desktop.Views.StocktakeControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Loaded="UserControl_Loaded">
+    <DockPanel Margin="8">
+        <!-- 生成盘点单条件条 -->
+        <Border DockPanel.Dock="Top" Background="White" BorderBrush="{StaticResource PanelBorderBrush}"
+                BorderThickness="1" CornerRadius="3" Padding="10,8" Margin="0,0,0,6">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="配件编号" VerticalAlignment="Center"/>
+                <TextBox Width="130" Text="{Binding NnoPrefix, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center" Margin="4,0,12,0"/>
+                <TextBlock Text="名称" VerticalAlignment="Center"/>
+                <TextBox Width="160" Text="{Binding Na1Contains, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center" Margin="4,0,12,0"/>
+                <TextBlock Text="仓库" VerticalAlignment="Center"/>
+                <TextBox Width="80" Text="{Binding Depotno, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center" Margin="4,0,12,0"/>
+                <Button Content="生成盘点单" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding GeneratePaperCommand}" Margin="0,0,16,0"/>
+                <TextBlock Text="未确认盘点单" VerticalAlignment="Center"/>
+                <ComboBox Width="160" ItemsSource="{Binding OpenPapers}" SelectedItem="{Binding SelectedPaper}"
+                          DisplayMemberPath="Pdpaper" VerticalAlignment="Center" Margin="4,0,12,0"
+                          SelectionChanged="Paper_SelectionChanged"/>
+                <Button Content="刷新列表" Command="{Binding LoadLinesCommand}" VerticalAlignment="Center"/>
+            </StackPanel>
+        </Border>
+
+        <!-- 工具条 -->
+        <Border DockPanel.Dock="Top" Padding="0,4" Margin="0,0,0,6">
+            <StackPanel Orientation="Horizontal">
+                <Button Content="保存实盘" Command="{Binding SaveCountsCommand}" Padding="14,3" Margin="0,0,8,0"/>
+                <Button Content="调整仓位" Command="{Binding AdjustPosiCommand}" Padding="14,3" Margin="0,0,8,0"/>
+                <Button Content="生成入库草稿" Command="{Binding GenInStockDraftCommand}" Padding="14,3" Margin="0,0,8,0"/>
+                <Button Content="确认盘点单" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding ConfirmCommand}" Margin="0,0,12,0"/>
+                <TextBlock Text="账面数=生成时库存快照；实盘可编辑；盈亏=实盘-账面（负=盘亏）" Foreground="#888" VerticalAlignment="Center"/>
+            </StackPanel>
+        </Border>
+
+        <!-- 明细 -->
+        <Border DockPanel.Dock="Top" Background="White" BorderBrush="{StaticResource PanelBorderBrush}"
+                BorderThickness="1" CornerRadius="3" Padding="8,4" Margin="0,0,0,6">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="当前盘点单：" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding CurrentPaper}" FontWeight="Bold" Foreground="{StaticResource BrandBrush}" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding Message}" Foreground="#C0392B" VerticalAlignment="Center" Margin="20,0,0,0"/>
+            </StackPanel>
+        </Border>
+
+        <DataGrid ItemsSource="{Binding Lines}" SelectedItem="{Binding SelectedLine}"
+                  AutoGenerateColumns="False" CanUserAddRows="False" GridLinesVisibility="Horizontal"
+                  HeadersVisibility="Column" FontSize="12">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="配件编号" Binding="{Binding Nno}" IsReadOnly="True" Width="120"/>
+                <DataGridTextColumn Header="名称" Binding="{Binding Na1}" IsReadOnly="True" Width="*"/>
+                <DataGridTextColumn Header="车型" Binding="{Binding Ty}" IsReadOnly="True" Width="90"/>
+                <DataGridTextColumn Header="厂牌" Binding="{Binding Cp}" IsReadOnly="True" Width="70"/>
+                <DataGridTextColumn Header="单位" Binding="{Binding Unit}" IsReadOnly="True" Width="45"/>
+                <DataGridTextColumn Header="仓库" Binding="{Binding Depotno}" IsReadOnly="True" Width="70"/>
+                <DataGridTextColumn Header="账面仓位" Binding="{Binding Posi}" IsReadOnly="True" Width="70"/>
+                <DataGridTextColumn Header="账面数" Binding="{Binding Kcamount, Mode=OneWay}" IsReadOnly="True" Width="70"
+                                    ElementStyle="{StaticResource NumCellRight}"/>
+                <DataGridTextColumn Header="实盘数" Binding="{Binding Npd, UpdateSourceTrigger=PropertyChanged}" Width="70"
+                                    ElementStyle="{StaticResource NumCellRight}"/>
+                <DataGridTextColumn Header="盈亏" Binding="{Binding Nyk, Mode=OneWay}" IsReadOnly="True" Width="70"
+                                    ElementStyle="{StaticResource NumCellRight}"/>
+                <DataGridTextColumn Header="实盘仓位" Binding="{Binding Pdposi, UpdateSourceTrigger=PropertyChanged}" Width="70"/>
+                <DataGridTextColumn Header="备注" Binding="{Binding Note}" IsReadOnly="True" Width="120"/>
+            </DataGrid.Columns>
+        </DataGrid>
+    </DockPanel>
+</UserControl>

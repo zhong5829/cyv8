@@ -1,0 +1,91 @@
+<UserControl x:Class="QPGL.Desktop.Views.FinOpVouchControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Loaded="UserControl_Loaded">
+    <DockPanel Margin="8">
+        <!-- 生成条件（fr_finoperation 选择条件窗） -->
+        <Border DockPanel.Dock="Top" Background="White" BorderBrush="{StaticResource PanelBorderBrush}"
+                BorderThickness="1" CornerRadius="3" Padding="10,8" Margin="0,0,0,6">
+            <StackPanel>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="凭证类型" VerticalAlignment="Center"/>
+                    <RadioButton Content="零售出库(SRO)" IsChecked="True" GroupName="Opty" Tag="SRO"
+                                 Checked="Opty_Checked" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                    <RadioButton Content="调拨出库(SMO)" GroupName="Opty" Tag="SMO"
+                                 Checked="Opty_Checked" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                    <RadioButton Content="散件入库(BBI)" GroupName="Opty" Tag="BBI"
+                                 Checked="Opty_Checked" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                    <RadioButton Content="汽贸入库(CBI)/汽贸销售(CRO)/维修(SEV)/调拨入库(BMI)（备案延后）" IsEnabled="False"
+                                 GroupName="Opty" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                    <TextBlock Text="起始日期" VerticalAlignment="Center"/>
+                    <DatePicker Width="105" SelectedDate="{Binding BeginDate}" VerticalAlignment="Center" Margin="4,0,12,0"/>
+                    <TextBlock Text="截止日期" VerticalAlignment="Center"/>
+                    <DatePicker Width="105" SelectedDate="{Binding EndDate}" VerticalAlignment="Center" Margin="4,0,12,0"/>
+                    <TextBlock Text="起始单号" VerticalAlignment="Center"/>
+                    <TextBox Width="90" Text="{Binding BeginPaper}" VerticalAlignment="Center" Margin="4,0,12,0"/>
+                    <TextBlock Text="截止单号" VerticalAlignment="Center"/>
+                    <TextBox Width="90" Text="{Binding EndPaper}" VerticalAlignment="Center" Margin="4,0,12,0"/>
+                    <TextBlock Text="结算方式" VerticalAlignment="Center"/>
+                    <ComboBox Width="130" SelectedValue="{Binding PayOption}" SelectedValuePath="Value"
+                              DisplayMemberPath="Label" ItemsSource="{Binding PayOptions}" VerticalAlignment="Center" Margin="4,0,12,0"/>
+                    <Button Content="生成" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding GenerateCommand}"
+                            ToolTip="按条件拉取业务单据并生成凭证预览（游标不落库，ADDSUB 建科目除外）"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                    <TextBlock Text="现金科目" VerticalAlignment="Center"/>
+                    <TextBox Width="80" Text="{Binding CashSub}" VerticalAlignment="Center" Margin="4,0,12,0"/>
+                    <TextBlock Text="银行科目" VerticalAlignment="Center"/>
+                    <TextBox Width="80" Text="{Binding BalaSub}" VerticalAlignment="Center" Margin="4,0,12,0"/>
+                    <Button Content="审核" Command="{Binding AuditCommand}"
+                            ToolTip="finvid 取新号 → INSERT finvouch(audit=1) → 回写业务单据 audit"/>
+                    <Button Content="全部审核" Command="{Binding AllAuditCommand}" Margin="8,0,0,0"
+                            ToolTip="按当前列表中未审核的凭证批量执行审核"/>
+                    <Button Content="反审核" Command="{Binding UnauditCommand}" Margin="8,0,0,0"
+                            ToolTip="DELETE finvouch WHERE vouchid + 业务单据 audit 回 0"/>
+                    <Button Content="明细" Command="{Binding ShowDetailCommand}" Margin="8,0,0,0"
+                            ToolTip="查看业务单据分录明细（fr_finopdet；BBI=入库明细/SRO/SMO=销售明细）"/>
+                    <Button Content="读凭证" Command="{Binding ReadVouchCommand}" Margin="8,0,0,0"
+                            ToolTip="按凭证号读取会计分录（fr_finrevouch，F5）"/>
+                    <Button Content="单张过帐" Command="{Binding PostVouchCommand}" Margin="8,0,0,0"
+                            ToolTip="单张过帐（本期+已审核+未过帐；getfinpost_mx 等价路径）"/>
+                    <Button Content="单张反过帐" Command="{Binding UnpostVouchCommand}" Margin="8,0,0,0"
+                            ToolTip="单张反过帐（对称回退）"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <DataGrid ItemsSource="{Binding Rows}" AutoGenerateColumns="False" CanUserAddRows="False"
+                  GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12" IsReadOnly="True"
+                  SelectedItem="{Binding SelectedRow}" LoadingRow="Grid_LoadingRow">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="类型" Binding="{Binding Opertype}" Width="50"/>
+                <DataGridTextColumn Header="业务单号" Binding="{Binding Opercode}" Width="100"/>
+                <DataGridTextColumn Header="凭证号" Binding="{Binding Vouchid}" Width="60"/>
+                <DataGridTextColumn Header="编号" Binding="{Binding Vcode}" Width="50"/>
+                <DataGridTextColumn Header="日期" Binding="{Binding Date, StringFormat=yyyy-MM-dd}" Width="85"/>
+                <DataGridTextColumn Header="录" Binding="{Binding Recoid}" Width="35"/>
+                <DataGridTextColumn Header="摘要" Binding="{Binding Note}" Width="*"/>
+                <DataGridTextColumn Header="科目" Binding="{Binding Subcode}" Width="100"/>
+                <DataGridTextColumn Header="科目名" Binding="{Binding Subname}" Width="160"/>
+                <DataGridTextColumn Header="借方" Binding="{Binding Debit, StringFormat=N2}" Width="90" ElementStyle="{StaticResource NumCellRight}"/>
+                <DataGridTextColumn Header="贷方" Binding="{Binding Credit, StringFormat=N2}" Width="90" ElementStyle="{StaticResource NumCellRight}"/>
+                <DataGridTextColumn Header="字" Binding="{Binding Vouword}" Width="40"/>
+                <DataGridTextColumn Header="客户/供应商" Binding="{Binding Client}" Width="140"/>
+                <DataGridTextColumn Header="审核" Binding="{Binding Audit}" Width="45"/>
+                <DataGridTextColumn Header="过帐" Binding="{Binding Post}" Width="45"/>
+                <DataGridTextColumn Header="制单" Binding="{Binding Maker}" Width="60"/>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <Border DockPanel.Dock="Bottom" Background="White" BorderBrush="{StaticResource PanelBorderBrush}"
+                BorderThickness="1" CornerRadius="3" Padding="10,4" Margin="0,6,0,0">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="{Binding Message}" Foreground="{StaticResource BrandBrush}" VerticalAlignment="Center"/>
+                <TextBlock Text="    备案：CBI/CRO/SEV/BMI 生成变体、finopvou=1 手工凭证模式拦截提示随后续批次"
+                           Foreground="#888" VerticalAlignment="Center" FontSize="11"/>
+            </StackPanel>
+        </Border>
+    </DockPanel>
+</UserControl>

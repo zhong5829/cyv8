@@ -1,0 +1,84 @@
+<UserControl x:Class="QPGL.Desktop.Views.OrsaControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <DockPanel Margin="8">
+        <!-- 查询条件条 -->
+        <Border DockPanel.Dock="Top" Background="#F4F6F9" CornerRadius="4" Padding="8,6" Margin="0,0,0,6">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="其他公司报价" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,16,0"/>
+                <TextBlock Text="零件编码" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                <TextBox Width="120" Text="{Binding NnoFilter, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"/>
+                <TextBlock Text="单位名称" VerticalAlignment="Center" Margin="12,0,4,0"/>
+                <TextBox Width="160" Text="{Binding GnameFilter, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"/>
+                <Button Content="查询" Command="{Binding SearchCommand}"
+                        Margin="16,0,0,0" Padding="20,4" FontWeight="Bold"/>
+            </StackPanel>
+        </Border>
+
+        <!-- 工具条 -->
+        <Border DockPanel.Dock="Top" Padding="0,4" Margin="0,0,0,4">
+            <StackPanel Orientation="Horizontal">
+                <Button Content="新增" Command="{Binding AddCommand}" Padding="14,3" Margin="0,0,8,0"/>
+                <Button Content="修改" Command="{Binding EditCommand}" Padding="14,3" Margin="0,0,8,0"/>
+                <Button Content="删除" Command="{Binding DeleteCommand}" Padding="14,3" Margin="0,0,8,0"/>
+                <Button Content="按供应商整删" Command="{Binding DeleteByGnameCommand}" Padding="14,3" Margin="0,0,8,0"/>
+                <TextBlock Text="{Binding Message}" Foreground="#C0392B" VerticalAlignment="Center" Margin="12,0,0,0"/>
+            </StackPanel>
+        </Border>
+
+        <!-- 明细面板（row29：选中行带出本公司库存 + 同件全部报价） -->
+        <Border DockPanel.Dock="Bottom" Background="White" BorderBrush="{StaticResource PanelBorderBrush}"
+                BorderThickness="1" CornerRadius="3" Height="180" Margin="0,6,0,0">
+            <DockPanel Margin="4">
+                <TextBlock DockPanel.Dock="Top" Text="明细：本公司库存 + 同件其他公司报价" FontWeight="Bold" Margin="4,4,0,2"/>
+                <DataGrid ItemsSource="{Binding DetailRows}" AutoGenerateColumns="False" IsReadOnly="True"
+                          CanUserSortColumns="False" GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="来源" Binding="{Binding IsLocalStock, Mode=OneWay}" Width="90"/>
+                        <DataGridTextColumn Header="单位" Binding="{Binding Gname}" Width="160"/>
+                        <DataGridTextColumn Header="零件号" Binding="{Binding Nno}" Width="110"/>
+                        <DataGridTextColumn Header="名称" Binding="{Binding Na1}" Width="*"/>
+                        <DataGridTextColumn Header="数量" Binding="{Binding Qtamount}" Width="60"
+                                            ElementStyle="{StaticResource NumCellRight}"/>
+                        <DataGridTextColumn Header="单价" Binding="{Binding Oprc, StringFormat=N2}" Width="80"
+                                            ElementStyle="{StaticResource NumCellRight}"/>
+                        <DataGridTextColumn Header="报价日期" Binding="{Binding Updadate, StringFormat=yyyy-MM-dd}" Width="90"/>
+                    </DataGrid.Columns>
+                    <DataGrid.RowStyle>
+                        <Style TargetType="DataGridRow">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsLocalStock}" Value="True">
+                                    <Setter Property="Background" Value="#EAF3EA"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </DataGrid.RowStyle>
+                </DataGrid>
+            </DockPanel>
+        </Border>
+
+        <!-- 报价列表（tbqtgs；fr_orsa GRDCX 9 列） -->
+        <DataGrid ItemsSource="{Binding Rows}" SelectedItem="{Binding SelectedRow}"
+                  SelectionChanged="RowsGrid_SelectionChanged"
+                  AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single"
+                  CanUserSortColumns="False" GridLinesVisibility="Horizontal"
+                  HeadersVisibility="Column" FontSize="12" Margin="0,0,0,0">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="单位编号" Binding="{Binding Gno}" Width="80"/>
+                <DataGridTextColumn Header="单位名称" Binding="{Binding Gname}" Width="160"/>
+                <DataGridTextColumn Header="配件编码" Binding="{Binding Cp}" Width="80"/>
+                <DataGridTextColumn Header="零件号" Binding="{Binding Nno}" Width="110"/>
+                <DataGridTextColumn Header="名称" Binding="{Binding Na1}" Width="*"/>
+                <DataGridTextColumn Header="车型/图号" Binding="{Binding Ty}" Width="90"/>
+                <DataGridTextColumn Header="报价数量" Binding="{Binding Qtamount}" Width="70"
+                                    ElementStyle="{StaticResource NumCellRight}"/>
+                <DataGridTextColumn Header="报价单价" Binding="{Binding Oprc, StringFormat=N2}" Width="80"
+                                    ElementStyle="{StaticResource NumCellRight}"/>
+                <DataGridTextColumn Header="报价日期" Binding="{Binding Updadate, StringFormat=yyyy-MM-dd}" Width="90"/>
+            </DataGrid.Columns>
+            <DataGrid.InputBindings>
+                <KeyBinding Key="Return" Command="{Binding EditCommand}"/>
+            </DataGrid.InputBindings>
+        </DataGrid>
+    </DockPanel>
+</UserControl>

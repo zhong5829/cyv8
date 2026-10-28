@@ -1,0 +1,54 @@
+<UserControl x:Class="QPGL.Desktop.Views.FinInitControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Loaded="UserControl_Loaded">
+    <DockPanel Margin="8">
+        <Border DockPanel.Dock="Top" Background="White" BorderBrush="{StaticResource PanelBorderBrush}"
+                BorderThickness="1" CornerRadius="3" Padding="10,8" Margin="0,0,0,6">
+            <StackPanel Orientation="Horizontal">
+                <Button Content="重新载入（重算末级）" Command="{Binding LoadCommand}"/>
+                <Button Content="汇总" Command="{Binding SumCommand}" Margin="8,0,0,0"/>
+                <Button Content="置零" Command="{Binding ZeroCommand}" Margin="8,0,0,0"/>
+                <Button Content="保存选中行" Command="{Binding SaveRowCommand}" Margin="8,0,0,0"/>
+                <TextBlock Text="{Binding Message}" VerticalAlignment="Center" Margin="16,0,0,0">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Foreground" Value="Black"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Balanced}" Value="False">
+                                    <Setter Property="Foreground" Value="Red"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
+        </Border>
+        <DataGrid ItemsSource="{Binding Rows}" SelectedItem="{Binding SelectedRow}"
+                  AutoGenerateColumns="False" CanUserAddRows="False" GridLinesVisibility="Horizontal" HeadersVisibility="Column"
+                  RowBackground="White" AlternatingRowBackground="#F2F1E3">
+            <DataGrid.RowStyle>
+                <Style TargetType="DataGridRow">
+                    <Setter Property="IsEnabled" Value="True"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding Detacode}" Value="False">
+                            <Setter Property="Background" Value="#F2F1E3"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </DataGrid.RowStyle>
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="科目代码" Binding="{Binding Subcode}" IsReadOnly="True" Width="110"/>
+                <DataGridTextColumn Header="科目名称" Binding="{Binding Subname}" IsReadOnly="True" Width="*"/>
+                <DataGridTextColumn Header="年初借" Binding="{Binding Ybdesum, StringFormat=N2, Mode=TwoWay}" IsReadOnly="True" Width="90"/>
+                <DataGridTextColumn Header="年初贷" Binding="{Binding Ybcresum, StringFormat=N2, Mode=TwoWay}" IsReadOnly="True" Width="90"/>
+                <DataGridTextColumn Header="期初借" Binding="{Binding Bdesum, StringFormat=N2}" Width="90"/>
+                <DataGridTextColumn Header="期初贷" Binding="{Binding Bcresum, StringFormat=N2}" Width="90"/>
+                <DataGridTextColumn Header="本年借" Binding="{Binding Ydesum, StringFormat=N2}" Width="90"/>
+                <DataGridTextColumn Header="本年贷" Binding="{Binding Ycresum, StringFormat=N2}" Width="90"/>
+                <DataGridTextColumn Header="期末借" Binding="{Binding Edesum, StringFormat=N2}" IsReadOnly="True" Width="90"/>
+                <DataGridTextColumn Header="期末贷" Binding="{Binding Ecresum, StringFormat=N2}" IsReadOnly="True" Width="90"/>
+            </DataGrid.Columns>
+        </DataGrid>
+    </DockPanel>
+</UserControl>

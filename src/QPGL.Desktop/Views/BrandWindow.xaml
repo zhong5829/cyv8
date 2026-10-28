@@ -1,0 +1,15 @@
+<Window x:Class="QPGL.Desktop.Views.BrandWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="选择厂牌" Width="360" SizeToContent="Height"
+        WindowStartupLocation="CenterScreen" ResizeMode="NoResize">
+    <StackPanel Margin="16">
+        <TextBlock Text="帐套厂牌（必选，对应旧系统 fr_cp）" Margin="0,0,0,8"/>
+        <ListBox x:Name="BrandList" Height="180" DisplayMemberPath="DisplayName"/>
+        <CheckBox x:Name="RememberCheck" Content="记住选择" Margin="0,8,0,0" HorizontalAlignment="Left"/>
+        <WrapPanel Margin="0,12,0,0" HorizontalAlignment="Right">
+            <Button Content="确定" Padding="20,4" Margin="0,0,8,0" IsDefault="True" Click="OnConfirm"/>
+            <Button Content="退出系统" Padding="20,4" IsCancel="True" Click="OnQuit"/>
+        </WrapPanel>
+    </StackPanel>
+</Window>

@@ -1,0 +1,52 @@
+<UserControl x:Class="QPGL.Desktop.Views.PrnotyControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Loaded="UserControl_Loaded">
+    <DockPanel Margin="8">
+        <Border DockPanel.Dock="Top" Background="White" BorderBrush="{StaticResource PanelBorderBrush}"
+                BorderThickness="1" CornerRadius="3" Padding="10,6" Margin="0,0,0,6">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="零件属性定义（A1 · tbprnoty）" FontWeight="Bold" VerticalAlignment="Center"/>
+                <TextBox Width="90" Text="{Binding FindWhere}" Margin="12,0,6,0" ToolTip="WHERE 片段（tbxzb 自动追加 cp）"/>
+                <Button Content="查询" Command="{Binding SearchCommand}" Margin="0,0,8,0"/>
+                <Button Content="新增" Command="{Binding NewRowCommand}" Margin="0,0,8,0"/>
+                <Button Content="保存" Command="{Binding SaveCommand}" Margin="0,0,8,0"/>
+                <Button Content="删除" Command="{Binding DeleteCommand}" Margin="0,0,8,0"/>
+                <Button Content="通用码" Command="{Binding AssignCodeCommand}" CommandParameter="xno" Margin="0,0,8,0" ToolTip="按厂牌 max+1 + EditAll 联动"/>
+                <Button Content="套件码" Command="{Binding AssignCodeCommand}" CommandParameter="tno" Margin="0,0,8,0"/>
+                <Button Content="解除通用码" Command="{Binding ClearCodeCommand}" CommandParameter="xno" Margin="0,0,8,0"/>
+                <Button Content="解除套件码" Command="{Binding ClearCodeCommand}" CommandParameter="tno" Margin="0,0,8,0"/>
+                <Button Content="税号批改(名称)" Command="{Binding BatchCodeTsCommand}" CommandParameter="1" Margin="0,0,8,0"/>
+                <Button Content="税号批改(区间)" Command="{Binding BatchCodeTsCommand}" CommandParameter="3" Margin="0,0,8,0"/>
+                <Button Content="最低售价" Command="{Binding CalcOprcMinCommand}" Margin="0,0,8,0"/>
+                <Button Content="传递到库存" Command="{Binding TransferToStockCommand}" Margin="0,0,8,0"/>
+                <TextBlock Text="{Binding Message}" VerticalAlignment="Center" Foreground="{StaticResource BrandBrush}"/>
+            </StackPanel>
+        </Border>
+        <DataGrid ItemsSource="{Binding Rows}" SelectedItem="{Binding Selected}" AutoGenerateColumns="False" CanUserAddRows="False"
+                  GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="厂牌" Binding="{Binding Cp}" Width="60"/>
+                <DataGridTextColumn Header="编码" Binding="{Binding Nno}" Width="100"/>
+                <DataGridTextColumn Header="名称" Binding="{Binding Na1}" Width="120"/>
+                <DataGridTextColumn Header="车型" Binding="{Binding Ty}" Width="80"/>
+                <DataGridTextColumn Header="产地" Binding="{Binding Fa}" Width="60"/>
+                <DataGridTextColumn Header="分类码" Binding="{Binding Dc}" Width="54"/>
+                <DataGridTextColumn Header="单位" Binding="{Binding Unit}" Width="40"/>
+                <DataGridTextColumn Header="进价" Binding="{Binding Iprj, StringFormat=N2}" Width="60"/>
+                <DataGridTextColumn Header="税则号" Binding="{Binding Code_ts}" Width="90"/>
+                <DataGridTextColumn Header="串号" Binding="{Binding Cxnno}" Width="100"/>
+                <DataGridTextColumn Header="通用码" Binding="{Binding Xno}" Width="50"/>
+                <DataGridTextColumn Header="套件码" Binding="{Binding Tno}" Width="50"/>
+                <DataGridTextColumn Header="属性售价" Binding="{Binding Oprc_cp, StringFormat=N2}" Width="64"/>
+                <DataGridTextColumn Header="最低售价" Binding="{Binding Oprc_min, StringFormat=N2}" Width="64"/>
+                <DataGridTextColumn Header="净重" Binding="{Binding Nvol}" Width="50"/>
+                <DataGridTextColumn Header="毛重" Binding="{Binding Suttle, StringFormat=N2}" Width="50"/>
+                <DataGridTextColumn Header="英文名" Binding="{Binding Eng}" Width="120"/>
+                <DataGridTextColumn Header="互换码" Binding="{Binding Nnp}" Width="90"/>
+                <DataGridTextColumn Header="备注" Binding="{Binding Note}" Width="140"/>
+                <DataGridTextColumn Header="备注1" Binding="{Binding Note1}" Width="140"/>
+            </DataGrid.Columns>
+        </DataGrid>
+    </DockPanel>
+</UserControl>

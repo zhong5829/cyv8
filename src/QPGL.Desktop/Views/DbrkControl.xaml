@@ -1,0 +1,43 @@
+<UserControl x:Class="QPGL.Desktop.Views.DbrkControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Loaded="UserControl_Loaded">
+    <Grid Margin="8">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Border Background="White" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1"
+                CornerRadius="3" Padding="10,8" Margin="0,0,0,8">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="调拨入库（fr_dbrk）：本部门调出单（mark='Y'）确认入库，负库存预演 + 生成新进库单号 + 挂帐写应收"
+                           VerticalAlignment="Center" Foreground="#666"/>
+                <Button Content="刷新" Command="{Binding SearchCommand}" Margin="16,0,0,0" Padding="18,3"/>
+            </StackPanel>
+        </Border>
+
+        <Border Grid.Row="1" Background="White" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" CornerRadius="3">
+            <DataGrid x:Name="PaperGrid" ItemsSource="{Binding Papers}" Margin="1" CanUserDeleteRows="False" AutoGenerateColumns="False"
+                      HeadersVisibility="Column" IsReadOnly="False">
+                <DataGrid.Columns>
+                    <DataGridCheckBoxColumn Header="选择" Binding="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}" Width="60"/>
+                    <DataGridTextColumn Header="调拨单号" Binding="{Binding Paper}" IsReadOnly="True" Width="160"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
+
+        <Border Grid.Row="2" Background="White" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1"
+                CornerRadius="3" Padding="10,6" Margin="0,8,0,0">
+            <DockPanel>
+                <Button Content="批量确认入库" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding ConfirmBatchCommand}" DockPanel.Dock="Right"/>
+                <Button Content="确认选中单" Command="{Binding ConfirmOneCommand}" CommandParameter="{Binding SelectedItem, ElementName=PaperGrid}"
+                        DockPanel.Dock="Right" Margin="0,0,8,0"/>
+                <TextBlock Text="提示：双击列表选中行后点「确认选中单」；批量按勾选执行，单笔失败不影响其余单据"
+                           Foreground="#888" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding Message}" Foreground="{StaticResource WarnBrush}" VerticalAlignment="Center" Margin="16,0,0,0"/>
+            </DockPanel>
+        </Border>
+    </Grid>
+</UserControl>

@@ -1,0 +1,19 @@
+<UserControl x:Class="QPGL.Desktop.Views.FinCheoutControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Loaded="UserControl_Loaded">
+    <StackPanel Margin="16" VerticalAlignment="Center" MaxWidth="560">
+        <TextBlock Text="期末结帐" FontSize="18" FontWeight="Bold" Margin="0,0,0,4"/>
+        <TextBlock Text="期末结帐生成科目余额快照并推进会计期间；反结帐回退上月期间。" TextWrapping="Wrap" Foreground="Gray" Margin="0,0,0,12"/>
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+            <TextBlock Text="会计期间：" VerticalAlignment="Center"/>
+            <TextBlock Text="{Binding Period}" FontSize="16" FontWeight="Bold" VerticalAlignment="Center"/>
+        </StackPanel>
+        <Button Content="期末结帐" Command="{Binding ClosePeriodCommand}" Padding="16,5" HorizontalAlignment="Left"/>
+        <Separator Margin="0,16"/>
+        <TextBlock Text="反结帐（回退到上月）" FontWeight="Bold" Margin="0,0,0,8"/>
+        <CheckBox Content="同时删除上月结转凭证（CAF）" IsChecked="{Binding DelCaf}" Margin="0,0,0,8"/>
+        <Button Content="反结帐" Command="{Binding UnCloseCommand}" Padding="16,5" HorizontalAlignment="Left"/>
+        <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Foreground="{StaticResource BrandBrush}" Margin="0,12,0,0"/>
+    </StackPanel>
+</UserControl>

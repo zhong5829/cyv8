@@ -1,0 +1,57 @@
+<Window x:Class="QPGL.Desktop.Views.PartPickWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="选择配件" Width="1000" Height="650"
+        WindowStartupLocation="CenterOwner" MinWidth="850" MinHeight="500"
+        ShowInTaskbar="False"
+        Background="{StaticResource WindowBackBrush}">
+    <Grid Margin="8">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- 三条件查询条（与开单页同构：编码=内部编号包含，名称=拼音码/编码/名称/车型；左右方向键切换输入框并全选） -->
+        <Border Background="White" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1"
+                CornerRadius="3" Padding="10,8" Margin="0,0,0,8">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="编码" VerticalAlignment="Center"/>
+                <TextBox x:Name="CpBox" Width="150" Margin="4,0,16,0" TextChanged="Box_TextChanged" PreviewKeyDown="SearchBox_PreviewKeyDown"
+                         ToolTip="查内部编号（包含匹配）；←/→ 切换条件框"/>
+                <TextBlock Text="名称" VerticalAlignment="Center"/>
+                <TextBox x:Name="Na1Box" Width="220" Margin="4,0,16,0" TextChanged="Box_TextChanged" PreviewKeyDown="SearchBox_PreviewKeyDown"
+                         ToolTip="支持拼音码/编码/名称/车型；←/→ 切换条件框"/>
+                <TextBlock Text="车型" VerticalAlignment="Center"/>
+                <TextBox x:Name="TyBox" Width="180" Margin="4,0,16,0" TextChanged="Box_TextChanged" PreviewKeyDown="SearchBox_PreviewKeyDown"
+                         ToolTip="←/→ 切换条件框"/>
+                <TextBlock Text="输入即搜（0.5 秒），←/→ 切换条件框，双击结果行选定配件" Foreground="#888" VerticalAlignment="Center"/>
+            </StackPanel>
+        </Border>
+
+        <Border Grid.Row="1" Background="White" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" CornerRadius="3">
+            <DataGrid x:Name="PartGrid" AutoGenerateColumns="False" CanUserAddRows="False" GridLinesVisibility="Horizontal"
+                      HeadersVisibility="Column" FontSize="12" Margin="1"
+                      MouseDoubleClick="PartGrid_MouseDoubleClick" PreviewKeyDown="PartGrid_PreviewKeyDown">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="配件编号" Binding="{Binding Cp}" Width="100"/>
+                    <DataGridTextColumn Header="内部编号" Binding="{Binding Nno}" Width="110"/>
+                    <DataGridTextColumn Header="名称" Binding="{Binding Na1}" Width="*"/>
+                    <DataGridTextColumn Header="车型" Binding="{Binding Ty}" Width="90"/>
+                    <DataGridTextColumn Header="货位" Binding="{Binding Posi}" Width="70"/>
+                    <DataGridTextColumn Header="仓库" Binding="{Binding Depotno}" Width="60"/>
+                    <DataGridTextColumn Header="库存" Binding="{Binding Kcamount}" Width="70"/>
+                    <DataGridTextColumn Header="进价(不含税)" Binding="{Binding Iprj, StringFormat=N2}" Width="95"/>
+                    <DataGridTextColumn Header="进价(含税)" Binding="{Binding Iprc, StringFormat=N2}" Width="85"/>
+                    <DataGridTextColumn Header="零售价" Binding="{Binding Oprc, StringFormat=N2}" Width="75"/>
+                    <DataGridTextColumn Header="批发价" Binding="{Binding Oprb, StringFormat=N2}" Width="75"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
+            <TextBlock x:Name="TxtStatus" VerticalAlignment="Center" Margin="0,0,16,0" Foreground="#888"/>
+            <Button Content="取消 (Esc)" Width="90" Height="30" IsCancel="True"/>
+        </StackPanel>
+    </Grid>
+</Window>

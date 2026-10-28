@@ -1,0 +1,21 @@
+<Window x:Class="QPGL.Desktop.Views.ConvertOptionWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="报价转销售" Width="400" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize" ShowInTaskbar="False"
+        Background="{StaticResource WindowBackBrush}">
+    <StackPanel Margin="16">
+        <TextBlock Text="请选择转单方式（frmbjtoxs.Optgp1）：" FontWeight="Bold" Margin="0,0,0,8"/>
+        <RadioButton x:Name="Rb1" GroupName="opt" IsChecked="True" Margin="0,3"
+                     Content="1. 只转库存够的零件（不足行留在报价单）"/>
+        <RadioButton x:Name="Rb2" GroupName="opt" Margin="0,3"
+                     Content="2. 一个零件不够整单都不转"/>
+        <RadioButton x:Name="Rb3" GroupName="opt" Margin="0,3"
+                     Content="3. 库存不够使用急件（本部署隐藏，休眠）"/>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+            <Button Content="确定" Width="80" Height="26" Margin="0,0,10,0" IsDefault="True"
+                    Style="{StaticResource PrimaryButtonStyle}" Click="BtnOk_Click"/>
+            <Button Content="取消 (Esc)" Width="80" Height="26" IsCancel="True"/>
+        </StackPanel>
+    </StackPanel>
+</Window>

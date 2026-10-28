@@ -1,0 +1,187 @@
+<UserControl x:Class="QPGL.Desktop.Views.SaleReturnControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid Margin="8">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- 原单查询条 -->
+        <Border Background="White" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1"
+                CornerRadius="3" Padding="10,8" Margin="0,0,0,8">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="客户名称" VerticalAlignment="Center"/>
+                <!-- 客户输入：可编辑联想下拉（拼音码 code/数字码 code1/名称/编号前缀匹配，与销售开单页同款） -->
+                <Grid Margin="4,0,12,0">
+                    <TextBox x:Name="CustomerBox" Width="200"
+                             Text="{Binding CustomerName, UpdateSourceTrigger=PropertyChanged}"
+                             TextChanged="CustomerBox_TextChanged" PreviewKeyDown="CustomerBox_PreviewKeyDown"/>
+                    <Popup x:Name="CustPopup" PlacementTarget="{Binding ElementName=CustomerBox}" Placement="Bottom"
+                           StaysOpen="False" AllowsTransparency="True" MinWidth="320">
+                        <Border Background="White" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1"
+                                CornerRadius="3" Margin="0,2,8,8" SnapsToDevicePixels="True">
+                            <ListBox x:Name="CustList" ItemsSource="{Binding CustomerSuggestions}"
+                                     MaxHeight="500" BorderThickness="0"
+                                     MouseLeftButtonUp="CustList_MouseLeftButtonUp">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal" Margin="2">
+                                            <TextBlock Text="{Binding PartNo}" Width="70" Foreground="#666"/>
+                                            <TextBlock Text="{Binding PartName}" Width="170"/>
+                                            <TextBlock Text="{Binding LinkMan}" Width="70" Foreground="#888"/>
+                                            <TextBlock Text="{Binding Mobile}" Foreground="#888"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </Border>
+                    </Popup>
+                </Grid>
+                <Button Content="加载可退行" Style="{StaticResource PrimaryButtonStyle}"
+                        Command="{Binding LoadSourceCommand}"/>
+                <!-- 退款方式/退货原因/发票号等在「确认退货」窗收集（旧 fr_sata Frmok 机制） -->
+                <TextBlock Text="{Binding SourceInfo}" VerticalAlignment="Center" Margin="16,0,0,0"
+                           Foreground="{StaticResource BrandBrush}"/>
+            </StackPanel>
+        </Border>
+
+        <!-- 三条件过滤条（内存过滤：编码=Nno 包含；名称=拼音码/名称/编码/车型；车型=Ty/名称；实时+500ms 防抖） -->
+        <Border Grid.Row="1" Background="White" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1"
+                CornerRadius="3" Padding="10,6" Margin="0,0,0,8">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="编码" VerticalAlignment="Center"/>
+                <TextBox x:Name="CpBox" Width="150" Margin="4,0,16,0"
+                         Text="{Binding PartCp, UpdateSourceTrigger=PropertyChanged}" TextChanged="FilterBox_TextChanged"
+                         GotKeyboardFocus="FilterBox_GotKeyboardFocus" PreviewMouseLeftButtonDown="FilterBox_PreviewMouseLeftButtonDown"
+                         PreviewKeyDown="FilterBox_PreviewKeyDown" ToolTip="查零件编码（包含匹配）"/>
+                <TextBlock Text="名称" VerticalAlignment="Center"/>
+                <TextBox x:Name="Na1Box" Width="200" Margin="4,0,16,0"
+                         Text="{Binding PartNa1, UpdateSourceTrigger=PropertyChanged}" TextChanged="FilterBox_TextChanged"
+                         GotKeyboardFocus="FilterBox_GotKeyboardFocus" PreviewMouseLeftButtonDown="FilterBox_PreviewMouseLeftButtonDown"
+                         PreviewKeyDown="FilterBox_PreviewKeyDown" ToolTip="支持拼音码/名称/编码/车型"/>
+                <TextBlock Text="车型" VerticalAlignment="Center"/>
+                <TextBox x:Name="TyBox" Width="180" Margin="4,0,16,0"
+                         Text="{Binding PartTy, UpdateSourceTrigger=PropertyChanged}" TextChanged="FilterBox_TextChanged"
+                         GotKeyboardFocus="FilterBox_GotKeyboardFocus" PreviewMouseLeftButtonDown="FilterBox_PreviewMouseLeftButtonDown"
+                         PreviewKeyDown="FilterBox_PreviewKeyDown"/>
+                <TextBlock Text="输入即滤（0.5 秒），←/→ 在文本边界切换查询框" Foreground="#888" VerticalAlignment="Center"/>
+            </StackPanel>
+        </Border>
+
+        <!-- 中部：上=可退行（配件列表）/ 下=退货明细 -->
+        <Grid Grid.Row="2">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="1.2*"/>
+            </Grid.RowDefinitions>
+
+            <Border Background="White" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" CornerRadius="3" Margin="0,0,0,8">
+                <DataGrid x:Name="ReturnableGrid" ItemsSource="{Binding ReturnableRows}" Margin="1"
+                          MouseDoubleClick="ReturnableGrid_MouseDoubleClick"
+                          IsReadOnly="True" SelectionMode="Single"
+                          AutoGenerateColumns="False" EnableRowVirtualization="True"
+                          VirtualizingPanel.VirtualizationMode="Recycling">
+                    <DataGrid.Columns>
+                        <!-- 列序按 2026-10-28 确认：厂牌/付款方式/单号/出库单号/出库日期/客户名称/零件编码/零件名称/车型/可退数/仓位/库号/售价/实售价/产地/分类码/进价/含税价/优惠率/操作员/备注 -->
+                        <DataGridTextColumn Header="厂牌" Binding="{Binding Cp}" Width="100"/>
+                        <DataGridTextColumn Header="付款方式" Binding="{Binding Guno}" Width="70"/>
+                        <DataGridTextColumn Header="单号" Binding="{Binding Paper}" Width="90"/>
+                        <DataGridTextColumn Header="出库单号" Binding="{Binding Paper}" Width="90"/>
+                        <DataGridTextColumn Header="出库日期" Binding="{Binding OutDate, StringFormat=yyyy-MM-dd}" Width="85"/>
+                        <DataGridTextColumn Header="客户名称" Binding="{Binding Gname}" Width="110"/>
+                        <DataGridTextColumn Header="零件编码" Binding="{Binding Nno}" Width="110"/>
+                        <DataGridTextColumn Header="零件名称" Binding="{Binding Na1}" Width="*"/>
+                        <DataGridTextColumn Header="车型" Binding="{Binding Ty}" Width="90"/>
+                        <DataGridTextColumn Header="可退数" Binding="{Binding Remain}" Width="60"
+                                            ElementStyle="{StaticResource NumCellRight}"/>
+                        <DataGridTextColumn Header="仓位" Binding="{Binding Posi}" Width="70"/>
+                        <DataGridTextColumn Header="库号" Binding="{Binding DepotNo}" Width="55"/>
+                        <DataGridTextColumn Header="售价" Binding="{Binding Oprc, StringFormat=N2}" Width="70"
+                                            ElementStyle="{StaticResource NumCellRight}"/>
+                        <DataGridTextColumn Header="实售价" Binding="{Binding Oprct, StringFormat=N2}" Width="70"
+                                            ElementStyle="{StaticResource NumCellRight}"/>
+                        <DataGridTextColumn Header="产地" Binding="{Binding Fa}" Width="55"/>
+                        <DataGridTextColumn Header="分类码" Binding="{Binding Cxnno}" Width="65"/>
+                        <DataGridTextColumn Header="进价" Binding="{Binding Iprj, StringFormat=N2}" Width="70"
+                                            ElementStyle="{StaticResource NumCellRight}"/>
+                        <DataGridTextColumn Header="含税价" Binding="{Binding Iprc, StringFormat=N2}" Width="70"
+                                            ElementStyle="{StaticResource NumCellRight}"/>
+                        <DataGridTextColumn Header="优惠率" Binding="{Binding Yhl}" Width="60"
+                                            ElementStyle="{StaticResource NumCellRight}"/>
+                        <DataGridTextColumn Header="操作员" Binding="{Binding Per}" Width="60"/>
+                        <DataGridTextColumn Header="备注" Binding="{Binding Note}" Width="*"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Border>
+
+            <Border Grid.Row="1" Background="White" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" CornerRadius="3">
+                <DataGrid x:Name="LineGrid" ItemsSource="{Binding Lines}" Margin="1"
+                          CanUserDeleteRows="False" MouseDoubleClick="LineGrid_MouseDoubleClick"
+                          AutoGenerateColumns="False" EnableRowVirtualization="True"
+                          VirtualizingPanel.VirtualizationMode="Recycling">
+                    <DataGrid.Columns>
+                        <!-- 列序与上区一致，明细专属列（退货数/退款额/删除）追加在末尾 -->
+                        <DataGridTextColumn Header="厂牌" Binding="{Binding Cp}" IsReadOnly="True" Width="100"/>
+                        <DataGridTextColumn Header="付款方式" Binding="{Binding Guno}" IsReadOnly="True" Width="70"/>
+                        <DataGridTextColumn Header="单号" Binding="{Binding Paper}" IsReadOnly="True" Width="90"/>
+                        <DataGridTextColumn Header="出库单号" Binding="{Binding Paper}" IsReadOnly="True" Width="90"/>
+                        <DataGridTextColumn Header="出库日期" Binding="{Binding OutDate, StringFormat=yyyy-MM-dd}" IsReadOnly="True" Width="85"/>
+                        <DataGridTextColumn Header="客户名称" Binding="{Binding Gname}" IsReadOnly="True" Width="110"/>
+                        <DataGridTextColumn Header="零件编码" Binding="{Binding Nno}" IsReadOnly="True" Width="110"/>
+                        <DataGridTextColumn Header="零件名称" Binding="{Binding Na1}" IsReadOnly="True" Width="*"/>
+                        <DataGridTextColumn Header="车型" Binding="{Binding Ty}" IsReadOnly="True" Width="90"/>
+                        <DataGridTextColumn Header="可退数" Binding="{Binding Remain}" IsReadOnly="True" Width="60"
+                                            ElementStyle="{StaticResource NumCellRight}"/>
+                        <DataGridTextColumn Header="仓位" Binding="{Binding Posi}" IsReadOnly="True" Width="70"/>
+                        <DataGridTextColumn Header="库号" Binding="{Binding DepotNo}" IsReadOnly="True" Width="55"/>
+                        <DataGridTextColumn Header="售价" Binding="{Binding Oprc, StringFormat=N2}" IsReadOnly="True" Width="70"
+                                            ElementStyle="{StaticResource NumCellRight}"/>
+                        <DataGridTextColumn Header="实售价" Binding="{Binding Oprct, StringFormat=N2}" IsReadOnly="True" Width="70"
+                                            ElementStyle="{StaticResource NumCellRight}"/>
+                        <DataGridTextColumn Header="产地" Binding="{Binding Fa}" IsReadOnly="True" Width="55"/>
+                        <DataGridTextColumn Header="分类码" Binding="{Binding Cxnno}" IsReadOnly="True" Width="65"/>
+                        <DataGridTextColumn Header="进价" Binding="{Binding Iprj, StringFormat=N2}" IsReadOnly="True" Width="70"
+                                            ElementStyle="{StaticResource NumCellRight}"/>
+                        <DataGridTextColumn Header="含税价" Binding="{Binding Iprc, StringFormat=N2}" IsReadOnly="True" Width="70"
+                                            ElementStyle="{StaticResource NumCellRight}"/>
+                        <DataGridTextColumn Header="优惠率" Binding="{Binding Yhl}" IsReadOnly="True" Width="60"
+                                            ElementStyle="{StaticResource NumCellRight}"/>
+                        <DataGridTextColumn Header="操作员" Binding="{Binding Per}" IsReadOnly="True" Width="60"/>
+                        <DataGridTextColumn Header="备注" Binding="{Binding Note}" IsReadOnly="True" Width="*"/>
+                        <DataGridTextColumn Header="退货数" Binding="{Binding ReturnQty}" Width="70"
+                                            ElementStyle="{StaticResource NumCellRight}"/>
+                        <DataGridTextColumn Header="退款额" Binding="{Binding Amount, Mode=OneWay}" IsReadOnly="True" Width="80"
+                                            ElementStyle="{StaticResource NumCellRight}"/>
+                        <DataGridTemplateColumn Width="46">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Button Content="✕" Command="{Binding DataContext.RemoveLineCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                            CommandParameter="{Binding}" Padding="0" FontSize="10"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Border>
+        </Grid>
+
+        <!-- 合计/保存条 -->
+        <Border Grid.Row="3" Background="White" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1"
+                CornerRadius="3" Padding="10,6" Margin="0,8,0,0">
+            <DockPanel>
+                <Button Content="保存退货 (F5)" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding SaveCommand}" DockPanel.Dock="Right"/>
+                <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Margin="0,0,16,0" FontSize="14">
+                    <Run Text="退款合计："/>
+                    <Run Text="{Binding TotalAmount, Mode=OneWay}" FontWeight="Bold" FontSize="16"
+                         Foreground="{StaticResource WarnBrush}" FontFamily="{StaticResource NumFontFamily}"/>
+                </TextBlock>
+                <TextBlock Text="{Binding LastPaper, StringFormat=退货单号：{0}}" FontWeight="Bold"
+                           Foreground="{StaticResource BrandBrush}" VerticalAlignment="Center" Margin="0,0,16,0"/>
+                <TextBlock Text="{Binding Message}" Foreground="{StaticResource WarnBrush}" VerticalAlignment="Center"/>
+            </DockPanel>
+        </Border>
+    </Grid>
+</UserControl>

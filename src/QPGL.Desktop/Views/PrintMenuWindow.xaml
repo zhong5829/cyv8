@@ -1,0 +1,11 @@
+<Window x:Class="QPGL.Desktop.Views.PrintMenuWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="打印" Width="180" SizeToContent="Height" WindowStyle="ToolWindow" ResizeMode="NoResize"
+        ShowInTaskbar="False" WindowStartupLocation="CenterOwner" Topmost="True">
+    <StackPanel>
+        <Button x:Name="Btn1" Padding="8,6" HorizontalContentAlignment="Left" Click="Btn_Click" Tag="1"/>
+        <Button x:Name="Btn2" Padding="8,6" HorizontalContentAlignment="Left" Click="Btn_Click" Tag="2"/>
+        <Button x:Name="Btn3" Padding="8,6" HorizontalContentAlignment="Left" Click="Btn_Click" Tag="3"/>
+    </StackPanel>
+</Window>

@@ -1,0 +1,338 @@
+<UserControl x:Class="QPGL.Desktop.Views.UniversalQueryControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Loaded="UserControl_Loaded">
+    <DockPanel Margin="8">
+        <Border DockPanel.Dock="Top" Background="White" BorderBrush="{StaticResource PanelBorderBrush}"
+                BorderThickness="1" CornerRadius="3" Padding="10,6" Margin="0,0,0,6">
+            <DockPanel>
+                <TextBlock Text="E 组业务查询（只读）" FontWeight="Bold" VerticalAlignment="Center"/>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <TextBlock Text="厂牌" VerticalAlignment="Center"/>
+                    <TextBox x:Name="TxtCp" Width="70" Text="{Binding Cp}" Margin="4,0,12,0"/>
+                    <TextBlock Text="{Binding Message}" VerticalAlignment="Center" Foreground="{StaticResource BrandBrush}"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+        <TabControl x:Name="Tabs">
+
+            <!-- E1 进库单查询 fr_seissm -->
+            <TabItem Header="进库单查询">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,4,0,6">
+                        <Button Content="高级查询" Command="{Binding IssmFindCommand}" Margin="0,0,8,0"/>
+                        <CheckBox Content="显示剩余（xkcamou/xsamou）" IsChecked="{Binding IssmShowRemain}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <Button Content="重新查询" Command="{Binding IssmSearchCommand}" Margin="0,0,8,0"/>
+                        <Button Content="合计" Command="{Binding IssmTotalCommand}" Margin="0,0,8,0" ToolTip="fr_total 分组汇总"/>
+                        <Button Content="排序" Command="{Binding SortCurrentCommand}" Margin="0,0,8,0"/>
+                        <Button Content="列定义" Command="{Binding CustomFieldCommand}" Margin="0,0,8,0" ToolTip="自定义字段（本地/系统表/外部文件）"/>
+                        <Button Content="打印" Command="{Binding PrintCurrentCommand}" Margin="0,0,8,0"/>
+                        <Button Content="删除行" Command="{Binding DeleteRowCommand}" CommandParameter="{Binding SelectedItem, ElementName=GrdIssm}"
+                                ToolTip="仅从本次结果集隐藏，不修改数据库"/>
+                    </StackPanel>
+                    <DataGrid x:Name="GrdIssm" ItemsSource="{Binding IssmRows}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
+                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="配件编码" Binding="{Binding Nno}" Width="90"/>
+                            <DataGridTextColumn Header="配件名称" Binding="{Binding Na1}" Width="110"/>
+                            <DataGridTextColumn Header="车型" Binding="{Binding Ty}" Width="80"/>
+                            <DataGridTextColumn Header="进库数" Binding="{Binding Jkamount, StringFormat=N0}" Width="60"/>
+                            <DataGridTextColumn Header="外币价" Binding="{Binding Iprj, StringFormat=N2}" Width="70"/>
+                            <DataGridTextColumn Header="进价" Binding="{Binding Iprc, StringFormat=N2}" Width="70"/>
+                            <DataGridTextColumn Header="售价" Binding="{Binding Oprc, StringFormat=N2}" Width="70"/>
+                            <DataGridTextColumn Header="库位" Binding="{Binding Posi}" Width="50"/>
+                            <DataGridTextColumn Header="厂牌" Binding="{Binding Cp}" Width="60"/>
+                            <DataGridTextColumn Header="仓位" Binding="{Binding Depotno}" Width="44"/>
+                            <DataGridTextColumn Header="进库日期" Binding="{Binding Indate, StringFormat=d}" Width="80"/>
+                            <DataGridTextColumn Header="付款方式" Binding="{Binding Fkfs}" Width="70"/>
+                            <DataGridTextColumn Header="操作员" Binding="{Binding Per}" Width="60"/>
+                            <DataGridTextColumn Header="进库单号" Binding="{Binding Cno}" Width="90"/>
+                            <DataGridTextColumn Header="装箱单号" Binding="{Binding Seano}" Width="90"/>
+                            <DataGridTextColumn Header="供应商" Binding="{Binding Gyname}" Width="110"/>
+                            <DataGridTextColumn Header="供应商编号" Binding="{Binding Gyno}" Width="80"/>
+                            <DataGridTextColumn Header="剩余库存数" Binding="{Binding Xkcamou, StringFormat=N0}" Width="70"/>
+                            <DataGridTextColumn Header="销售数" Binding="{Binding Xsamou, StringFormat=N0}" Width="60"/>
+                            <DataGridTextColumn Header="分类码" Binding="{Binding Dc}" Width="60"/>
+                            <DataGridTextColumn Header="串号" Binding="{Binding Cxnno}" Width="110"/>
+                            <DataGridTextColumn Header="订单标志" Binding="{Binding Isord}" Width="56"/>
+                            <DataGridTextColumn Header="运费" Binding="{Binding Freight, StringFormat=N2}" Width="60"/>
+                            <DataGridTextColumn Header="确认日期" Binding="{Binding Qrdate, StringFormat=d}" Width="80"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </TabItem>
+
+            <!-- E4 订货单查询 fr_seorder -->
+            <TabItem Header="订货单查询">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,4,0,6">
+                        <Button Content="高级查询" Command="{Binding OrderFindCommand}" Margin="0,0,8,0"/>
+                        <Button Content="重新查询" Command="{Binding OrderSearchCommand}" Margin="0,0,8,0"/>
+                        <Button Content="合计" Command="{Binding OrderTotalCommand}" Margin="0,0,8,0" ToolTip="fr_total 分组汇总"/>
+                        <Button Content="排序" Command="{Binding SortCurrentCommand}" Margin="0,0,8,0"/>
+                        <Button Content="列定义" Command="{Binding CustomFieldCommand}" Margin="0,0,8,0" ToolTip="自定义字段（本地/系统表/外部文件）"/>
+                        <Button Content="打印" Command="{Binding PrintCurrentCommand}"/>
+                    </StackPanel>
+                    <DataGrid x:Name="GrdOrder" ItemsSource="{Binding OrderRows}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
+                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="合同号" Binding="{Binding Cno}" Width="110"/>
+                            <DataGridTextColumn Header="行号" Binding="{Binding Item}" Width="44"/>
+                            <DataGridTextColumn Header="配件编码" Binding="{Binding Nno}" Width="100"/>
+                            <DataGridTextColumn Header="配件名称" Binding="{Binding Na1}" Width="120"/>
+                            <DataGridTextColumn Header="订数" Binding="{Binding Oqty, StringFormat=N0}" Width="70"/>
+                            <DataGridTextColumn Header="到货数" Binding="{Binding Qty, StringFormat=N0}" Width="70"/>
+                            <DataGridTextColumn Header="在途" Binding="{Binding Zt, StringFormat=N0}" Width="60"/>
+                            <DataGridTextColumn Header="外币价" Binding="{Binding Iprj, StringFormat=N2}" Width="70"/>
+                            <DataGridTextColumn Header="车型" Binding="{Binding Ty}" Width="90"/>
+                            <DataGridTextColumn Header="产地" Binding="{Binding Fa}" Width="70"/>
+                            <DataGridTextColumn Header="订货日期" Binding="{Binding Orderdate, StringFormat=d}" Width="90"/>
+                            <DataGridTextColumn Header="付款方式" Binding="{Binding Fkfs}" Width="80"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </TabItem>
+
+            <!-- E5 库存修改查询 fr_sekcxg -->
+            <TabItem Header="库存修改查询">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,4,0,6">
+                        <Button Content="高级查询" Command="{Binding KcxgFindCommand}" Margin="0,0,8,0"/>
+                        <Button Content="重新查询" Command="{Binding KcxgSearchCommand}" Margin="0,0,8,0"/>
+                        <Button Content="益损合计" Command="{Binding KcxgTotalCommand}" Margin="0,0,8,0"/>
+                        <Button Content="打印" Command="{Binding PrintCurrentCommand}"/>
+                    </StackPanel>
+                    <DataGrid x:Name="GrdKcxg" ItemsSource="{Binding KcxgRows}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
+                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="配件编码" Binding="{Binding Nno}" Width="100"/>
+                            <DataGridTextColumn Header="配件名称" Binding="{Binding Na1}" Width="130"/>
+                            <DataGridTextColumn Header="车型" Binding="{Binding Ty}" Width="90"/>
+                            <DataGridTextColumn Header="修改数量" Binding="{Binding Xgamount, StringFormat=N0}" Width="70"/>
+                            <DataGridTextColumn Header="成本金额" Binding="{Binding Iprc, StringFormat=N2}" Width="80"/>
+                            <DataGridTextColumn Header="修改日期" Binding="{Binding Xgdate, StringFormat=d}" Width="90"/>
+                            <DataGridTextColumn Header="操作员" Binding="{Binding Per}" Width="70"/>
+                            <DataGridTextColumn Header="库位" Binding="{Binding Posi}" Width="60"/>
+                            <DataGridTextColumn Header="仓位" Binding="{Binding Depotno}" Width="50"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </TabItem>
+
+            <!-- E6 商品出入查询 fr_seio -->
+            <TabItem Header="商品出入查询">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,4,0,6">
+                        <TextBlock Text="维度" VerticalAlignment="Center"/>
+                        <ComboBox SelectedIndex="{Binding IoDimKind}" Width="100" Margin="4,0,10,0">
+                            <ComboBoxItem Content="编码区间"/>
+                            <ComboBoxItem Content="车型"/>
+                            <ComboBoxItem Content="零件名"/>
+                            <ComboBoxItem Content="分类码区间"/>
+                            <ComboBoxItem Content="汇总项"/>
+                        </ComboBox>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,10,0" Visibility="{Binding IoShowNno, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="起" VerticalAlignment="Center"/>
+                            <TextBox Width="90" Text="{Binding IoNno1}" Margin="4,0,6,0"/>
+                            <TextBlock Text="止" VerticalAlignment="Center"/>
+                            <TextBox Width="90" Text="{Binding IoNno2}" Margin="4,0,0,0"/>
+                        </StackPanel>
+                        <TextBox Width="110" Text="{Binding IoTy}" Margin="0,0,10,0" Visibility="{Binding IoShowTy, Converter={StaticResource BoolToVis}}"/>
+                        <TextBox Width="130" Text="{Binding IoNa1}" Margin="0,0,10,0" Visibility="{Binding IoShowNa1, Converter={StaticResource BoolToVis}}"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,10,0" Visibility="{Binding IoShowDc, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="起" VerticalAlignment="Center"/>
+                            <TextBox Width="60" Text="{Binding IoDc1}" Margin="4,0,6,0"/>
+                            <TextBlock Text="止" VerticalAlignment="Center"/>
+                            <TextBox Width="60" Text="{Binding IoDc2}" Margin="4,0,0,0"/>
+                        </StackPanel>
+                        <ComboBox SelectedIndex="0" Width="90" Margin="0,0,10,0" Visibility="{Binding IoShowHz, Converter={StaticResource BoolToVis}}"
+                                  SelectedValue="{Binding IoHz}" SelectedValuePath="Tag">
+                            <ComboBoxItem Content="编码" Tag="NNO"/>
+                            <ComboBoxItem Content="车型" Tag="TY"/>
+                            <ComboBoxItem Content="零件名" Tag="NA1"/>
+                            <ComboBoxItem Content="分类码" Tag="DC"/>
+                        </ComboBox>
+                        <TextBlock Text="起日" VerticalAlignment="Center"/>
+                        <DatePicker SelectedDate="{Binding IoD1}" Width="100" Margin="4,0,6,0"/>
+                        <TextBlock Text="止日" VerticalAlignment="Center"/>
+                        <DatePicker SelectedDate="{Binding IoD2}" Width="100" Margin="4,0,10,0"/>
+                        <Button Content="查询" Command="{Binding IoSearchCommand}" Margin="0,0,8,0"/>
+                        <Button Content="打印" Command="{Binding PrintCurrentCommand}" Margin="0,0,8,0"/>
+                        <Button Content="删除行" Command="{Binding DeleteRowCommand}" CommandParameter="{Binding SelectedItem, ElementName=GrdIo}"
+                                ToolTip="仅从本次结果集隐藏，不修改数据库"/>
+                    </StackPanel>
+                    <DataGrid x:Name="GrdIo" ItemsSource="{Binding IoRows}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
+                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn x:Name="ColIoHow" Header="编码" Binding="{Binding How}" Width="110"/>
+                            <DataGridTextColumn Header="销售数" Binding="{Binding 销售数, StringFormat=N0}" Width="64"/>
+                            <DataGridTextColumn Header="销售成本" Binding="{Binding 销售成本, StringFormat=N2}" Width="76"/>
+                            <DataGridTextColumn Header="销售额" Binding="{Binding 销售额, StringFormat=N2}" Width="86"/>
+                            <DataGridTextColumn Header="进库数" Binding="{Binding 进库数, StringFormat=N0}" Width="64"/>
+                            <DataGridTextColumn Header="进库额" Binding="{Binding 进库额, StringFormat=N2}" Width="86"/>
+                            <DataGridTextColumn Header="库存数" Binding="{Binding 库存数, StringFormat=N0}" Width="64"/>
+                            <DataGridTextColumn Header="毛利" Binding="{Binding 毛利, StringFormat=N2}" Width="76"/>
+                            <DataGridTextColumn Header="毛利率" Binding="{Binding 毛利率}" Width="70"/>
+                            <DataGridTextColumn Header="预售数" Binding="{Binding 预售数, StringFormat=N0}" Width="64"/>
+                            <DataGridTextColumn Header="预售成本" Binding="{Binding 预售成本, StringFormat=N2}" Width="76"/>
+                            <DataGridTextColumn Header="预售额" Binding="{Binding 预售额, StringFormat=N2}" Width="86"/>
+                            <DataGridTextColumn Header="调拔数" Binding="{Binding 调拔数, StringFormat=N0}" Width="64"/>
+                            <DataGridTextColumn Header="调拔成本" Binding="{Binding 调拔成本, StringFormat=N2}" Width="76"/>
+                            <DataGridTextColumn Header="调拔额" Binding="{Binding 调拔额, StringFormat=N2}" Width="86"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </TabItem>
+
+            <!-- E7 月销售数查询 fr_sertmo -->
+            <TabItem Header="月销售数查询">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,4,0,6">
+                        <TextBlock Text="编码" VerticalAlignment="Center"/>
+                        <TextBox Width="90" Text="{Binding RtmoNno}" Margin="4,0,8,0"/>
+                        <TextBlock Text="车型" VerticalAlignment="Center"/>
+                        <TextBox Width="80" Text="{Binding RtmoTy}" Margin="4,0,8,0"/>
+                        <TextBlock Text="品名" VerticalAlignment="Center"/>
+                        <TextBox Width="90" Text="{Binding RtmoNa1}" Margin="4,0,8,0"/>
+                        <CheckBox Content="全部厂牌" IsChecked="{Binding RtmoAllBrand}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <Button Content="查询" Command="{Binding RtmoSearchCommand}" Margin="0,0,8,0"/>
+                        <Button Content="全部" Command="{Binding RtmoSearchAllCommand}" Margin="0,0,8,0"/>
+                        <Button Content="打印" Command="{Binding PrintCurrentCommand}" Margin="0,0,8,0"/>
+                        <Button Content="删除行" Command="{Binding DeleteRowCommand}" CommandParameter="{Binding SelectedItem, ElementName=GrdRtmo}"
+                                ToolTip="仅从本次结果集隐藏，不修改数据库"/>
+                    </StackPanel>
+                    <DataGrid x:Name="GrdRtmo" ItemsSource="{Binding RtmoRows}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
+                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="配件名称" Binding="{Binding Na1}" Width="120"/>
+                            <DataGridTextColumn Header="oamou1" Binding="{Binding Oamou1, StringFormat=N0}" Width="58"/>
+                            <DataGridTextColumn Header="oamou2" Binding="{Binding Oamou2, StringFormat=N0}" Width="58"/>
+                            <DataGridTextColumn Header="oamou3" Binding="{Binding Oamou3, StringFormat=N0}" Width="58"/>
+                            <DataGridTextColumn Header="oamou4" Binding="{Binding Oamou4, StringFormat=N0}" Width="58"/>
+                            <DataGridTextColumn Header="oamou5" Binding="{Binding Oamou5, StringFormat=N0}" Width="58"/>
+                            <DataGridTextColumn Header="oamou6" Binding="{Binding Oamou6, StringFormat=N0}" Width="58"/>
+                            <DataGridTextColumn Header="oamou7" Binding="{Binding Oamou7, StringFormat=N0}" Width="58"/>
+                            <DataGridTextColumn Header="oamou8" Binding="{Binding Oamou8, StringFormat=N0}" Width="58"/>
+                            <DataGridTextColumn Header="oamou9" Binding="{Binding Oamou9, StringFormat=N0}" Width="58"/>
+                            <DataGridTextColumn Header="oamou10" Binding="{Binding Oamou10, StringFormat=N0}" Width="58"/>
+                            <DataGridTextColumn Header="oamou11" Binding="{Binding Oamou11, StringFormat=N0}" Width="58"/>
+                            <DataGridTextColumn Header="oamou12" Binding="{Binding Oamou12, StringFormat=N0}" Width="58"/>
+                            <DataGridTextColumn Header="月均销售数" Binding="{Binding 月均销售数, StringFormat=N2}" Width="80"/>
+                            <DataGridTextColumn Header="编码" Binding="{Binding Nno}" Width="100"/>
+                            <DataGridTextColumn Header="厂牌" Binding="{Binding Cp}" Width="60"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </TabItem>
+
+            <!-- E8 营业额查询 fr_sesada -->
+            <TabItem Header="营业额查询">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,4,0,6">
+                        <TextBlock Text="起" VerticalAlignment="Center"/>
+                        <DatePicker SelectedDate="{Binding SesadaD1}" Width="100" Margin="4,0,6,0"/>
+                        <TextBlock Text="止" VerticalAlignment="Center"/>
+                        <DatePicker SelectedDate="{Binding SesadaD2}" Width="100" Margin="4,0,10,0"/>
+                        <TextBlock Text="分公司" VerticalAlignment="Center"/>
+                        <ComboBox SelectedValue="{Binding SesadaDpm}" SelectedValuePath="Tag" Width="110" Margin="4,0,10,0">
+                            <ComboBoxItem Content="欧配特(A)" Tag="A"/>
+                            <ComboBoxItem Content="全部分公司" Tag="*"/>
+                        </ComboBox>
+                        <Button Content="查询" Command="{Binding SesadaSearchCommand}" Margin="0,0,8,0"/>
+                        <Button Content="打印" Command="{Binding PrintCurrentCommand}" Margin="0,0,8,0"/>
+                        <Button Content="删除行" Command="{Binding DeleteRowCommand}" CommandParameter="{Binding SelectedItem, ElementName=GrdSesada}"
+                                ToolTip="仅从本次结果集隐藏，不修改数据库"/>
+                    </StackPanel>
+                    <DataGrid x:Name="GrdSesada" ItemsSource="{Binding SesadaRows}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
+                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="日期" Binding="{Binding 日期}" Width="90"/>
+                            <DataGridTextColumn Header="部门" Binding="{Binding Dpm}" Width="90"/>
+                            <DataGridTextColumn Header="单数" Binding="{Binding 单数, StringFormat=N0}" Width="60"/>
+                            <DataGridTextColumn Header="出库数量" Binding="{Binding 出库数量, StringFormat=N0}" Width="70"/>
+                            <DataGridTextColumn Header="日元" Binding="{Binding 日元, StringFormat=N2}" Width="100"/>
+                            <DataGridTextColumn Header="人进价" Binding="{Binding 人进价, StringFormat=N2}" Width="100"/>
+                            <DataGridTextColumn Header="售额" Binding="{Binding 售额, StringFormat=N2}" Width="100"/>
+                            <DataGridTextColumn Header="实售额" Binding="{Binding 实售额, StringFormat=N2}" Width="100"/>
+                            <DataGridTextColumn Header="毛利" Binding="{Binding ML, StringFormat=N2}" Width="100"/>
+                            <DataGridTextColumn Header="牟利率" Binding="{Binding 牟利率, StringFormat=N2}" Width="70"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </TabItem>
+
+            <!-- E9 库存检测 fr_secheck -->
+            <TabItem Header="库存检测">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,4,0,6">
+                        <TextBlock Text="备份日期" VerticalAlignment="Center"/>
+                        <DatePicker SelectedDate="{Binding CheckDate}" Width="110" Margin="4,0,10,0"/>
+                        <Button Content="开始检测" Command="{Binding CheckRunCommand}" Margin="0,0,8,0"/>
+                        <Button Content="打印" Command="{Binding PrintCurrentCommand}"/>
+                    </StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="260"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox Text="{Binding CheckSummary, Mode=OneWay}" IsReadOnly="True" FontFamily="Consolas"
+                                 VerticalScrollBarVisibility="Auto" Margin="0,0,8,0" Background="#FAFAF5"/>
+                        <DataGrid x:Name="GrdCheck" Grid.Column="1" ItemsSource="{Binding CheckRows}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
+                                  GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="编码" Binding="{Binding Nno}" Width="100"/>
+                                <DataGridTextColumn Header="名称" Binding="{Binding Na1}" Width="110"/>
+                                <DataGridTextColumn Header="车型" Binding="{Binding Ty}" Width="80"/>
+                                <DataGridTextColumn Header="备份" Binding="{Binding Sav, StringFormat=N0}" Width="60"/>
+                                <DataGridTextColumn Header="出库合计" Binding="{Binding Outs, StringFormat=N0}" Width="70"/>
+                                <DataGridTextColumn Header="进库" Binding="{Binding In, StringFormat=N0}" Width="60"/>
+                                <DataGridTextColumn Header="库存修改" Binding="{Binding Istoch, StringFormat=N0}" Width="70"/>
+                                <DataGridTextColumn Header="出库修改" Binding="{Binding Saxg, StringFormat=N0}" Width="70"/>
+                                <DataGridTextColumn Header="逻辑库存" Binding="{Binding 逻辑库存, Mode=OneWay, StringFormat=N0}" Width="70"/>
+                                <DataGridTextColumn Header="实际库存" Binding="{Binding Isto, StringFormat=N0}" Width="70"/>
+                                <DataGridTextColumn Header="误差" Binding="{Binding 误差, Mode=OneWay, StringFormat=N0}" Width="60"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Grid>
+                </DockPanel>
+            </TabItem>
+
+            <!-- EA 进出流水帐查询 fr_seis -->
+            <TabItem Header="进出流水帐">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,4,0,6">
+                        <TextBlock Text="全编码" VerticalAlignment="Center"/>
+                        <TextBox Width="130" Text="{Binding IsiosmNno}" Margin="4,0,10,0"/>
+                        <TextBlock Text="起" VerticalAlignment="Center"/>
+                        <DatePicker SelectedDate="{Binding IsiosmD1}" Width="100" Margin="4,0,6,0"/>
+                        <TextBlock Text="止" VerticalAlignment="Center"/>
+                        <DatePicker SelectedDate="{Binding IsiosmD2}" Width="100" Margin="4,0,10,0"/>
+                        <Button Content="查询" Command="{Binding IsiosmSearchCommand}" Margin="0,0,8,0"/>
+                        <Button Content="打印" Command="{Binding PrintCurrentCommand}"/>
+                    </StackPanel>
+                    <DataGrid x:Name="GrdIsiosm" ItemsSource="{Binding IsiosmRows}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
+                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="操作员" Binding="{Binding Per}" Width="60"/>
+                            <DataGridTextColumn Header="单号/库位" Binding="{Binding No}" Width="100"/>
+                            <DataGridTextColumn Header="日期" Binding="{Binding Date, StringFormat=d}" Width="80"/>
+                            <DataGridTextColumn Header="标志" Binding="{Binding Mark}" Width="50"/>
+                            <DataGridTextColumn Header="进库数" Binding="{Binding Jqty, StringFormat=N0}" Width="64"/>
+                            <DataGridTextColumn Header="出库数" Binding="{Binding Cqty, StringFormat=N0}" Width="64"/>
+                            <DataGridTextColumn Header="结存数量" Binding="{Binding Amount, StringFormat=N0}" Width="70"/>
+                            <DataGridTextColumn Header="备注" Binding="{Binding Note}" Width="160"/>
+                            <DataGridTextColumn Header="进价" Binding="{Binding Iprc, StringFormat=N2}" Width="66"/>
+                            <DataGridTextColumn Header="结存金额" Binding="{Binding 结存金额, StringFormat=N2}" Width="90"/>
+                            <DataGridTextColumn Header="仓位" Binding="{Binding Depotno}" Width="46"/>
+                            <DataGridTextColumn Header="外币价" Binding="{Binding Iprj, StringFormat=N2}" Width="66"/>
+                            <DataGridTextColumn Header="外币价金额" Binding="{Binding 外币价金额, StringFormat=N2}" Width="90"/>
+                            <DataGridTextColumn Header="库位" Binding="{Binding Posi}" Width="54"/>
+                            <DataGridTextColumn Header="车型" Binding="{Binding Ty}" Width="76"/>
+                            <DataGridTextColumn Header="产地" Binding="{Binding Fa}" Width="60"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </TabItem>
+        </TabControl>
+    </DockPanel>
+</UserControl>

@@ -1,0 +1,62 @@
+<Window x:Class="QPGL.Desktop.Views.CustomFieldSysWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="自定义字段--汇总" Width="531" Height="430" WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize" ShowInTaskbar="False">
+    <Grid Margin="8">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <StackPanel Orientation="Horizontal">
+            <TextBlock Text="系统表列表：" Foreground="Blue" VerticalAlignment="Center"/>
+            <ComboBox x:Name="CboTable" Width="220" Margin="6,0,0,0" DisplayMemberPath="Cname"
+                      SelectionChanged="CboTable_SelectionChanged"/>
+            <TextBlock Text="（仅列含厂牌+编码字段的表）" Foreground="Gray" VerticalAlignment="Center" FontSize="10"/>
+        </StackPanel>
+        <Grid Grid.Row="1" Margin="0,8,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="54"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+                <TextBlock Text="可选字段列表" Foreground="White" Background="Teal" Padding="4,2"/>
+                <ListBox x:Name="LstYField" Height="200" Margin="0,4,0,0" DisplayMemberPath="Explain"
+                         MouseDoubleClick="LstYField_DoubleClick"/>
+            </StackPanel>
+            <StackPanel Grid.Column="1" Margin="4,30,0,0">
+                <Button Content=">" Height="26" Click="BtnSelect_Click"/>
+                <Button Content="&lt;" Height="26" Margin="0,6,0,0" Click="BtnUnselect_Click"/>
+                <Button Content=">>" Height="26" Margin="0,6,0,0" Click="BtnSelectAll_Click"/>
+                <Button Content="&lt;&lt;" Height="26" Margin="0,6,0,0" Click="BtnUnselectAll_Click"/>
+            </StackPanel>
+            <StackPanel Grid.Column="2">
+                <TextBlock Text="已选字段列表" Foreground="White" Background="Teal" Padding="4,2"/>
+                <DataGrid x:Name="GrdAgg" Height="200" Margin="0,4,0,0" AutoGenerateColumns="False"
+                          CanUserAddRows="False" HeadersVisibility="Column" GridLinesVisibility="Horizontal">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="字段" Binding="{Binding Explain}" Width="70" IsReadOnly="True"/>
+                        <DataGridComboBoxColumn x:Name="ColMethod" Header="计算方法" SelectedValueBinding="{Binding Method, UpdateSourceTrigger=PropertyChanged}"
+                                                SelectedValuePath="Key" Width="90">
+                            <DataGridComboBoxColumn.ElementStyle>
+                                <Style TargetType="ComboBox">
+                                    <Setter Property="ItemsSource" Value="{Binding Methods}"/>
+                                </Style>
+                            </DataGridComboBoxColumn.ElementStyle>
+                        </DataGridComboBoxColumn>
+                        <DataGridTextColumn Header="新字段名" Binding="{Binding NewName, UpdateSourceTrigger=PropertyChanged}" Width="*"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </StackPanel>
+        </Grid>
+        <TextBlock Grid.Row="2" Text="注：日期字段可选 原值/最大/最小；字符字段仅 原值；任一字段选'原值'时不分组取全表行。"
+                   Foreground="Red" FontSize="10" Margin="0,6,0,0" TextWrapping="Wrap"/>
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+            <Button Content="返回 &lt;&lt;" Width="84" Height="25" Click="BtnBack_Click"/>
+            <Button x:Name="BtnFinish" Content="完成" Width="84" Height="25" Margin="18,0,0,0" Click="BtnFinish_Click"/>
+            <Button Content="退出" Width="90" Height="25" Margin="18,0,0,0" Click="BtnExit_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

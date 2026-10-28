@@ -1,0 +1,91 @@
+<UserControl x:Class="QPGL.Desktop.Views.XlskControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Loaded="UserControl_Loaded">
+    <DockPanel Margin="8">
+        <!-- 表头条 -->
+        <Border DockPanel.Dock="Top" Background="White" BorderBrush="{StaticResource PanelBorderBrush}"
+                BorderThickness="1" CornerRadius="3" Padding="10,8" Margin="0,0,0,6">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,16,0"/>
+                <TextBlock Text="客户" VerticalAlignment="Center"/>
+                <TextBox Width="150" Text="{Binding Gname, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center" Margin="4,0,12,0"/>
+                <Button Content="拉单" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding LoadCustomerCommand}" VerticalAlignment="Center"/>
+                <TextBlock Text="单日期" VerticalAlignment="Center" Margin="16,0,0,0"/>
+                <DatePicker Width="105" SelectedDate="{Binding DocDate}" VerticalAlignment="Center" Margin="4,0,12,0"/>
+                <TextBlock Text="流水日期" VerticalAlignment="Center"/>
+                <DatePicker Width="105" SelectedDate="{Binding LszDate}" IsEnabled="{Binding LszDateEnabled}" VerticalAlignment="Center" Margin="4,0,12,0"/>
+                <TextBlock Text="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=Tag, StringFormat={} {0}方式}" VerticalAlignment="Center" Visibility="Collapsed"/>
+                <TextBlock Text="方式" VerticalAlignment="Center"/>
+                <ComboBox Width="90" ItemsSource="{Binding FkfsList}" Text="{Binding Fkfs}" IsEditable="True" VerticalAlignment="Center" Margin="4,0,12,0"/>
+                <TextBlock Text="发票号" VerticalAlignment="Center"/>
+                <TextBox Width="110" Text="{Binding Pno, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center" Margin="4,0,12,0"/>
+                <TextBlock Text="摘要" VerticalAlignment="Center"/>
+                <TextBox Width="140" Text="{Binding Xm, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center" Margin="4,0,0,0"/>
+                <CheckBox Content="含回扣" IsChecked="{Binding IncludeRebate}" VerticalAlignment="Center" Margin="12,0,0,0"
+                          ToolTip="勾选后未结清单包含 pno=回扣/KH 行"/>
+            </StackPanel>
+        </Border>
+
+        <!-- 工具条 -->
+        <Border DockPanel.Dock="Top" Background="White" BorderBrush="{StaticResource PanelBorderBrush}"
+                BorderThickness="1" CornerRadius="3" Padding="10,6" Margin="0,0,0,6">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="去向" VerticalAlignment="Center"/>
+                <ComboBox Width="110" ItemsSource="{Binding BankNames}" SelectedItem="{Binding BankName}" VerticalAlignment="Center" Margin="4,0,16,0"/>
+                <TextBlock Text="单号" VerticalAlignment="Center"/>
+                <TextBox Width="120" Text="{Binding Cno, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center" Margin="4,0,4,0"/>
+                <Button Content="载入" Command="{Binding LoadDocCommand}" Padding="10,3" Margin="0,0,16,0"/>
+                <Button Content="全选" Command="{Binding CheckAllCommand}" Padding="10,3" Margin="0,0,6,0"/>
+                <Button Content="全清" Command="{Binding ClearAllCommand}" Padding="10,3" Margin="0,0,16,0"/>
+                <TextBlock Text="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=Tag}" VerticalAlignment="Center"/>
+                <TextBlock Text="金额" VerticalAlignment="Center" Margin="4,0,0,0"/>
+                <TextBox Width="100" Text="{Binding PaySum, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center" Margin="4,0,4,0"/>
+                <Button Content="按金额分配" Command="{Binding AllocateCommand}" Padding="10,3" Margin="0,0,16,0"/>
+                <Button Content="预收定金" Command="{Binding PresaleDepositCommand}" Padding="10,3" Margin="0,0,6,0"
+                        ToolTip="skinfor：录入预收定金（确认受「关闭预收款已结帐」配置控制）"/>
+                <Button Content="提取未收" Command="{Binding ExtractUnsettledCommand}" Padding="10,3" Margin="0,0,6,0"
+                        ToolTip="fr_xlsk_tq：从应收应付提取未结单"/>
+                <Button Content="收款导入" Command="{Binding SkdrImportCommand}" Padding="10,3" Margin="0,0,6,0"
+                        ToolTip="fr_skdr：按单号批量导入收款并回填（仅收款）"/>
+                <Button Content="随付打印" Command="{Binding IstofkPrintCommand}" Padding="10,3" Margin="0,0,16,0"
+                        ToolTip="re_istofk：打印勾选入库单明细（沙河丰田部署含人员分派）"/>
+                <Button Content="确认" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding SaveCommand}" Padding="16,3" Margin="0,0,6,0"/>
+                <Button Content="还原" Command="{Binding RestoreCommand}" Padding="10,3" Margin="0,0,16,0"
+                        ToolTip="需要 G21 权限；已做月结拒绝"/>
+                <Button Content="下一张" Command="{Binding NextCommand}" Padding="10,3" Margin="0,0,6,0"/>
+                <Button Content="上一张" Command="{Binding PrioCommand}" Padding="10,3"/>
+            </StackPanel>
+        </Border>
+
+        <!-- 汇总条 -->
+        <Border DockPanel.Dock="Bottom" Background="White" BorderBrush="{StaticResource PanelBorderBrush}"
+                BorderThickness="1" CornerRadius="3" Padding="10,4" Margin="0,6,0,0">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="{Binding Message}" Foreground="{StaticResource BrandBrush}" VerticalAlignment="Center"/>
+                <TextBlock Text="    余额（YUE）：" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding Yue, StringFormat=N2}" FontWeight="Bold" VerticalAlignment="Center"/>
+                <TextBlock Text="    本次合计：" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding PaySum, StringFormat=N2}" FontWeight="Bold" VerticalAlignment="Center"/>
+                <TextBlock Text="    备案：收款导入/提取未收/预收定金/随付打印/财务凭证联动未实现" Foreground="#888" VerticalAlignment="Center" FontSize="11" Visibility="Collapsed"/>
+            </StackPanel>
+        </Border>
+
+        <DataGrid ItemsSource="{Binding Lines}" AutoGenerateColumns="False" CanUserAddRows="False"
+                  GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12">
+            <DataGrid.Columns>
+                <DataGridCheckBoxColumn Header="勾" Binding="{Binding IsChecked, UpdateSourceTrigger=PropertyChanged}" Width="40"/>
+                <DataGridTextColumn Header="类型" Binding="{Binding Type}" Width="60"/>
+                <DataGridTextColumn Header="单号" Binding="{Binding Paper}" Width="120"/>
+                <DataGridTextColumn Header="日期" Binding="{Binding Date, StringFormat=yyyy-MM-dd}" Width="85"/>
+                <DataGridTextColumn Header="金额" Binding="{Binding Je, StringFormat=N2}" Width="85" ElementStyle="{StaticResource NumCellRight}"/>
+                <DataGridTextColumn Header="已收/付" Binding="{Binding Ysje, StringFormat=N2}" Width="85" ElementStyle="{StaticResource NumCellRight}"/>
+                <DataGridTextColumn Header="未收/付" Binding="{Binding Wsje, StringFormat=N2}" Width="85" ElementStyle="{StaticResource NumCellRight}"/>
+                <DataGridTextColumn Header="本次" Binding="{Binding Bcje, StringFormat=N2, UpdateSourceTrigger=PropertyChanged}" Width="95" ElementStyle="{StaticResource NumCellRight}" IsReadOnly="False"/>
+                <DataGridTextColumn Header="车牌" Binding="{Binding Ch}" Width="80"/>
+                <DataGridTextColumn Header="车型" Binding="{Binding Dp}" Width="90"/>
+                <DataGridTextColumn Header="备注" Binding="{Binding Remark}" Width="*"/>
+            </DataGrid.Columns>
+        </DataGrid>
+    </DockPanel>
+</UserControl>

@@ -1,0 +1,22 @@
+# ===== 白名单式忽略：仅提交源码、打包脚本与 CI 配置 =====
+# 根目录其余内容（逆向源码/数据库导出/旧安装包/运行库等）一律不入库
+/*
+
+!/.gitignore
+!/.github/
+!/src/
+!/installer/
+!/Ico/
+
+# Ico 仅保留构建引用的 LOGO.ICO
+Ico/*
+!Ico/LOGO.ICO
+
+# 构建产物与 IDE 缓存
+**/bin/
+**/obj/
+.vs/
+*.user
+*.suo
+installer/publish/
+installer/*.exe

@@ -1,0 +1,100 @@
+<UserControl x:Class="QPGL.Desktop.Views.FinVouchControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Loaded="UserControl_Loaded">
+    <DockPanel Margin="8">
+        <!-- 凭证表头 -->
+        <Border DockPanel.Dock="Top" Background="White" BorderBrush="{StaticResource PanelBorderBrush}"
+                BorderThickness="1" CornerRadius="3" Padding="10,8" Margin="0,0,0,6">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="凭证号" VerticalAlignment="Center"/>
+                <TextBox Width="70" Text="{Binding VouchId}" VerticalAlignment="Center" Margin="4,0,12,0"/>
+                <TextBlock Text="凭证字" VerticalAlignment="Center"/>
+                <TextBox Width="40" Text="{Binding Vouword}" VerticalAlignment="Center" Margin="4,0,12,0"/>
+                <TextBlock Text="编号" VerticalAlignment="Center"/>
+                <TextBox Width="60" Text="{Binding Vcode}" VerticalAlignment="Center" Margin="4,0,12,0"/>
+                <TextBlock Text="日期" VerticalAlignment="Center"/>
+                <DatePicker Width="105" SelectedDate="{Binding DocDate}" VerticalAlignment="Center" Margin="4,0,12,0"/>
+                <Button Content="新凭证" Command="{Binding NewDocCommand}"/>
+                <Button Content="载入" Command="{Binding LoadDocCommand}" Margin="6,0,0,0"/>
+                <Button Content="保存" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding SaveCommand}" Margin="6,0,0,0"/>
+                <Button Content="删除凭证" Command="{Binding DeleteDocCommand}" Margin="6,0,0,0"/>
+                <Button Content="打印" Command="{Binding PrintDocCommand}" Margin="6,0,0,0"
+                        ToolTip="fr_finvprint 六选一版式（自动/金额/外币/全栏/简表/外币独立）+ finvprn 每页行数"/>
+                <TextBlock Text="借" VerticalAlignment="Center" Margin="16,0,0,0"/>
+                <TextBlock Text="{Binding TotalDebit, StringFormat=N2}" FontWeight="Bold" VerticalAlignment="Center"/>
+                <TextBlock Text="贷" VerticalAlignment="Center" Margin="8,0,0,0"/>
+                <TextBlock Text="{Binding TotalCredit, StringFormat=N2}" FontWeight="Bold" VerticalAlignment="Center"/>
+            </StackPanel>
+        </Border>
+
+        <!-- 分录编辑 -->
+        <DataGrid DockPanel.Dock="Top" ItemsSource="{Binding Lines}" AutoGenerateColumns="False" CanUserAddRows="True"
+                  GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12" MinHeight="160"
+                  Margin="0,0,0,6">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="摘要" Binding="{Binding Note, UpdateSourceTrigger=PropertyChanged}" Width="*"/>
+                <DataGridTextColumn Header="科目代码" Binding="{Binding Subcode, UpdateSourceTrigger=PropertyChanged}" Width="110"/>
+                <DataGridTextColumn Header="科目名称" Binding="{Binding Subname, UpdateSourceTrigger=PropertyChanged}" Width="180"/>
+                <DataGridTextColumn Header="借方" Binding="{Binding Debit, StringFormat=N2, UpdateSourceTrigger=PropertyChanged}" Width="100" ElementStyle="{StaticResource NumCellRight}"/>
+                <DataGridTextColumn Header="贷方" Binding="{Binding Credit, StringFormat=N2, UpdateSourceTrigger=PropertyChanged}" Width="100" ElementStyle="{StaticResource NumCellRight}"/>
+                <DataGridTextColumn Header="部门" Binding="{Binding Dept, UpdateSourceTrigger=PropertyChanged}" Width="80"/>
+                <DataGridTextColumn Header="项目" Binding="{Binding Item, UpdateSourceTrigger=PropertyChanged}" Width="80"/>
+                <DataGridTextColumn Header="员工" Binding="{Binding Empl, UpdateSourceTrigger=PropertyChanged}" Width="70"/>
+                <DataGridTextColumn Header="客户" Binding="{Binding Client, UpdateSourceTrigger=PropertyChanged}" Width="120"/>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <!-- 审核/过帐 -->
+        <Border DockPanel.Dock="Top" Background="White" BorderBrush="{StaticResource PanelBorderBrush}"
+                BorderThickness="1" CornerRadius="3" Padding="10,8" Margin="0,0,0,6">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="期间" VerticalAlignment="Center"/>
+                <TextBox Width="70" Text="{Binding AuditPeriod}" VerticalAlignment="Center" Margin="4,0,12,0"/>
+                <Button Content="整期审核" Command="{Binding AuditCommand}" ToolTip="UPDATE finvouch SET audit=1 WHERE period AND audit=0（fr_finaudit）"/>
+                <Button Content="过帐" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding PostCommand}" Margin="8,0,0,0"
+                        ToolTip="逐凭证逐级汇总→finsub/finaleger/finamsum/finitsub/finsubit（fr_finpost）"/>
+                <Button Content="反过帐" Command="{Binding UnpostCommand}" Margin="8,0,0,0"/>
+                <CheckBox Content="凭证号连续校验" IsChecked="{Binding SkipCheck}" Margin="12,0,0,0" Visibility="Collapsed"/>
+                <TextBlock Text="  查询起始期间" VerticalAlignment="Center"/>
+                <TextBox Width="70" Text="{Binding QueryPeriod}" VerticalAlignment="Center" Margin="4,0,12,0"/>
+                <TextBlock Text="凭证号" VerticalAlignment="Center"/>
+                <TextBox Width="60" Text="{Binding QueryVouchId}" VerticalAlignment="Center" Margin="4,0,12,0"/>
+                <TextBlock Text="科目" VerticalAlignment="Center"/>
+                <TextBox Width="90" Text="{Binding QuerySubcode}" VerticalAlignment="Center" Margin="4,0,12,0"/>
+                <Button Content="查询" Command="{Binding SearchCommand}"/>
+            </StackPanel>
+        </Border>
+
+        <Border DockPanel.Dock="Bottom" Background="White" BorderBrush="{StaticResource PanelBorderBrush}"
+                BorderThickness="1" CornerRadius="3" Padding="10,4" Margin="0,6,0,0">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="{Binding Message}" Foreground="{StaticResource BrandBrush}" VerticalAlignment="Center"/>
+                <TextBlock Text="    备案：业务凭证生成已交付（I.2 业务凭证页）；结转损益/期末结帐待后续批次；凭证字'现'/'银'的 C/B 科目校验待科目 type 联查后启用"
+                           Foreground="#888" VerticalAlignment="Center" FontSize="11"/>
+            </StackPanel>
+        </Border>
+
+        <DataGrid ItemsSource="{Binding QueryRows}" AutoGenerateColumns="False" CanUserAddRows="False"
+                  GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12" IsReadOnly="True"
+                  SelectedItem="{Binding SelectedQueryRow}">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="期间" Binding="{Binding Period}" Width="70"/>
+                <DataGridTextColumn Header="凭证号" Binding="{Binding Vouchid}" Width="60"/>
+                <DataGridTextColumn Header="编号" Binding="{Binding Vcode}" Width="50"/>
+                <DataGridTextColumn Header="日期" Binding="{Binding Date, StringFormat=yyyy-MM-dd}" Width="85"/>
+                <DataGridTextColumn Header="字" Binding="{Binding Vouword}" Width="35"/>
+                <DataGridTextColumn Header="摘要" Binding="{Binding Note}" Width="*"/>
+                <DataGridTextColumn Header="科目" Binding="{Binding Subcode}" Width="100"/>
+                <DataGridTextColumn Header="科目名" Binding="{Binding Subname}" Width="150"/>
+                <DataGridTextColumn Header="借方" Binding="{Binding Debit, StringFormat=N2}" Width="90" ElementStyle="{StaticResource NumCellRight}"/>
+                <DataGridTextColumn Header="贷方" Binding="{Binding Credit, StringFormat=N2}" Width="90" ElementStyle="{StaticResource NumCellRight}"/>
+                <DataGridTextColumn Header="审核" Binding="{Binding Audit}" Width="45"/>
+                <DataGridTextColumn Header="过帐" Binding="{Binding Post}" Width="45"/>
+                <DataGridTextColumn Header="方向" Binding="{Binding Dcdir}" Width="40"/>
+                <DataGridTextColumn Header="余额" Binding="{Binding Balance, StringFormat=N2}" Width="90" ElementStyle="{StaticResource NumCellRight}"/>
+                <DataGridTextColumn Header="制单" Binding="{Binding Maker}" Width="60"/>
+            </DataGrid.Columns>
+        </DataGrid>
+    </DockPanel>
+</UserControl>

@@ -1,0 +1,218 @@
+<UserControl x:Class="QPGL.Desktop.Views.DeliveryControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Loaded="UserControl_Loaded">
+    <DockPanel Margin="8">
+        <!-- 状态条 -->
+        <Border DockPanel.Dock="Top" Background="White" BorderBrush="{StaticResource PanelBorderBrush}"
+                BorderThickness="1" CornerRadius="3" Padding="8,4" Margin="0,0,0,6">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="提货管理（待提货 / 已确认 / 装箱）：" FontWeight="Bold"
+                           Foreground="{StaticResource BrandBrush}" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding Message}" Foreground="#C0392B" VerticalAlignment="Center" Margin="12,0,0,0"/>
+            </StackPanel>
+        </Border>
+
+        <TabControl SelectedIndex="{Binding ActiveTabIndex, Mode=TwoWay}">
+            <!-- 页1 待提货 -->
+            <TabItem Header="待提货">
+                <DockPanel Margin="0,6,0,0">
+                    <Border DockPanel.Dock="Top" Padding="0,4" Margin="0,0,0,6">
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="备货" Command="{Binding StockCommand}" Padding="14,3" Margin="0,0,8,0"/>
+                            <Button Content="发货A" Command="{Binding ShipACommand}" Padding="14,3" Margin="0,0,8,0"/>
+                            <Button Content="发货B" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding ShipBCommand}" Margin="0,0,8,0"/>
+                            <Button Content="配货" Command="{Binding AllocateCommand}" Padding="14,3" Margin="0,0,8,0"/>
+                            <Button Content="还原配货" Command="{Binding UnallocateCommand}" Padding="14,3" Margin="0,0,8,0"/>
+                            <Button Content="还原备货" Command="{Binding RevertStockCommand}" Padding="14,3" Margin="0,0,8,0"/>
+                            <Button Content="还原发货" Command="{Binding RevertDeliveryCommand}" Padding="14,3" Margin="0,0,8,0"/>
+                            <Button Content="删除发货单" Command="{Binding DeleteNoteCommand}" Padding="14,3" Margin="0,0,8,0"/>
+                            <Button Content="刷新" Command="{Binding RefreshTab1Command}" Padding="14,3"/>
+                        </StackPanel>
+                    </Border>
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <DataGrid Grid.Row="0" ItemsSource="{Binding Orders1}" SelectedItem="{Binding SelectedOrder1}"
+                                  SelectionChanged="Order1_SelectionChanged" AutoGenerateColumns="False" CanUserAddRows="False"
+                                  GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12" Margin="0,0,0,6">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="发货状态" Binding="{Binding Status}" IsReadOnly="True" Width="70"/>
+                                <DataGridTextColumn Header="单号" Binding="{Binding Paper}" IsReadOnly="True" Width="100"/>
+                                <DataGridTextColumn Header="客户" Binding="{Binding Gname}" IsReadOnly="True" Width="*"/>
+                                <DataGridTextColumn Header="日期" Binding="{Binding Outdate, StringFormat={}{0:yyyy-MM-dd}}" IsReadOnly="True" Width="85"/>
+                                <DataGridTextColumn Header="发货员" Binding="{Binding Back1}" IsReadOnly="True" Width="70"/>
+                                <DataGridTextColumn Header="收银方式" Binding="{Binding Guno}" IsReadOnly="True" Width="70"/>
+                                <DataGridTextColumn Header="数量" Binding="{Binding Ckamount}" IsReadOnly="True" Width="60"
+                                                    ElementStyle="{StaticResource NumCellRight}"/>
+                                <DataGridTextColumn Header="金额" Binding="{Binding Oprc, StringFormat={}{0:N2}}" IsReadOnly="True" Width="90"
+                                                    ElementStyle="{StaticResource NumCellRight}"/>
+                                <DataGridTextColumn Header="成本额" Binding="{Binding Oprct, StringFormat={}{0:N2}}" IsReadOnly="True" Width="90"
+                                                    ElementStyle="{StaticResource NumCellRight}"/>
+                                <DataGridTextColumn Header="发货公司" Binding="{Binding Spname}" IsReadOnly="True" Width="100"/>
+                                <DataGridTextColumn Header="备注" Binding="{Binding Remark}" IsReadOnly="True" Width="100"/>
+                                <DataGridTextColumn Header="发货单号" Binding="{Binding FhPaper}" IsReadOnly="True" Width="100"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                        <DataGrid Grid.Row="1" ItemsSource="{Binding Lines1}" AutoGenerateColumns="False" CanUserAddRows="False"
+                                  GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12">
+                            <DataGrid.RowStyle>
+                                <Style TargetType="DataGridRow">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Flag}" Value="True">
+                                            <Setter Property="Foreground" Value="#1565C0"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </DataGrid.RowStyle>
+                            <DataGrid.Columns>
+                                <DataGridCheckBoxColumn Header="选" Binding="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}" Width="36"/>
+                                <DataGridTextColumn Header="编号" Binding="{Binding Nno}" IsReadOnly="True" Width="110"/>
+                                <DataGridTextColumn Header="名称" Binding="{Binding Na1}" IsReadOnly="True" Width="*"/>
+                                <DataGridTextColumn Header="车型" Binding="{Binding Ty}" IsReadOnly="True" Width="90"/>
+                                <DataGridTextColumn Header="产地" Binding="{Binding Fa}" IsReadOnly="True" Width="70"/>
+                                <DataGridTextColumn Header="单位" Binding="{Binding Unit}" IsReadOnly="True" Width="45"/>
+                                <DataGridTextColumn Header="数量" Binding="{Binding Ckamount}" IsReadOnly="True" Width="60"
+                                                    ElementStyle="{StaticResource NumCellRight}"/>
+                                <DataGridTextColumn Header="进价" Binding="{Binding Oprc, StringFormat={}{0:N2}}" IsReadOnly="True" Width="80"
+                                                    ElementStyle="{StaticResource NumCellRight}"/>
+                                <DataGridTextColumn Header="仓位" Binding="{Binding Posi}" IsReadOnly="True" Width="60"/>
+                                <DataGridTextColumn Header="库号" Binding="{Binding Depotno}" IsReadOnly="True" Width="55"/>
+                                <DataGridTextColumn Header="箱号" Binding="{Binding Box}" IsReadOnly="True" Width="80"/>
+                                <DataGridTextColumn Header="发货日期" Binding="{Binding Fhdate, StringFormat={}{0:yyyy-MM-dd}}" IsReadOnly="True" Width="85"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Grid>
+                </DockPanel>
+            </TabItem>
+
+            <!-- 页2 已确认 -->
+            <TabItem Header="已确认">
+                <DockPanel Margin="0,6,0,0">
+                    <Border DockPanel.Dock="Top" Padding="0,4" Margin="0,0,0,6">
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="备货" Command="{Binding StockCommand}" Padding="14,3" Margin="0,0,8,0"/>
+                            <Button Content="发货A" Command="{Binding ShipACommand}" Padding="14,3" Margin="0,0,8,0"/>
+                            <Button Content="发货B" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding ShipBCommand}" Margin="0,0,8,0"/>
+                            <Button Content="配货" Command="{Binding AllocateCommand}" Padding="14,3" Margin="0,0,8,0"/>
+                            <Button Content="还原配货" Command="{Binding UnallocateCommand}" Padding="14,3" Margin="0,0,8,0"/>
+                            <Button Content="还原备货" Command="{Binding RevertStockCommand}" Padding="14,3" Margin="0,0,8,0"/>
+                            <Button Content="还原发货" Command="{Binding RevertDeliveryCommand}" Padding="14,3" Margin="0,0,8,0"/>
+                            <Button Content="删除发货单" Command="{Binding DeleteNoteCommand}" Padding="14,3" Margin="0,0,8,0"/>
+                            <Button Content="刷新" Command="{Binding RefreshTab2Command}" Padding="14,3"/>
+                        </StackPanel>
+                    </Border>
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <DataGrid Grid.Row="0" ItemsSource="{Binding Orders2}" SelectedItem="{Binding SelectedOrder2}"
+                                  SelectionChanged="Order2_SelectionChanged" AutoGenerateColumns="False" CanUserAddRows="False"
+                                  GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12" Margin="0,0,0,6">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="发货状态" Binding="{Binding Status}" IsReadOnly="True" Width="70"/>
+                                <DataGridTextColumn Header="单号" Binding="{Binding Paper}" IsReadOnly="True" Width="100"/>
+                                <DataGridTextColumn Header="客户" Binding="{Binding Gname}" IsReadOnly="True" Width="*"/>
+                                <DataGridTextColumn Header="日期" Binding="{Binding Outdate, StringFormat={}{0:yyyy-MM-dd}}" IsReadOnly="True" Width="85"/>
+                                <DataGridTextColumn Header="发货员" Binding="{Binding Back1}" IsReadOnly="True" Width="70"/>
+                                <DataGridTextColumn Header="收银方式" Binding="{Binding Guno}" IsReadOnly="True" Width="70"/>
+                                <DataGridTextColumn Header="数量" Binding="{Binding Ckamount}" IsReadOnly="True" Width="60"
+                                                    ElementStyle="{StaticResource NumCellRight}"/>
+                                <DataGridTextColumn Header="金额" Binding="{Binding Oprc, StringFormat={}{0:N2}}" IsReadOnly="True" Width="90"
+                                                    ElementStyle="{StaticResource NumCellRight}"/>
+                                <DataGridTextColumn Header="成本额" Binding="{Binding Oprct, StringFormat={}{0:N2}}" IsReadOnly="True" Width="90"
+                                                    ElementStyle="{StaticResource NumCellRight}"/>
+                                <DataGridTextColumn Header="发货公司" Binding="{Binding Spname}" IsReadOnly="True" Width="100"/>
+                                <DataGridTextColumn Header="备注" Binding="{Binding Remark}" IsReadOnly="True" Width="100"/>
+                                <DataGridTextColumn Header="发货单号" Binding="{Binding FhPaper}" IsReadOnly="True" Width="100"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                        <DataGrid Grid.Row="1" ItemsSource="{Binding Lines2}" AutoGenerateColumns="False" CanUserAddRows="False"
+                                  GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12">
+                            <DataGrid.RowStyle>
+                                <Style TargetType="DataGridRow">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Flag}" Value="True">
+                                            <Setter Property="Foreground" Value="#1565C0"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </DataGrid.RowStyle>
+                            <DataGrid.Columns>
+                                <DataGridCheckBoxColumn Header="选" Binding="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}" Width="36"/>
+                                <DataGridTextColumn Header="编号" Binding="{Binding Nno}" IsReadOnly="True" Width="110"/>
+                                <DataGridTextColumn Header="名称" Binding="{Binding Na1}" IsReadOnly="True" Width="*"/>
+                                <DataGridTextColumn Header="车型" Binding="{Binding Ty}" IsReadOnly="True" Width="90"/>
+                                <DataGridTextColumn Header="产地" Binding="{Binding Fa}" IsReadOnly="True" Width="70"/>
+                                <DataGridTextColumn Header="单位" Binding="{Binding Unit}" IsReadOnly="True" Width="45"/>
+                                <DataGridTextColumn Header="数量" Binding="{Binding Ckamount}" IsReadOnly="True" Width="60"
+                                                    ElementStyle="{StaticResource NumCellRight}"/>
+                                <DataGridTextColumn Header="进价" Binding="{Binding Oprc, StringFormat={}{0:N2}}" IsReadOnly="True" Width="80"
+                                                    ElementStyle="{StaticResource NumCellRight}"/>
+                                <DataGridTextColumn Header="仓位" Binding="{Binding Posi}" IsReadOnly="True" Width="60"/>
+                                <DataGridTextColumn Header="库号" Binding="{Binding Depotno}" IsReadOnly="True" Width="55"/>
+                                <DataGridTextColumn Header="箱号" Binding="{Binding Box}" IsReadOnly="True" Width="80"/>
+                                <DataGridTextColumn Header="发货日期" Binding="{Binding Fhdate, StringFormat={}{0:yyyy-MM-dd}}" IsReadOnly="True" Width="85"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Grid>
+                </DockPanel>
+            </TabItem>
+
+            <!-- 页3 装箱 -->
+            <TabItem Header="装箱">
+                <DockPanel Margin="0,6,0,0">
+                    <Border DockPanel.Dock="Top" Padding="0,4" Margin="0,0,0,6">
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="装箱确认" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding PackingConfirmCommand}" Margin="0,0,8,0"/>
+                            <Button Content="还原装箱" Command="{Binding RevertPackingCommand}" Padding="14,3" Margin="0,0,8,0"/>
+                            <Button Content="刷新" Command="{Binding RefreshPackingCommand}" Padding="14,3" Margin="0,0,12,0"/>
+                            <TextBlock Text="行编辑箱号/发货数量（默认=行数量），确认后写 tbfh 并置 zxmark='Z'" Foreground="#888" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <DataGrid Grid.Row="0" ItemsSource="{Binding PackingOrders}" SelectedItem="{Binding SelectedPacking}"
+                                  SelectionChanged="Packing_SelectionChanged" AutoGenerateColumns="False" CanUserAddRows="False"
+                                  GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12" Margin="0,0,0,6">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="装箱状态" Binding="{Binding ZxStatus}" IsReadOnly="True" Width="70"/>
+                                <DataGridTextColumn Header="单号" Binding="{Binding Paper}" IsReadOnly="True" Width="100"/>
+                                <DataGridTextColumn Header="日期" Binding="{Binding Outdate, StringFormat={}{0:yyyy-MM-dd}}" IsReadOnly="True" Width="85"/>
+                                <DataGridTextColumn Header="客户" Binding="{Binding Gname}" IsReadOnly="True" Width="*"/>
+                                <DataGridTextColumn Header="收银方式" Binding="{Binding Guno}" IsReadOnly="True" Width="70"/>
+                                <DataGridTextColumn Header="发货员" Binding="{Binding Per}" IsReadOnly="True" Width="70"/>
+                                <DataGridTextColumn Header="发货公司" Binding="{Binding Spname}" IsReadOnly="True" Width="100"/>
+                                <DataGridTextColumn Header="发货单号" Binding="{Binding FhPaper}" IsReadOnly="True" Width="100"/>
+                                <DataGridTextColumn Header="检货人" Binding="{Binding PerJhr}" IsReadOnly="True" Width="70"/>
+                                <DataGridTextColumn Header="代搬人" Binding="{Binding PerDbr}" IsReadOnly="True" Width="70"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                        <DataGrid Grid.Row="1" ItemsSource="{Binding PackingLines}" AutoGenerateColumns="False" CanUserAddRows="False"
+                                  GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="编号" Binding="{Binding Nno}" IsReadOnly="True" Width="110"/>
+                                <DataGridTextColumn Header="名称" Binding="{Binding Na1}" IsReadOnly="True" Width="*"/>
+                                <DataGridTextColumn Header="车型" Binding="{Binding Ty}" IsReadOnly="True" Width="90"/>
+                                <DataGridTextColumn Header="单位" Binding="{Binding Unit}" IsReadOnly="True" Width="45"/>
+                                <DataGridTextColumn Header="数量" Binding="{Binding Ckamount}" IsReadOnly="True" Width="60"
+                                                    ElementStyle="{StaticResource NumCellRight}"/>
+                                <DataGridTextColumn Header="箱号" Binding="{Binding Box, UpdateSourceTrigger=PropertyChanged}" Width="100"/>
+                                <DataGridTextColumn Header="发货数量" Binding="{Binding FhAmount, UpdateSourceTrigger=PropertyChanged}" Width="80"
+                                                    ElementStyle="{StaticResource NumCellRight}"/>
+                                <DataGridTextColumn Header="仓位" Binding="{Binding Posi}" IsReadOnly="True" Width="60"/>
+                                <DataGridTextColumn Header="库号" Binding="{Binding Depotno}" IsReadOnly="True" Width="55"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Grid>
+                </DockPanel>
+            </TabItem>
+        </TabControl>
+    </DockPanel>
+</UserControl>

@@ -1,0 +1,87 @@
+<UserControl x:Class="QPGL.Desktop.Views.PriceAdjustControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Loaded="UserControl_Loaded">
+    <DockPanel Margin="8">
+        <Border DockPanel.Dock="Top" Background="White" BorderBrush="{StaticResource PanelBorderBrush}"
+                BorderThickness="1" CornerRadius="3" Padding="10,8" Margin="0,0,0,6">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="仓库" VerticalAlignment="Center"/>
+                <TextBox Width="60" Text="{Binding Depotno}" Margin="4,0,10,0"/>
+                <Button Content="刷新库存" Command="{Binding LoadCommand}" Margin="0,0,10,0"/>
+                <TextBlock Text="{Binding Message}" VerticalAlignment="Center" Foreground="{StaticResource BrandBrush}"/>
+            </StackPanel>
+        </Border>
+        <TabControl>
+            <TabItem Header="库存调价（B4）">
+                <DockPanel>
+                    <Border DockPanel.Dock="Bottom" Background="White" BorderBrush="{StaticResource PanelBorderBrush}"
+                            BorderThickness="1" Padding="10,6" Margin="0,6,0,0">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="调价字段" VerticalAlignment="Center"/>
+                            <ComboBox SelectedIndex="{Binding FieldKind}" Width="90" Margin="4,0,10,0">
+                                <ComboBoxItem Content="售价 oprc"/><ComboBoxItem Content="售价B oprb"/>
+                                <ComboBoxItem Content="进价 iprc"/><ComboBoxItem Content="进价J iprj"/>
+                            </ComboBox>
+                            <TextBlock Text="=" VerticalAlignment="Center"/>
+                            <ComboBox SelectedIndex="{Binding BaseKind}" Width="90" Margin="4,0,6,0">
+                                <ComboBoxItem Content="oprc"/><ComboBoxItem Content="iprj"/>
+                                <ComboBoxItem Content="iprc"/><ComboBoxItem Content="oprb"/>
+                            </ComboBox>
+                            <TextBox Width="40" Text="{Binding Oper}" Margin="0,0,6,0"/>
+                            <TextBox Width="70" Text="{Binding Factor}" Margin="0,0,10,0"/>
+                            <TextBlock Text="取整" VerticalAlignment="Center"/>
+                            <ComboBox SelectedIndex="{Binding RoundMode}" Width="110" Margin="4,0,10,0">
+                                <ComboBoxItem Content="不取整"/><ComboBoxItem Content="四舍五入 int+0.5"/><ComboBoxItem Content="进一 int+0.99"/>
+                            </ComboBox>
+                            <CheckBox Content="供应商基准价" IsChecked="{Binding BySupplier}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <TextBox Width="100" Text="{Binding Gyname}" ToolTip="供应商名称（基准价模式）" Margin="0,0,10,0"/>
+                            <Button Content="执行整批调价" Command="{Binding AdjustCommand}" Padding="12,3"/>
+                        </StackPanel>
+                    </Border>
+                    <DataGrid ItemsSource="{Binding IstoRows}" SelectedItem="{Binding SelectedRow}"
+                              AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
+                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="编码" Binding="{Binding Nno}" Width="110"/>
+                            <DataGridTextColumn Header="名称" Binding="{Binding Na1}" Width="*"/>
+                            <DataGridTextColumn Header="库存" Binding="{Binding Kcamount, StringFormat=N2}" Width="70"/>
+                            <DataGridTextColumn Header="单位" Binding="{Binding Unit}" Width="50"/>
+                            <DataGridTextColumn Header="进价" Binding="{Binding Iprc, StringFormat=N2}" Width="80"/>
+                            <DataGridTextColumn Header="进价J" Binding="{Binding Iprj, StringFormat=N2}" Width="80"/>
+                            <DataGridTextColumn Header="售价" Binding="{Binding Oprc, StringFormat=N2}" Width="80"/>
+                            <DataGridTextColumn Header="产地" Binding="{Binding Dc}" Width="60"/>
+                            <DataGridTextColumn Header="仓库" Binding="{Binding Depotno}" Width="60"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </TabItem>
+            <TabItem Header="警戒线设置（B5）">
+                <StackPanel Margin="16" VerticalAlignment="Center" MaxWidth="560">
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <TextBlock Text="最近" VerticalAlignment="Center"/>
+                        <TextBox Width="40" Text="{Binding Months}" Margin="4,0,4,0"/>
+                        <TextBlock Text="月平均（月销售数统计 tbrtsamo）" VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <CheckBox Content="A 警戒线系数" IsChecked="{Binding SetAmjj}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <TextBox Width="70" Text="{Binding FactorA}" Margin="0,0,16,0"/>
+                        <CheckBox Content="B 警戒线系数" IsChecked="{Binding SetBmjj}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <TextBox Width="70" Text="{Binding FactorB}"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <CheckBox Content="所有厂牌（排除急件）" IsChecked="{Binding AllBrand}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                        <TextBlock Text="厂牌" VerticalAlignment="Center"/>
+                        <TextBox Width="90" Text="{Binding Cp}" Margin="4,0,10,0"/>
+                        <TextBlock Text="产地" VerticalAlignment="Center"/>
+                        <TextBox Width="70" Text="{Binding JjFa}" Margin="4,0,10,0"/>
+                        <TextBlock Text="类型" VerticalAlignment="Center"/>
+                        <TextBox Width="70" Text="{Binding JjTy}"/>
+                    </StackPanel>
+                    <Button Content="执行警戒线设置" Command="{Binding SetJjCommand}" Padding="16,4" HorizontalAlignment="Left"/>
+                    <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Foreground="{StaticResource BrandBrush}" Margin="0,12,0,0"/>
+                </StackPanel>
+            </TabItem>
+        </TabControl>
+    </DockPanel>
+</UserControl>

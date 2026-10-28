@@ -1,0 +1,192 @@
+<Window x:Class="QPGL.Desktop.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:v="clr-namespace:QPGL.Desktop.Views"
+        Title="长远汽配管理系统 V8"
+        Height="760" Width="1200"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource WindowBackBrush}">
+    <Window.InputBindings>
+        <KeyBinding Key="F12" Command="{Binding CloseActiveTabCommand}"/>
+    </Window.InputBindings>
+    <DockPanel>
+        <!-- ===== 顶部：菜单条 + 工具条 ===== -->
+        <StackPanel DockPanel.Dock="Top">
+            <!-- 标题栏品牌带 -->
+            <Border Background="{StaticResource BrandBrush}" Padding="12,6">
+                <DockPanel>
+                    <TextBlock Text="长远汽配管理系统 V8" Foreground="White" FontSize="15" FontWeight="Bold"/>
+                    <TextBlock DockPanel.Dock="Right" Text="重构版 · 结构零改动 · QPGL.Api" Foreground="#C7D6E8"
+                               FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                </DockPanel>
+            </Border>
+
+            <!-- 传统菜单条（1:1 映射旧菜单 A~S；维修管理置灰=排除，附录A） -->
+            <Menu Background="White" Padding="4,2" FontSize="13">
+                <MenuItem Header="属性定义(A)">
+                    <MenuItem Header="零件属性定义" Command="{Binding OpenAttrBasicCommand}" CommandParameter="A1" ToolTip="A1（fr_prnoty：tbprnoty CRUD+通用码/套件码/税号批改/最低售价/传递到库存）"/>
+                    <MenuItem Header="零件代码定义" Command="{Binding OpenAttrBasicCommand}" CommandParameter="A2" ToolTip="A2（fr_prname：tbname0 拼音码 CRUD+up_name0 提取）"/>
+                    <MenuItem Header="属性传递" Command="{Binding OpenAttrBasicCommand}" CommandParameter="A3" ToolTip="A3（fr_sxcd：tbprnoty→五目标表）"/>
+                    <MenuItem Header="套件管理" Command="{Binding OpenAttrBasicCommand}" CommandParameter="A4" ToolTip="A4（fr_tjgl：tbprtj 组套/拆套）"/>
+                    <MenuItem Header="客户资料管理" Command="{Binding OpenPartnersCommand}" ToolTip="A5（一期交付）"/>
+                    <MenuItem Header="供应商管理" Command="{Binding OpenSuppliersCommand}" ToolTip="A6（一期交付）"/>
+                    <MenuItem Header="商品税则号查询" Command="{Binding OpenAttrBasicCommand}" CommandParameter="A7" ToolTip="A7（fr_complex：tbcomplex）"/>
+                    <MenuItem Header="系统定义" Command="{Binding OpenAttrBasicCommand}" CommandParameter="A8" ToolTip="A8（fr_system：公司信息/厂牌/字典/参数）"/>
+                    <Separator/>
+                    <MenuItem Header="单号前缀设置" Command="{Binding OpenDocNoPrefixCommand}" ToolTip="A9（一期交付）"/>
+                    <MenuItem Header="分类码定义" Command="{Binding OpenAttrBasicCommand}" CommandParameter="AA" ToolTip="AA（fr_dccoef：tbdccoef）"/>
+                </MenuItem>
+                <MenuItem Header="库存管理(B)">
+                    <MenuItem Header="散件入库" Command="{Binding OpenInStockCommand}"/>
+                    <MenuItem Header="订单入库" Command="{Binding OpenOrderInCommand}"/>
+                    <Separator/>
+                    <MenuItem Header="库存查询" Command="{Binding OpenStockQueryCommand}"/>
+                    <MenuItem Header="库存修改（随库存查询）" Command="{Binding OpenStockQueryCommand}"/>
+                    <Separator/>
+                    <MenuItem Header="库存盘点" Command="{Binding OpenStocktakeCommand}"/>
+                    <MenuItem Header="库存调价" Command="{Binding OpenPriceAdjustCommand}" ToolTip="B.4（fr_istotj：整批调价，库存/供应商基准价）"/>
+                    <MenuItem Header="警戒线设置" Command="{Binding OpenJjLineCommand}" ToolTip="B.5（fr_istojj：月销售数×系数→tbistojj）"/>
+                    <MenuItem Header="入库退货管理" Command="{Binding OpenPurchaseReturnCommand}"/>
+                    <MenuItem Header="提货管理" Command="{Binding OpenDeliveryCommand}"/>
+                    <MenuItem Header="每日动态盘点表" Command="{Binding OpenDailyStocktakeCommand}"/>
+                </MenuItem>
+                <MenuItem Header="销售出库(C)">
+                    <MenuItem Header="销售开单" Command="{Binding OpenSaleCommand}" ToolTip="C1（fr_sale'销售'）"/>
+                    <MenuItem Header="预售管理" Command="{Binding OpenPresaleCommand}" ToolTip="C2（fr_sale'预售'：同销售路径取「预售单」号 AY，与销售互转）"/>
+                    <MenuItem Header="内耗管理" Command="{Binding OpenNeihaoCommand}" ToolTip="C4（fr_sale'内耗'：同销售路径，tbdjgs 无内耗单前缀，取号失败弹错照旧）"/>
+                    <MenuItem Header="报价管理" Command="{Binding OpenQuoteCommand}" ToolTip="C5（fr_sale'报价'：AJ 前缀，kcid=0 不占库存，确认 FRMOK，报价转销售 ,C1,）"/>
+                    <MenuItem Header="报价单查询" Command="{Binding OpenQuoteQueryCommand}" ToolTip="C5（fr_sesa'报价'：确认/转销售三选项/打印 guno 拦截）"/>
+                    <MenuItem Header="销售退货" Command="{Binding OpenSaleReturnCommand}" ToolTip="C6（fr_sata）"/>
+                    <MenuItem Header="其他公司报价" Command="{Binding OpenOrsaCommand}" ToolTip="C8（fr_orsa：tbqtgs CRUD + 本公司库存明细面板）"/>
+                    <Separator/>
+                    <MenuItem Header="调拨管理" Command="{Binding OpenTransferCommand}" ToolTip="C3（fr_sale'调拨'）"/>
+                    <MenuItem Header="调拨入库" Command="{Binding OpenDbrkCommand}" ToolTip="C9·超集备案（fr_dbrk：旧系统表单内按钮无主菜单入口；确认调出单入库，生成新进库单号+挂帐）"/>
+                    <MenuItem Header="调仓管理" Command="{Binding OpenStockAdjustCommand}" ToolTip="C7（fr_sadc）"/>
+                    <Separator/>
+                    <MenuItem Header="收款结算（随单据）" Command="{Binding OpenOutDocQueryCommand}"/>
+                    <MenuItem Header="销售单查询" Command="{Binding OpenOutDocQueryCommand}"/>
+                </MenuItem>
+                <MenuItem Header="统计报表(D)">
+                    <MenuItem Header="日营业统计" Command="{Binding OpenDailyStatCommand}"/>
+                    <MenuItem Header="恢复未统计（随日营业统计）" Command="{Binding OpenDailyStatCommand}"/>
+                    <Separator/>
+                    <MenuItem Header="日报表打印" Command="{Binding OpenReportsCommand}"/>
+                    <MenuItem Header="月销售数统计" Command="{Binding OpenReportsCommand}"/>
+                    <MenuItem Header="进销存分类统计" Command="{Binding OpenReportsCommand}"/>
+                    <MenuItem Header="进销存统计（日汇总）" Command="{Binding OpenReportsCommand}"/>
+                    <Separator/>
+                    <MenuItem Header="新增客户分析" Command="{Binding OpenReportsCommand}"/>
+                    <MenuItem Header="流失客户分析" Command="{Binding OpenReportsCommand}"/>
+                    <Separator/>
+                    <MenuItem Header="万能统计（不适用：旧系统为 Excel 模板工具）" IsEnabled="False"/>
+                    <MenuItem Header="各种统计报表生成（不适用：旧系统无对应实现）" IsEnabled="False"/>
+                </MenuItem>
+                <MenuItem Header="业务查询(E)">
+                    <MenuItem Header="客户资料查询" Command="{Binding OpenPartnersCommand}"/>
+                    <MenuItem Header="进库单查询" Command="{Binding OpenUniversalQueryCommand}" CommandParameter="E1" ToolTip="E1（fr_seissm：tbistoed 条件查询）"/>
+                    <MenuItem Header="出库单查询" Command="{Binding OpenOutDocQueryCommand}" ToolTip="E2（一期交付）"/>
+                    <MenuItem Header="库存查询" Command="{Binding OpenStockQueryCommand}" ToolTip="E3（一期交付）"/>
+                    <MenuItem Header="订货单查询" Command="{Binding OpenUniversalQueryCommand}" CommandParameter="E4" ToolTip="E4（fr_seorder：tborder type='历史'）"/>
+                    <MenuItem Header="库存修改查询" Command="{Binding OpenUniversalQueryCommand}" CommandParameter="E5" ToolTip="E5（fr_sekcxg：tbistoch）"/>
+                    <MenuItem Header="商品出入查询" Command="{Binding OpenUniversalQueryCommand}" CommandParameter="E6" ToolTip="E6（fr_seio：五维度聚合）"/>
+                    <MenuItem Header="月销售数查询" Command="{Binding OpenUniversalQueryCommand}" CommandParameter="E7" ToolTip="E7（fr_sertmo：tbrtsamo）"/>
+                    <MenuItem Header="营业额查询" Command="{Binding OpenUniversalQueryCommand}" CommandParameter="E8" ToolTip="E8（fr_sesada：按日营业额）"/>
+                    <MenuItem Header="库存检测" Command="{Binding OpenUniversalQueryCommand}" CommandParameter="E9" ToolTip="E9（fr_secheck：备份链 vs 实库）"/>
+                    <MenuItem Header="进出流水帐查询" Command="{Binding OpenUniversalQueryCommand}" CommandParameter="EA" ToolTip="EA（fr_seis：单品进出滚动结存）"/>
+                </MenuItem>
+                <MenuItem Header="订货管理(F)">
+                    <MenuItem Header="订单生成" Command="{Binding OpenOrder4Command}"/>
+                    <MenuItem Header="订货库管理" Command="{Binding OpenOrder3Command}"/>
+                    <Separator/>
+                    <MenuItem Header="订货公式" Command="{Binding OpenOrderExpCommand}"/>
+                    <MenuItem Header="自动订货" Command="{Binding OpenOrderBudCommand}"/>
+                    <Separator/>
+                    <MenuItem Header="供应商价格" Command="{Binding OpenSupplierPriceCommand}"/>
+                    <Separator/>
+                    <MenuItem Header="库存上网" Command="{Binding OpenWebStockCommand}"/>
+                    <MenuItem Header="外币价查询（旧系统读本地 DBF，待数据迁移决策）" IsEnabled="False"/>
+                    <MenuItem Header="远程数据查询（旧系统连外部远程库，不适用直连架构）" IsEnabled="False"/>
+                </MenuItem>
+                <MenuItem Header="出纳管理(G)">
+                    <MenuItem Header="财务确认" Command="{Binding OpenFinanceConfirmCommand}" ToolTip="G.1 fr_sk 复刻：出库/入库/调拨/代销付款确认"/>
+                    <MenuItem Header="收款管理" Command="{Binding OpenXlskReceiptCommand}"/>
+                    <MenuItem Header="付款管理" Command="{Binding OpenXlskPaymentCommand}"/>
+                    <MenuItem Header="应收应付" Command="{Binding OpenYsyfCommand}"/>
+                    <MenuItem Header="收支流水帐" Command="{Binding OpenLszCommand}"/>
+                </MenuItem>
+                <MenuItem Header="账务管理(I)">
+                    <MenuItem Header="凭证录入" Command="{Binding OpenFinVouchCommand}"/>
+                    <MenuItem Header="业务凭证" Command="{Binding OpenFinOpVouchCommand}" ToolTip="BBI/SRO/SMO 生成 + 审核/反审核（fr_finopvouch）"/>
+                    <MenuItem Header="凭证管理">
+                        <MenuItem Header="凭证查询/审核/过帐（集成在凭证录入页）" IsEnabled="False" ToolTip="I.31-I.33 备案"/>
+                        <MenuItem Header="结转损益" Command="{Binding OpenFinCaforwCommand}" ToolTip="I.34（exec fincaforw）"/>
+                        <MenuItem Header="期末结帐" Command="{Binding OpenFinCheoutCommand}" ToolTip="I.35（exec getfincheout/finuncheout）"/>
+                    </MenuItem>
+                    <MenuItem Header="会计科目" Command="{Binding OpenFinSubCommand}"/>
+                    <MenuItem Header="基础资料（币别/摘要/核算项目/员工/现金银行）" Command="{Binding OpenFinBasicCommand}"/>
+                    <MenuItem Header="账务初始(N)">
+                        <MenuItem Header="帐务初始数据" Command="{Binding OpenFinInitCommand}" ToolTip="fr_fininit：期初余额编辑/汇总/置零"/>
+                        <MenuItem Header="帐套选项" Command="{Binding OpenFinParaCommand}" ToolTip="fr_finpara"/>
+                        <MenuItem Header="启用帐套" Command="{Binding OpenFinUseCommand}" ToolTip="fr_finuse"/>
+                        <MenuItem Header="固定资产类别/变动方式/初始数据（待后续批次）" IsEnabled="False"/>
+                    </MenuItem>
+                    <MenuItem Header="账簿（五账）" Command="{Binding OpenFinLedgerCommand}" ToolTip="I.4：总账/明细账/数量金额账/核算项目账/多栏账"/>
+                    <MenuItem Header="应收应付帐" Command="{Binding OpenFinYsyfLedgerCommand}" ToolTip="I.6（fr_finysyf）"/>
+                    <MenuItem Header="出纳帐" Command="{Binding OpenFinRnpCommand}" ToolTip="I.7（fr_finrnp）"/>
+                    <MenuItem Header="报表（I.5）" Command="{Binding OpenFinReportCommand}" ToolTip="试算平衡/凭证汇总/损益/资产负债/现金流（fr_finreport 中心）"/>
+                    <MenuItem Header="辅助工具/固定资产" Command="{Binding OpenFinToolCommand}" ToolTip="I.8 工具（汇总/帐簿初始化）+ N.7-N.8 固定资产类别/变动方式"/>
+                </MenuItem>
+                <MenuItem Header="维修管理(W)" IsEnabled="False" ToolTip="按约定排除（开发文档附录A）"/>
+                <MenuItem Header="系统管理(S)">
+                    <MenuItem Header="修改密码" Command="{Binding NotImplementedCommand}"/>
+                    <MenuItem Header="打印设置（票头/票尾）" Click="OpenPrintSettings_Click"/>
+                    <Separator/>
+                    <MenuItem Header="退出登录" Command="{Binding ExitCommand}"/>
+                </MenuItem>
+                <MenuItem Header="帮助(H)">
+                    <MenuItem Header="检查更新" Click="CheckUpdate_Click" ToolTip="从 GitHub Releases（国内代理加速）检查并升级到最新版本"/>
+                </MenuItem>
+            </Menu>
+
+        </StackPanel>
+
+        <!-- ===== 底部：状态栏 ===== -->
+        <Border DockPanel.Dock="Bottom" Background="{StaticResource BrandBrush}" Padding="10,4">
+            <DockPanel>
+                <TextBlock Text="产品名：长远汽配 V8" Foreground="White" FontSize="12"/>
+                <TextBlock DockPanel.Dock="Right" Text="{Binding StatusTime}" Foreground="White" FontSize="12"/>
+                <TextBlock DockPanel.Dock="Right" Margin="0,0,16,0" FontSize="12" Foreground="White">
+                    <Run Text="{Binding StatusConnection, Mode=OneWay}"/>
+                </TextBlock>
+                <TextBlock DockPanel.Dock="Right" Margin="0,0,4,0" Text="●" Foreground="#7CFC00" FontSize="12"
+                           Visibility="{Binding IsConnected, Converter={StaticResource BoolToVis}}"/>
+                <TextBlock DockPanel.Dock="Right" Margin="0,0,16,0" Foreground="#FFD" FontSize="12"
+                           Text="{Binding UnprintedCount, StringFormat=未打印单据 {0} 张}"/>
+                <TextBlock DockPanel.Dock="Right" Margin="0,0,16,0" Foreground="White" FontSize="12"
+                           Text="{Binding StatusOperator, StringFormat=操作员：{0}}"/>
+                <TextBlock DockPanel.Dock="Right" Margin="0,0,16,0" Foreground="White" FontSize="12"
+                           Text="{Binding StatusRole, StringFormat=权限：{0}}"/>
+            </DockPanel>
+        </Border>
+
+        <!-- ===== 中间：多标签 ===== -->
+        <TabControl ItemsSource="{Binding Tabs}" SelectedItem="{Binding ActiveTab}"
+                    Background="Transparent" BorderThickness="0" Margin="6,6,6,4">
+            <TabControl.ItemTemplate>
+                <DataTemplate>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{Binding Header}" Margin="2,0"/>
+                        <Button Content="✕" Width="18" Height="18" FontSize="10" Padding="0"
+                                Command="{Binding DataContext.CloseTabCommand, RelativeSource={RelativeSource AncestorType=TabControl}}"
+                                CommandParameter="{Binding}"/>
+                    </StackPanel>
+                </DataTemplate>
+            </TabControl.ItemTemplate>
+            <TabControl.ContentTemplate>
+                <DataTemplate>
+                    <ContentPresenter Content="{Binding Content}"/>
+                </DataTemplate>
+            </TabControl.ContentTemplate>
+        </TabControl>
+    </DockPanel>
+</Window>

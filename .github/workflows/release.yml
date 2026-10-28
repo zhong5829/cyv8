@@ -1,0 +1,63 @@
+name: Release
+
+# 推送 v 开头 tag 触发自动打包并发布 Release
+# 例：git tag v0.0.4 && git push origin v0.0.4
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: 计算版本号（去掉 tag 的 v 前缀）
+        id: ver
+        shell: pwsh
+        run: |
+          $v = "${{ github.ref_name }}".TrimStart('v')
+          "version=$v" >> $env:GITHUB_OUTPUT
+
+      # 自包含发布（含 .NET 8 运行时，客户机免装环境），版本号由 tag 注入程序集
+      - name: 发布主程序
+        shell: pwsh
+        run: >
+          dotnet publish src/QPGL.Desktop/QPGL.Desktop.csproj
+          -c Release -r win-x64 --self-contained true
+          -o installer/publish
+          -p:Version=${{ steps.ver.outputs.version }}
+          -p:AssemblyVersion=${{ steps.ver.outputs.version }}.0
+          -p:FileVersion=${{ steps.ver.outputs.version }}.0
+          -p:InformationalVersion=${{ steps.ver.outputs.version }}
+
+      - name: 安装 Inno Setup
+        run: choco install innosetup -y --no-progress
+
+      # setup.iss 源相对路径，appsettings.json/print.ini 以 onlyifdoesntexist 打包（升级不覆盖用户配置）
+      - name: 打包安装程序
+        shell: pwsh
+        run: |
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { $iscc = "C:\Program Files\Inno Setup 6\ISCC.exe" }
+          & $iscc /DAppVersion=${{ steps.ver.outputs.version }} installer/setup.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: 创建 Release 并上传安装包
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem installer/*.exe | Select-Object -First 1
+          gh release create "${{ github.ref_name }}" $exe.FullName `
+            --title "长远测试预览版 ${{ steps.ver.outputs.version }}" `
+            --notes "自包含 .NET 8 运行时安装包。升级安装自动保留 appsettings.json 与 print.ini 用户配置。客户端内置在线更新（帮助→检查更新）。" `
+            --latest

@@ -1,0 +1,50 @@
+<UserControl x:Class="QPGL.Desktop.Views.FinToolControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Loaded="UserControl_Loaded">
+    <DockPanel Margin="8">
+        <Border DockPanel.Dock="Top" Background="White" BorderBrush="{StaticResource PanelBorderBrush}"
+                BorderThickness="1" CornerRadius="3" Padding="10,8" Margin="0,0,0,6">
+            <StackPanel Orientation="Horizontal">
+                <Button Content="汇总到父级（明细→祖先）" Command="{Binding ToolSumCommand}" Margin="0,0,10,0"/>
+                <Button Content="帐簿初始化（清空/恢复）" Command="{Binding ToolInitCommand}"/>
+                <TextBlock Text="{Binding Message}" VerticalAlignment="Center" Margin="12,0,0,0" Foreground="{StaticResource BrandBrush}"/>
+            </StackPanel>
+        </Border>
+        <TabControl>
+            <TabItem Header="固定资产类别（perassty）">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,6,0,0">
+                        <Button Content="新增" Command="{Binding AddAsstyCommand}" Margin="0,0,8,0"/>
+                        <Button Content="保存选中行修改" Command="{Binding UpdateAsstyCommand}"/>
+                    </StackPanel>
+                    <DataGrid ItemsSource="{Binding AsstyRows}" SelectedItem="{Binding SelectedAssty}"
+                              AutoGenerateColumns="False" CanUserAddRows="False" GridLinesVisibility="Horizontal" HeadersVisibility="Column">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="ID" Binding="{Binding Perasid}" IsReadOnly="True" Width="50"/>
+                            <DataGridTextColumn Header="类别名称" Binding="{Binding Perasty}" Width="*"/>
+                            <DataGridTextColumn Header="折旧方式" Binding="{Binding Deprty}" Width="90"/>
+                            <DataGridTextColumn Header="残值率" Binding="{Binding Remrate, StringFormat=N4}" Width="90"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </TabItem>
+            <TabItem Header="固定资产变动方式（perchgty）">
+                <DockPanel>
+                    <Button DockPanel.Dock="Bottom" Content="新增" Command="{Binding AddChgtyCommand}" HorizontalAlignment="Left" Margin="0,6,0,0"/>
+                    <DataGrid ItemsSource="{Binding ChgtyRows}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
+                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="ID" Binding="{Binding Chgid}" Width="50"/>
+                            <DataGridTextColumn Header="方式名称" Binding="{Binding Chgna}" Width="*"/>
+                            <DataGridTextColumn Header="类型" Binding="{Binding Chgty}" Width="60"/>
+                            <DataGridTextColumn Header="对方科目" Binding="{Binding Subcode}" Width="110"/>
+                            <DataGridTextColumn Header="凭证字" Binding="{Binding Vouword}" Width="70"/>
+                            <DataGridTextColumn Header="摘要" Binding="{Binding Vnote}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </TabItem>
+        </TabControl>
+    </DockPanel>
+</UserControl>

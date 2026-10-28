@@ -1,0 +1,139 @@
+<UserControl x:Class="QPGL.Desktop.Views.FinLedgerControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Loaded="UserControl_Loaded">
+    <DockPanel Margin="8">
+        <Border DockPanel.Dock="Top" Background="White" BorderBrush="{StaticResource PanelBorderBrush}"
+                BorderThickness="1" CornerRadius="3" Padding="10,8" Margin="0,0,0,6">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="起始期间" VerticalAlignment="Center"/>
+                <TextBox Width="70" Text="{Binding BPeriod}" Margin="4,0,10,0"/>
+                <TextBlock Text="截止期间" VerticalAlignment="Center"/>
+                <TextBox Width="70" Text="{Binding EPeriod}" Margin="4,0,10,0"/>
+                <TextBlock Text="科目起" VerticalAlignment="Center"/>
+                <TextBox Width="80" Text="{Binding BSub}" Margin="4,0,10,0"/>
+                <TextBlock Text="科目止" VerticalAlignment="Center"/>
+                <TextBox Width="80" Text="{Binding ESub}" Margin="4,0,10,0"/>
+                <CheckBox Content="含未过帐" IsChecked="{Binding IncludeUnposted}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                <TextBlock Text="{Binding Message}" VerticalAlignment="Center" Foreground="{StaticResource BrandBrush}"/>
+            </StackPanel>
+        </Border>
+        <TabControl>
+            <TabItem Header="总账">
+                <DockPanel>
+                    <Button DockPanel.Dock="Bottom" Content="查询总账" Command="{Binding SearchAlegerCommand}" HorizontalAlignment="Left" Margin="0,6,0,0"/>
+                    <DataGrid ItemsSource="{Binding AlegerRows}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
+                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="科目代码" Binding="{Binding Subcode}" Width="110"/>
+                            <DataGridTextColumn Header="科目名称" Binding="{Binding Name}" Width="*"/>
+                            <DataGridTextColumn Header="期间" Binding="{Binding Period}" Width="70"/>
+                            <DataGridTextColumn Header="摘要" Binding="{Binding Csummary}" Width="90"/>
+                            <DataGridTextColumn Header="借方" Binding="{Binding Desum, StringFormat=N2}" Width="100"/>
+                            <DataGridTextColumn Header="贷方" Binding="{Binding Cresum, StringFormat=N2}" Width="100"/>
+                            <DataGridTextColumn Header="方向" Binding="{Binding Dcdir}" Width="44"/>
+                            <DataGridTextColumn Header="余额" Binding="{Binding Balance, StringFormat=N2}" Width="110"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </TabItem>
+            <TabItem Header="明细账">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,6,0,0">
+                        <TextBlock Text="科目代码（前缀）" VerticalAlignment="Center"/>
+                        <TextBox Width="90" Text="{Binding Scode}" Margin="4,0,10,0"/>
+                        <Button Content="查询明细账" Command="{Binding SearchAledetCommand}"/>
+                    </StackPanel>
+                    <DataGrid ItemsSource="{Binding AledetRows}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
+                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="日期" Binding="{Binding Date, StringFormat=yyyy-MM-dd}" Width="90"/>
+                            <DataGridTextColumn Header="凭证字号" Binding="{Binding Vouword}" Width="90"/>
+                            <DataGridTextColumn Header="摘要" Binding="{Binding Note}" Width="*"/>
+                            <DataGridTextColumn Header="业务单号" Binding="{Binding Opercode}" Width="110"/>
+                            <DataGridTextColumn Header="借方" Binding="{Binding Debit, StringFormat=N2}" Width="90"/>
+                            <DataGridTextColumn Header="贷方" Binding="{Binding Credit, StringFormat=N2}" Width="90"/>
+                            <DataGridTextColumn Header="方向" Binding="{Binding Dcdir}" Width="44"/>
+                            <DataGridTextColumn Header="余额" Binding="{Binding Balance, StringFormat=N2}" Width="100"/>
+                            <DataGridTextColumn Header="对方科目" Binding="{Binding Resub}" Width="220"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </TabItem>
+            <TabItem Header="数量金额账">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,6,0,0">
+                        <CheckBox Content="仅明细级" IsChecked="{Binding OnlyDetail}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                        <Button Content="查询数量金额账" Command="{Binding SearchAmsumCommand}"/>
+                    </StackPanel>
+                    <DataGrid ItemsSource="{Binding AmsumRows}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
+                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="科目代码" Binding="{Binding Subcode}" Width="110"/>
+                            <DataGridTextColumn Header="科目名称" Binding="{Binding Subname}" Width="*"/>
+                            <DataGridTextColumn Header="期间" Binding="{Binding Period}" Width="70"/>
+                            <DataGridTextColumn Header="期初方向" Binding="{Binding Bdcdir}" Width="70"/>
+                            <DataGridTextColumn Header="期初数量" Binding="{Binding Bamount, StringFormat=N2}" Width="80"/>
+                            <DataGridTextColumn Header="期初结存" Binding="{Binding Bbalance, StringFormat=N2}" Width="90"/>
+                            <DataGridTextColumn Header="本期收数量" Binding="{Binding Cdeamou, StringFormat=N2}" Width="80"/>
+                            <DataGridTextColumn Header="本期收金额" Binding="{Binding Cdesum, StringFormat=N2}" Width="90"/>
+                            <DataGridTextColumn Header="本期发数量" Binding="{Binding Ccreamou, StringFormat=N2}" Width="80"/>
+                            <DataGridTextColumn Header="本期发金额" Binding="{Binding Ccresum, StringFormat=N2}" Width="90"/>
+                            <DataGridTextColumn Header="期末方向" Binding="{Binding Edcdir}" Width="70"/>
+                            <DataGridTextColumn Header="期末数量" Binding="{Binding Eamount, StringFormat=N2}" Width="80"/>
+                            <DataGridTextColumn Header="期末结存" Binding="{Binding Ebalance, StringFormat=N2}" Width="90"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </TabItem>
+            <TabItem Header="核算项目账">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,6,0,0">
+                        <TextBlock Text="项目类别（C/D/I/E）" VerticalAlignment="Center"/>
+                        <TextBox Width="36" Text="{Binding ItemTy}" Margin="4,0,10,0"/>
+                        <TextBlock Text="项目值（空=全部）" VerticalAlignment="Center"/>
+                        <TextBox Width="120" Text="{Binding ItemNa}" Margin="4,0,10,0"/>
+                        <Button Content="查询核算项目账" Command="{Binding SearchItsubCommand}"/>
+                    </StackPanel>
+                    <DataGrid ItemsSource="{Binding ItsubRows}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
+                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="类别" Binding="{Binding Itemty}" Width="50"/>
+                            <DataGridTextColumn Header="项目" Binding="{Binding Itemna}" Width="140"/>
+                            <DataGridTextColumn Header="科目代码" Binding="{Binding Subcode}" Width="110"/>
+                            <DataGridTextColumn Header="科目名称" Binding="{Binding Subname}" Width="*"/>
+                            <DataGridTextColumn Header="期间" Binding="{Binding Period}" Width="70"/>
+                            <DataGridTextColumn Header="期初方向" Binding="{Binding Bdcdir}" Width="70"/>
+                            <DataGridTextColumn Header="期初余额" Binding="{Binding Bbalance, StringFormat=N2}" Width="90"/>
+                            <DataGridTextColumn Header="本期借" Binding="{Binding Cdesum, StringFormat=N2}" Width="90"/>
+                            <DataGridTextColumn Header="本期贷" Binding="{Binding Ccresum, StringFormat=N2}" Width="90"/>
+                            <DataGridTextColumn Header="期末方向" Binding="{Binding Edcdir}" Width="70"/>
+                            <DataGridTextColumn Header="期末余额" Binding="{Binding Ebalance, StringFormat=N2}" Width="90"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </TabItem>
+            <TabItem Header="多栏账">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,6,0,0">
+                        <ComboBox ItemsSource="{Binding ColumnAccounts}" SelectedItem="{Binding SelectedColumnAccount}"
+                                  DisplayMemberPath="CName" Width="220" Margin="0,0,10,0"/>
+                        <Button Content="查询多栏账" Command="{Binding SearchColumnCommand}"/>
+                    </StackPanel>
+                    <DataGrid ItemsSource="{Binding ColumnRows}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
+                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="日期" Binding="{Binding Date, StringFormat=yyyy-MM-dd}" Width="90"/>
+                            <DataGridTextColumn Header="凭证字号" Binding="{Binding Vword}" Width="90"/>
+                            <DataGridTextColumn Header="摘要" Binding="{Binding Note}" Width="*"/>
+                            <DataGridTextColumn Header="借方合计" Binding="{Binding DBa, StringFormat=N2}" Width="100"/>
+                            <DataGridTextColumn Header="贷方合计" Binding="{Binding CBa, StringFormat=N2}" Width="100"/>
+                            <DataGridTextColumn Header="方向" Binding="{Binding Dcdir}" Width="44"/>
+                            <DataGridTextColumn Header="余额" Binding="{Binding Balance, StringFormat=N2}" Width="110"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </TabItem>
+        </TabControl>
+    </DockPanel>
+</UserControl>

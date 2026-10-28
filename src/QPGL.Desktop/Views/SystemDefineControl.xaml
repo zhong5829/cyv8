@@ -1,0 +1,120 @@
+<UserControl x:Class="QPGL.Desktop.Views.SystemDefineControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Loaded="UserControl_Loaded">
+    <DockPanel Margin="8">
+        <Border DockPanel.Dock="Top" Background="White" BorderBrush="{StaticResource PanelBorderBrush}"
+                BorderThickness="1" CornerRadius="3" Padding="10,6" Margin="0,0,0,6">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="系统定义（A8 · tbsysset）" FontWeight="Bold" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding Message}" VerticalAlignment="Center" Margin="16,0,0,0" Foreground="{StaticResource BrandBrush}"/>
+            </StackPanel>
+        </Border>
+        <TabControl>
+            <TabItem Header="公司信息">
+                <StackPanel Margin="12">
+                    <StackPanel Orientation="Horizontal" Margin="0,6">
+                        <TextBlock Text="公司名称" Width="80" VerticalAlignment="Center"/>
+                        <TextBox Width="260" Text="{Binding CompanyName}"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,6">
+                        <TextBlock Text="电话" Width="80" VerticalAlignment="Center"/>
+                        <TextBox Width="260" Text="{Binding CompanyTel}"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,6">
+                        <TextBlock Text="地址" Width="80" VerticalAlignment="Center"/>
+                        <TextBox Width="260" Text="{Binding CompanyAddr}"/>
+                    </StackPanel>
+                    <Button Content="保存公司信息（tbdpm.dpm + tbsysset 6 项）" Command="{Binding SaveCompanyCommand}" HorizontalAlignment="Left" Margin="0,10,0,0"/>
+                </StackPanel>
+            </TabItem>
+            <TabItem Header="厂牌">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,4,0,6">
+                        <Button Content="保存厂牌组（整组删+重插）" Command="{Binding SaveCpsCommand}"/>
+                    </StackPanel>
+                    <DataGrid ItemsSource="{Binding CpRows}" AutoGenerateColumns="False" CanUserAddRows="True"
+                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="厂牌名" Binding="{Binding Name}" Width="110"/>
+                            <DataGridTextColumn Header="外币名(valuec)" Binding="{Binding Valuec}" Width="110"/>
+                            <DataGridTextColumn Header="备注" Binding="{Binding Note}" Width="160"/>
+                            <DataGridTextColumn Header="串号模板" Binding="{Binding Cxnno}" Width="140"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </TabItem>
+            <TabItem Header="字典维护">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,4,0,6">
+                        <TextBlock Text="分组" VerticalAlignment="Center"/>
+                        <ComboBox x:Name="CboDictType" SelectedIndex="0" Width="110" Margin="4,0,8,0" SelectionChanged="OnDictTypeChanged">
+                            <ComboBoxItem Content="unit"/>
+                            <ComboBoxItem Content="fhfs"/>
+                            <ComboBoxItem Content="guno"/>
+                            <ComboBoxItem Content="bz"/>
+                            <ComboBoxItem Content="库号"/>
+                            <ComboBoxItem Content="chqz"/>
+                            <ComboBoxItem Content="mode"/>
+                            <ComboBoxItem Content="prod"/>
+                            <ComboBoxItem Content="业务类型"/>
+                            <ComboBoxItem Content="bankname"/>
+                            <ComboBoxItem Content="dc"/>
+                            <ComboBoxItem Content="发货员"/>
+                            <ComboBoxItem Content="客户类型"/>
+                            <ComboBoxItem Content="退货原因"/>
+                            <ComboBoxItem Content="color"/>
+                            <ComboBoxItem Content="ywr"/>
+                            <ComboBoxItem Content="fptype"/>
+                            <ComboBoxItem Content="gstype"/>
+                            <ComboBoxItem Content="dbr"/>
+                            <ComboBoxItem Content="jhr"/>
+                        </ComboBox>
+                        <Button Content="新增行" Command="{Binding NewDictRowCommand}" Margin="0,0,8,0"/>
+                    </StackPanel>
+                    <DataGrid ItemsSource="{Binding DictRows}" AutoGenerateColumns="False" CanUserAddRows="False"
+                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="名称" Binding="{Binding Name}" Width="180"/>
+                            <DataGridTextColumn Header="valuec" Binding="{Binding Valuec}" Width="140"/>
+                            <DataGridTextColumn Header="valuen" Binding="{Binding Valuen}" Width="80"/>
+                            <DataGridTextColumn Header="说明" Binding="{Binding Note}" Width="200"/>
+                            <DataGridTemplateColumn Header="操作" Width="130">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Button Content="保存" Command="{Binding DataContext.SaveDictCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}" CommandParameter="{Binding}" Margin="0,0,6,0"/>
+                                            <Button Content="删除" Command="{Binding DataContext.DeleteDictCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}" CommandParameter="{Binding}"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </TabItem>
+            <TabItem Header="参数">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,4,0,6">
+                        <Button Content="保存已编辑参数" Command="{Binding SaveParasCommand}"/>
+                        <TextBlock Text="（参数行打开即自动补建 findrecord；保存按类型分派 valuel/valuec/valuen）" Margin="10,0,0,0" Foreground="#888"/>
+                    </StackPanel>
+                    <DataGrid ItemsSource="{Binding ParaRows}" AutoGenerateColumns="False" CanUserAddRows="False"
+                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="参数" Binding="{Binding Name}" Width="220"/>
+                            <DataGridTextColumn Header="分组" Binding="{Binding Xtype}" Width="60"/>
+                            <DataGridTemplateColumn Header="值" Width="260">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBox Text="{Binding ValueC, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding IsText}"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </TabItem>
+        </TabControl>
+    </DockPanel>
+</UserControl>

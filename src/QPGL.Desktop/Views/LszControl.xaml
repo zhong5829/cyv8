@@ -1,0 +1,52 @@
+<UserControl x:Class="QPGL.Desktop.Views.LszControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Loaded="UserControl_Loaded">
+    <DockPanel Margin="8">
+        <!-- 查询条件条 -->
+        <Border DockPanel.Dock="Top" Background="White" BorderBrush="{StaticResource PanelBorderBrush}"
+                BorderThickness="1" CornerRadius="3" Padding="10,8" Margin="0,0,0,6">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="收款去向" VerticalAlignment="Center"/>
+                <ComboBox Width="120" ItemsSource="{Binding BankNames}" SelectedItem="{Binding BankName}" VerticalAlignment="Center" Margin="4,0,12,0"/>
+                <TextBlock Text="日期" VerticalAlignment="Center"/>
+                <DatePicker Width="105" SelectedDate="{Binding DateFrom}" VerticalAlignment="Center" Margin="4,0,4,0"/>
+                <TextBlock Text="~" VerticalAlignment="Center"/>
+                <DatePicker Width="105" SelectedDate="{Binding DateTo}" VerticalAlignment="Center" Margin="4,0,12,0"/>
+                <Button Content="查询" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding SearchCommand}" VerticalAlignment="Center"/>
+                <Button Content="新增" Command="{Binding AddCommand}" IsEnabled="{Binding CanAdd}" Padding="10,3" Margin="16,0,0,0"/>
+                <Button Content="修改" Command="{Binding EditCommand}" IsEnabled="{Binding CanEdit}" Padding="10,3" Margin="6,0,0,0"/>
+                <Button Content="删除" Command="{Binding DeleteCommand}" IsEnabled="{Binding CanDelete}" Padding="10,3" Margin="6,0,0,0"/>
+                <Button Content="删除之前全部" Command="{Binding DeleteBeforeCommand}" IsEnabled="{Binding CanDelete}" Padding="10,3" Margin="6,0,0,0"/>
+                <Button Content="初始累计数" Command="{Binding AddInitialCommand}" IsEnabled="{Binding CanAdd}" Padding="10,3" Margin="6,0,0,0"/>
+                <Button Content="提取销售/入库" Command="{Binding ExtractCommand}" Padding="10,3" Margin="6,0,0,0"
+                        ToolTip="从销售/入库单批量生成流水（未提取过的单据）"/>
+            </StackPanel>
+        </Border>
+
+        <Border DockPanel.Dock="Bottom" Background="White" BorderBrush="{StaticResource PanelBorderBrush}"
+                BorderThickness="1" CornerRadius="3" Padding="10,4" Margin="0,6,0,0">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="{Binding Message}" Foreground="{StaticResource BrandBrush}" VerticalAlignment="Center"/>
+                <TextBlock Text="    哨兵行（期初金额/本期小计/期末小计/总计）为应用层聚合，不落库；SK/FK 收付款流水禁止在此删除"
+                           Foreground="#888" VerticalAlignment="Center" FontSize="11"/>
+            </StackPanel>
+        </Border>
+
+        <DataGrid ItemsSource="{Binding Rows}" AutoGenerateColumns="False" CanUserAddRows="False"
+                  GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12" IsReadOnly="True"
+                  SelectedItem="{Binding SelectedRow}">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="日期" Binding="{Binding LsDate}" Width="90"/>
+                <DataGridTextColumn Header="业务" Binding="{Binding Ytu}" Width="80"/>
+                <DataGridTextColumn Header="备注" Binding="{Binding Remark}" Width="*"/>
+                <DataGridTextColumn Header="收入" Binding="{Binding Ys, StringFormat=N2}" Width="95" ElementStyle="{StaticResource NumCellRight}"/>
+                <DataGridTextColumn Header="支出" Binding="{Binding Yf, StringFormat=N2}" Width="95" ElementStyle="{StaticResource NumCellRight}"/>
+                <DataGridTextColumn Header="累计" Binding="{Binding Lj, StringFormat=N2}" Width="95" ElementStyle="{StaticResource NumCellRight}"/>
+                <DataGridTextColumn Header="客户" Binding="{Binding Gname}" Width="140"/>
+                <DataGridTextColumn Header="单号" Binding="{Binding Skno}" Width="95"/>
+                <DataGridTextColumn Header="相关单" Binding="{Binding Paper}" Width="105"/>
+            </DataGrid.Columns>
+        </DataGrid>
+    </DockPanel>
+</UserControl>

@@ -1,0 +1,42 @@
+<UserControl x:Class="QPGL.Desktop.Views.PartProfileControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <DockPanel Margin="8">
+        <Border DockPanel.Dock="Top" Background="#F4F6F9" CornerRadius="4" Padding="8,6" Margin="0,0,0,6">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="厂牌" VerticalAlignment="Center"/>
+                <TextBox Width="80" Text="{Binding CpFilter, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center" Margin="4,0,10,0"/>
+                <TextBlock Text="零件号" VerticalAlignment="Center"/>
+                <TextBox Width="110" Text="{Binding NnoFilter, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center" Margin="4,0,10,0"/>
+                <TextBlock Text="名称" VerticalAlignment="Center"/>
+                <TextBox Width="120" Text="{Binding Na1Filter, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center" Margin="4,0,10,0"/>
+                <TextBlock Text="车型" VerticalAlignment="Center"/>
+                <TextBox Width="90" Text="{Binding TyFilter, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center" Margin="4,0,10,0"/>
+                <Button Content="查询" Command="{Binding SearchCommand}" Padding="20,4" FontWeight="Bold" Margin="0,0,14,0"/>
+                <Button Content="修改进价" Command="{Binding UpdateIprjCommand}" Padding="14,4" Margin="0,0,12,0"/>
+                <TextBlock Text="{Binding Message}" Foreground="#C0392B" VerticalAlignment="Center"/>
+            </StackPanel>
+        </Border>
+        <DataGrid ItemsSource="{Binding Rows}" SelectedItem="{Binding SelectedRow}" AutoGenerateColumns="False"
+                  IsReadOnly="True" GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="厂牌" Binding="{Binding Cp}" Width="70"/>
+                <DataGridTextColumn Header="零件号" Binding="{Binding Nno}" Width="130"/>
+                <DataGridTextColumn Header="名称" Binding="{Binding Na1}" Width="180"/>
+                <DataGridTextColumn Header="车型" Binding="{Binding Ty}" Width="110"/>
+                <DataGridTextColumn Header="单位" Binding="{Binding Unit}" Width="50"/>
+                <DataGridTextColumn Header="进价金额" Binding="{Binding Iprj, StringFormat=N2}" Width="85"/>
+                <DataGridTextColumn Header="常用量" Binding="{Binding Uqty}" Width="60"/>
+                <DataGridTextColumn Header="最低售价" Binding="{Binding OprcMin, StringFormat=N2}" Width="80"/>
+                <DataGridTextColumn Header="备注" Binding="{Binding Note}" Width="*"/>
+            </DataGrid.Columns>
+        </DataGrid>
+        <Border DockPanel.Dock="Bottom" Padding="0,6,0,0">
+            <StackPanel Orientation="Horizontal">
+                <Button Content="上一页" Command="{Binding PrevPageCommand}" Padding="10,2" Margin="0,0,6,0"/>
+                <Button Content="下一页" Command="{Binding NextPageCommand}" Padding="10,2"/>
+                <TextBlock Text="{Binding Total, StringFormat=共 {0} 行}" VerticalAlignment="Center" Margin="12,0,0,0"/>
+            </StackPanel>
+        </Border>
+    </DockPanel>
+</UserControl>

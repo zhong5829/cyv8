@@ -1,0 +1,76 @@
+<Window x:Class="QPGL.Desktop.Views.ReturnLineEditDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="退货编辑" Width="320" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize" ShowInTaskbar="False"
+        Background="{StaticResource WindowBackBrush}">
+    <StackPanel Margin="12">
+        <!-- 配件上下文 -->
+        <TextBlock x:Name="TxtPartContext" Foreground="#555" Margin="0,0,0,8" TextTrimming="CharacterEllipsis"/>
+
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" SharedSizeGroup="Label"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="34"/>
+                <RowDefinition Height="34"/>
+                <RowDefinition Height="34"/>
+                <RowDefinition Height="34"/>
+                <RowDefinition Height="34"/>
+                <RowDefinition Height="34"/>
+                <RowDefinition Height="34"/>
+                <RowDefinition Height="34"/>
+                <RowDefinition Height="34"/>
+            </Grid.RowDefinitions>
+
+            <TextBlock Grid.Row="0" Text="售　　价:" VerticalAlignment="Center"/>
+            <TextBox x:Name="TxtOprc" Grid.Row="0" Grid.Column="1" IsReadOnly="True"
+                     Background="#DAE9F5" VerticalContentAlignment="Center" Margin="8,2,0,2"/>
+
+            <TextBlock Grid.Row="1" Text="售价改为:" VerticalAlignment="Center"/>
+            <TextBox x:Name="TxtOprcNew" Grid.Row="1" Grid.Column="1"
+                     Background="#FFFFE1" VerticalContentAlignment="Center" Margin="8,2,0,2"/>
+
+            <TextBlock Grid.Row="2" Text="实 售 价:" VerticalAlignment="Center"/>
+            <TextBox x:Name="TxtOprct" Grid.Row="2" Grid.Column="1" IsReadOnly="True"
+                     Background="#DAE9F5" VerticalContentAlignment="Center" Margin="8,2,0,2"/>
+
+            <TextBlock Grid.Row="3" Text="实售价改为:" VerticalAlignment="Center"/>
+            <TextBox x:Name="TxtOprctNew" Grid.Row="3" Grid.Column="1"
+                     Background="#FFFFE1" VerticalContentAlignment="Center" Margin="8,2,0,2"/>
+
+            <TextBlock Grid.Row="4" Text="出 库 数:" VerticalAlignment="Center"/>
+            <TextBox x:Name="TxtQty" Grid.Row="4" Grid.Column="1" IsReadOnly="True"
+                     Background="#DAE9F5" VerticalContentAlignment="Center" Margin="8,2,0,2"/>
+
+            <TextBlock Grid.Row="5" Text="已 退 数:" VerticalAlignment="Center"/>
+            <TextBox x:Name="TxtReturned" Grid.Row="5" Grid.Column="1" IsReadOnly="True"
+                     Background="#DAE9F5" VerticalContentAlignment="Center" Margin="8,2,0,2"/>
+
+            <TextBlock Grid.Row="6" Text="本次退货数量:" VerticalAlignment="Center"/>
+            <TextBox x:Name="TxtReturnQty" Grid.Row="6" Grid.Column="1"
+                     Background="#FFFFE1" VerticalContentAlignment="Center" Margin="8,2,0,2"/>
+
+            <TextBlock Grid.Row="7" Text="库　　号:" VerticalAlignment="Center"/>
+            <ComboBox x:Name="CmbDepot" Grid.Row="7" Grid.Column="1" IsEditable="True"
+                      VerticalContentAlignment="Center" Margin="8,2,0,2"
+                      SelectionChanged="CmbDepot_SelectionChanged"/>
+
+            <TextBlock Grid.Row="8" Text="仓　　位:" VerticalAlignment="Center"/>
+            <ComboBox x:Name="CmbPosi" Grid.Row="8" Grid.Column="1" IsEditable="True"
+                      VerticalContentAlignment="Center" Margin="8,2,0,2"/>
+        </Grid>
+
+        <TextBlock x:Name="TxtError" Foreground="{StaticResource WarnBrush}" FontWeight="Bold"
+                   Margin="0,6,0,0" Visibility="Collapsed"/>
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,10,0,0">
+            <Button x:Name="BtnOk" Content="确定" Width="86" Height="28" Margin="4,0"
+                    Style="{StaticResource PrimaryButtonStyle}" IsDefault="True" Click="BtnOk_Click"/>
+            <Button Content="取消" Width="86" Height="28" Margin="4,0" IsCancel="True"/>
+        </StackPanel>
+    </StackPanel>
+</Window>

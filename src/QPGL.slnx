@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="QPGL.Api/QPGL.Api.csproj" />
+  <Project Path="QPGL.Desktop/QPGL.Desktop.csproj" />
+  <Project Path="QPGL.Domain/QPGL.Domain.csproj" />
+  <Project Path="QPGL.Infrastructure/QPGL.Infrastructure.csproj" />
+  <Project Path="QPGL.Tests/QPGL.Tests.csproj" />
+</Solution>

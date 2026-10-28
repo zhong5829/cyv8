@@ -1,0 +1,56 @@
+<UserControl x:Class="QPGL.Desktop.Views.WebStockControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Loaded="UserControl_Loaded">
+    <DockPanel Margin="8">
+        <!-- 查询条 -->
+        <Border DockPanel.Dock="Top" Background="White" BorderBrush="{StaticResource PanelBorderBrush}"
+                BorderThickness="1" CornerRadius="3" Padding="10,8" Margin="0,0,0,6">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="配件编号前缀" VerticalAlignment="Center"/>
+                <TextBox Width="130" Text="{Binding NnoPrefix, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center" Margin="4,0,12,0"/>
+                <TextBlock Text="名称包含" VerticalAlignment="Center"/>
+                <TextBox Width="160" Text="{Binding Na1Contains, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center" Margin="4,0,12,0"/>
+                <Button Content="查询" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding SearchCommand}" Margin="0,0,16,0"/>
+                <TextBlock Text="{Binding Message}" Foreground="#C0392B" VerticalAlignment="Center"/>
+            </StackPanel>
+        </Border>
+
+        <!-- 工具条 -->
+        <Border DockPanel.Dock="Top" Padding="0,4" Margin="0,0,0,6">
+            <StackPanel Orientation="Horizontal">
+                <Button Content="从库存生成/刷新" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding GenerateCommand}" Margin="0,0,8,0"/>
+                <Button Content="全选置√" Command="{Binding MarkAllOnCommand}" Padding="14,3" Margin="0,0,8,0"/>
+                <Button Content="全选置灰" Command="{Binding MarkAllOffCommand}" Padding="14,3" Margin="0,0,8,0"/>
+                <Button Content="编辑行" Command="{Binding EditRowCommand}" Padding="14,3" Margin="0,0,8,0"/>
+                <Button Content="删除" Command="{Binding DeleteCommand}" Padding="14,3" Margin="0,0,12,0"/>
+                <TextBlock Text="勾选即上网；售价/数量由库存生成刷新，编辑行仅回写编号/车型/正厂/上网编码。" Foreground="#888" VerticalAlignment="Center"/>
+            </StackPanel>
+        </Border>
+
+        <DataGrid ItemsSource="{Binding Rows}" SelectedItem="{Binding SelectedRow}"
+                  AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False"
+                  GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12">
+            <DataGrid.Columns>
+                <DataGridTemplateColumn Header="上网" Width="52">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <CheckBox IsChecked="{Binding Mark, UpdateSourceTrigger=PropertyChanged}"
+                                      HorizontalAlignment="Center" VerticalAlignment="Center"
+                                      Click="Mark_Click"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTextColumn Header="编号" Binding="{Binding Nno}" IsReadOnly="True" Width="110"/>
+                <DataGridTextColumn Header="名称" Binding="{Binding Na1}" IsReadOnly="True" Width="*"/>
+                <DataGridTextColumn Header="型号" Binding="{Binding Ty}" IsReadOnly="True" Width="90"/>
+                <DataGridTextColumn Header="正厂" Binding="{Binding Dc}" IsReadOnly="True" Width="60"/>
+                <DataGridTextColumn Header="售价" Binding="{Binding Oprc, Mode=OneWay}" IsReadOnly="True" Width="80"
+                                    ElementStyle="{StaticResource NumCellRight}"/>
+                <DataGridTextColumn Header="数量" Binding="{Binding Kcamount, Mode=OneWay}" IsReadOnly="True" Width="80"
+                                    ElementStyle="{StaticResource NumCellRight}"/>
+                <DataGridTextColumn Header="上网编码" Binding="{Binding Nnp}" IsReadOnly="True" Width="110"/>
+            </DataGrid.Columns>
+        </DataGrid>
+    </DockPanel>
+</UserControl>

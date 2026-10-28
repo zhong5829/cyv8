@@ -1,0 +1,308 @@
+<UserControl x:Class="QPGL.Desktop.Views.FinanceConfirmControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:QPGL.Desktop.ViewModels">
+    <!-- 财务确认（G.1，旧 fr_sk 复刻）：工具栏（查询/确认/还原/刷新/分类汇总/打印/说明 + 销售类型）
+         + 10 页签（4 页实现 / 6 页按约定置灰）+ 单据列表 + 单号明细 -->
+    <Grid Margin="8">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="3*"/>
+            <RowDefinition Height="2*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Row0: 工具栏（旧 CMDFIND1/CMD2/CMD4/CMD3/Z_.row54/__.row72/遊_.row160 + CBO1） -->
+        <Border Grid.Row="0" Background="#F4F6F9" CornerRadius="4" Padding="8,6" Margin="0,0,0,4">
+            <DockPanel>
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                    <Button Content="查询" Command="{Binding SearchCommand}" Padding="14,3" Margin="0,0,6,0" FontWeight="Bold"/>
+                    <Button Content="确认" Command="{Binding ConfirmCommand}" Padding="14,3" Margin="0,0,6,0" FontWeight="Bold"
+                            IsEnabled="{Binding CanConfirm}"/>
+                    <Button Content="还原" Command="{Binding RestoreCommand}" Padding="14,3" Margin="0,0,6,0"
+                            IsEnabled="{Binding CanConfirm}"/>
+                    <Button Content="刷新" Command="{Binding SearchCommand}" Padding="14,3" Margin="0,0,6,0"/>
+                    <Button Content="分类汇总" Command="{Binding TotalCommand}" Padding="14,3" Margin="0,0,6,0"/>
+                    <Button Content="打印" Command="{Binding PrintCommand}" Padding="14,3" Margin="0,0,6,0"/>
+                    <Button Content="说明" Command="{Binding ShowHelpCommand}" Padding="14,3"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" HorizontalAlignment="Right">
+                    <!-- 旧 CBOPAPERTYPE（P__.row73）：tbsysset papertype 值域（门店/仓库）+「全部」，按 tbsada_header.papertype 过滤 -->
+                    <TextBlock Text="销售类型" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                    <ComboBox Width="90" ItemsSource="{Binding PaperTypes}"
+                              SelectedItem="{Binding PaperType}" VerticalAlignment="Center"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- Row1: 页签（旧 PAF1 Page1..Page10；4 页实现，6 页按约定排除/未建置灰） -->
+        <TabControl Grid.Row="1" SelectedIndex="{Binding ActivePage}" Background="Transparent" Margin="0,0,0,4">
+            <TabItem Header="出库确认">
+                <!-- 旧 setsource CASE 1 条件条 + fr_find 可查字段（单号/客户/收款人） -->
+                <Border Background="#FAFBFD" Padding="6,4">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="状态" VerticalAlignment="Center"/>
+                        <ComboBox Width="72" VerticalAlignment="Center" Margin="4,0" SelectedIndex="{Binding OutStatus}">
+                            <ComboBoxItem Content="未确认"/>
+                            <ComboBoxItem Content="已确认"/>
+                        </ComboBox>
+                        <TextBlock Text="日期" VerticalAlignment="Center" Margin="8,0,4,0"/>
+                        <DatePicker Width="110" SelectedDate="{Binding OutDateFrom}" VerticalAlignment="Center"/>
+                        <TextBlock Text="至" VerticalAlignment="Center" Margin="4,0"/>
+                        <DatePicker Width="110" SelectedDate="{Binding OutDateTo}" VerticalAlignment="Center"/>
+                        <TextBlock Text="单号" VerticalAlignment="Center" Margin="12,0,4,0"/>
+                        <TextBox Width="100" Text="{Binding OutPaper, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"/>
+                        <TextBlock Text="客户" VerticalAlignment="Center" Margin="12,0,4,0"/>
+                        <TextBox Width="120" Text="{Binding OutGname, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+            </TabItem>
+            <TabItem Header="入库确认">
+                <!-- 旧 setsource CASE 2：进库单号/供应商 + 默认近 7 天未确认；状态选项照抄 Dh.row32 CASE 2 fr_find -->
+                <Border Background="#FAFBFD" Padding="6,4">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="状态" VerticalAlignment="Center"/>
+                        <ComboBox Width="72" VerticalAlignment="Center" Margin="4,0" SelectedIndex="{Binding InStatus}">
+                            <ComboBoxItem Content="未确认"/>
+                            <ComboBoxItem Content="已确认"/>
+                        </ComboBox>
+                        <TextBlock Text="日期" VerticalAlignment="Center" Margin="8,0,4,0"/>
+                        <DatePicker Width="110" SelectedDate="{Binding InDateFrom}" VerticalAlignment="Center" Margin="4,0"/>
+                        <TextBlock Text="至" VerticalAlignment="Center" Margin="4,0"/>
+                        <DatePicker Width="110" SelectedDate="{Binding InDateTo}" VerticalAlignment="Center"/>
+                        <TextBlock Text="进库单号" VerticalAlignment="Center" Margin="12,0,4,0"/>
+                        <TextBox Width="110" Text="{Binding InCno, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"/>
+                        <TextBlock Text="供应商" VerticalAlignment="Center" Margin="12,0,4,0"/>
+                        <TextBox Width="120" Text="{Binding InGyname, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+            </TabItem>
+            <TabItem Header="调拨确认">
+                <!-- 旧 setsource CASE 3：调拨单号/客户 + 默认近 7 天未确认；状态选项照抄 Dh.row32 CASE 3 fr_find -->
+                <Border Background="#FAFBFD" Padding="6,4">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="状态" VerticalAlignment="Center"/>
+                        <ComboBox Width="72" VerticalAlignment="Center" Margin="4,0" SelectedIndex="{Binding TrStatus}">
+                            <ComboBoxItem Content="未确认"/>
+                            <ComboBoxItem Content="已确认"/>
+                        </ComboBox>
+                        <TextBlock Text="日期" VerticalAlignment="Center" Margin="8,0,4,0"/>
+                        <DatePicker Width="110" SelectedDate="{Binding TrDateFrom}" VerticalAlignment="Center" Margin="4,0"/>
+                        <TextBlock Text="至" VerticalAlignment="Center" Margin="4,0"/>
+                        <DatePicker Width="110" SelectedDate="{Binding TrDateTo}" VerticalAlignment="Center"/>
+                        <TextBlock Text="调拨单号" VerticalAlignment="Center" Margin="12,0,4,0"/>
+                        <TextBox Width="110" Text="{Binding TrPaper, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"/>
+                        <TextBlock Text="客户" VerticalAlignment="Center" Margin="12,0,4,0"/>
+                        <TextBox Width="120" Text="{Binding TrGname, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+            </TabItem>
+            <TabItem Header="维修到帐确认" IsEnabled="False" ToolTip="维修管理模块按约定排除（开发文档附录A）"/>
+            <TabItem Header="维修挂帐确认" IsEnabled="False" ToolTip="维修管理模块按约定排除（开发文档附录A）"/>
+            <TabItem Header="维修保险确认" IsEnabled="False" ToolTip="维修管理模块按约定排除（开发文档附录A）"/>
+            <TabItem Header="代销付款确认">
+                <!-- 旧 setsource CASE 7：默认 1=2 须先查询；状态选项照抄 Dh.row32 CASE 7 fr_find -->
+                <Border Background="#FAFBFD" Padding="6,4">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="状态" VerticalAlignment="Center"/>
+                        <ComboBox Width="72" VerticalAlignment="Center" Margin="4,0" SelectedIndex="{Binding CsStatus}">
+                            <ComboBoxItem Content="未确认"/>
+                            <ComboBoxItem Content="已确认"/>
+                        </ComboBox>
+                        <TextBlock Text="日期" VerticalAlignment="Center" Margin="8,0,4,0"/>
+                        <DatePicker Width="110" SelectedDate="{Binding CsDateFrom}" VerticalAlignment="Center" Margin="4,0"/>
+                        <TextBlock Text="至" VerticalAlignment="Center" Margin="4,0"/>
+                        <DatePicker Width="110" SelectedDate="{Binding CsDateTo}" VerticalAlignment="Center"/>
+                        <TextBlock Text="单号" VerticalAlignment="Center" Margin="12,0,4,0"/>
+                        <TextBox Width="110" Text="{Binding CsPaper, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"/>
+                        <TextBlock Text="客户" VerticalAlignment="Center" Margin="12,0,4,0"/>
+                        <TextBox Width="120" Text="{Binding CsGname, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+            </TabItem>
+            <TabItem Header="服务卡确认" IsEnabled="False" ToolTip="服务卡模块新系统未建"/>
+            <TabItem Header="精品收款" IsEnabled="False" ToolTip="精品报装模块新系统未建"/>
+            <TabItem Header="增值卡确认" IsEnabled="False" ToolTip="会员充值模块新系统未建"/>
+        </TabControl>
+
+        <!-- Row2: 单据列表（旧 GRDCK/GRDRK/GRDDB/GRDPJ） -->
+        <Border Grid.Row="2" Background="White" BorderBrush="#DDD" BorderThickness="1" CornerRadius="3" Margin="0,0,0,4">
+            <Grid x:Name="ListHost">
+                <!-- 页1 出库确认（旧 GRDCK 列序：标识/单号/日期/操作员/收款人/付款方式/发票号/优惠率/售价/实售价/客户/确认日期/备注/实收金额/减收/原单号） -->
+                <DataGrid ItemsSource="{Binding OutBills}" SelectedItem="{Binding SelectedOut}"
+                          AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single"
+                          GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12" Margin="1"
+                          VirtualizingPanel.IsVirtualizing="True">
+                    <DataGrid.RowStyle>
+                        <Style TargetType="DataGridRow">
+                            <Style.Triggers>
+                                <!-- 旧 薀_.row232 Init：iif(!EMPTY(c_ck.mark), 红, 黑) -->
+                                <DataTrigger Binding="{Binding Mark}" Value="Y">
+                                    <Setter Property="Foreground" Value="Red"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Mark}" Value="T">
+                                    <Setter Property="Foreground" Value="Red"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </DataGrid.RowStyle>
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="标识" Binding="{Binding Sk}" Width="60"/>
+                        <DataGridTextColumn Header="单号" Binding="{Binding Paper}" Width="90"/>
+                        <DataGridTextColumn Header="出库日期" Binding="{Binding Outdate, StringFormat=yyyy-MM-dd}" Width="85"/>
+                        <DataGridTextColumn Header="操作员" Binding="{Binding Per}" Width="60"/>
+                        <DataGridTextColumn Header="收款人" Binding="{Binding Per1}" Width="60"/>
+                        <DataGridTextColumn Header="付款方式" Binding="{Binding Guno}" Width="70"/>
+                        <DataGridTextColumn Header="发票号" Binding="{Binding Pno}" Width="90"/>
+                        <DataGridTextColumn Header="优惠率%" Binding="{Binding Yhl}" Width="55"/>
+                        <DataGridTextColumn Header="售价" Binding="{Binding Oprc, StringFormat=N2}" Width="75"/>
+                        <DataGridTextColumn Header="实售价" Binding="{Binding Oprct, StringFormat=N2}" Width="75"/>
+                        <DataGridTextColumn Header="实收金额" Binding="{Binding Ssje, StringFormat=N2}" Width="75"/>
+                        <DataGridTextColumn Header="减收" Binding="{Binding Jianshou, StringFormat=N2}" Width="55"/>
+                        <DataGridTextColumn Header="客户" Binding="{Binding Gname}" Width="130"/>
+                        <DataGridTextColumn Header="确认日期" Binding="{Binding Qrdate, StringFormat=yyyy-MM-dd}" Width="85"/>
+                        <DataGridTextColumn Header="原单号" Binding="{Binding Ypaper}" Width="85"/>
+                        <DataGridTextColumn Header="备注" Binding="{Binding Remark}" Width="*"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+                <!-- 页2 入库确认（旧 GRDRK 列序：mark/cno/indate/per/fkfs/pno/iprc/iprj/gyname/isord/ywr/jkamount/qrr/qrdate） -->
+                <DataGrid ItemsSource="{Binding InBills}" SelectedItem="{Binding SelectedIn}"
+                          AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single"
+                          GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12" Margin="1"
+                          VirtualizingPanel.IsVirtualizing="True">
+                    <DataGrid.RowStyle>
+                        <Style TargetType="DataGridRow">
+                            <Style.Triggers>
+                                <!-- 旧 ___.row302 Init：iif(c_rk.mark='已确认', 红, 黑) -->
+                                <DataTrigger Binding="{Binding Mark}" Value="已确认">
+                                    <Setter Property="Foreground" Value="Red"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </DataGrid.RowStyle>
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="标识" Binding="{Binding Mark}" Width="60"/>
+                        <DataGridTextColumn Header="进库单号" Binding="{Binding Cno}" Width="100"/>
+                        <DataGridTextColumn Header="入库日期" Binding="{Binding Indate, StringFormat=yyyy-MM-dd}" Width="85"/>
+                        <DataGridTextColumn Header="操作员" Binding="{Binding Per}" Width="60"/>
+                        <DataGridTextColumn Header="付款方式" Binding="{Binding Fkfs}" Width="70"/>
+                        <DataGridTextColumn Header="码单" Binding="{Binding Pno}" Width="90"/>
+                        <DataGridTextColumn Header="进价金额" Binding="{Binding Iprc, StringFormat=N2}" Width="75"/>
+                        <DataGridTextColumn Header="外币价" Binding="{Binding Iprj, StringFormat=N2}" Width="75"/>
+                        <DataGridTextColumn Header="供应商" Binding="{Binding Gyname}" Width="130"/>
+                        <DataGridTextColumn Header="订单" Binding="{Binding Isord}" Width="45"/>
+                        <DataGridTextColumn Header="业务人" Binding="{Binding Ywr}" Width="60"/>
+                        <DataGridTextColumn Header="数量" Binding="{Binding Jkamount, StringFormat=N2}" Width="60"/>
+                        <DataGridTextColumn Header="确认人" Binding="{Binding Qrr}" Width="60"/>
+                        <DataGridTextColumn Header="确认日期" Binding="{Binding Qrdate, StringFormat=yyyy-MM-dd}" Width="*"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+                <!-- 页3 调拨确认（旧 GRDDB 列序：sk/paper/outdate/per/guno/pno/oprc(成本)/oprct(实成本)/gname） -->
+                <DataGrid ItemsSource="{Binding TransferBills}" SelectedItem="{Binding SelectedTransfer}"
+                          AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single"
+                          GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12" Margin="1"
+                          VirtualizingPanel.IsVirtualizing="True">
+                    <DataGrid.RowStyle>
+                        <Style TargetType="DataGridRow">
+                            <Style.Triggers>
+                                <!-- 旧 ⒀.row35：mark='Y' 红 / mark='R' 蓝 -->
+                                <DataTrigger Binding="{Binding Mark}" Value="Y">
+                                    <Setter Property="Foreground" Value="Red"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Mark}" Value="R">
+                                    <Setter Property="Foreground" Value="Blue"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </DataGrid.RowStyle>
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="标识" Binding="{Binding Sk}" Width="60"/>
+                        <DataGridTextColumn Header="调拨单号" Binding="{Binding Paper}" Width="100"/>
+                        <DataGridTextColumn Header="调拨日期" Binding="{Binding Outdate, StringFormat=yyyy-MM-dd}" Width="85"/>
+                        <DataGridTextColumn Header="操作员" Binding="{Binding Per}" Width="60"/>
+                        <DataGridTextColumn Header="付款方式" Binding="{Binding Guno}" Width="70"/>
+                        <DataGridTextColumn Header="发票号" Binding="{Binding Pno}" Width="90"/>
+                        <DataGridTextColumn Header="成本" Binding="{Binding Oprc, StringFormat=N2}" Width="75"/>
+                        <DataGridTextColumn Header="实成本" Binding="{Binding Oprct, StringFormat=N2}" Width="75"/>
+                        <DataGridTextColumn Header="数量" Binding="{Binding Ckamount, StringFormat=N2}" Width="60"/>
+                        <DataGridTextColumn Header="客户" Binding="{Binding Gname}" Width="130"/>
+                        <DataGridTextColumn Header="确认日期" Binding="{Binding Qrdate, StringFormat=yyyy-MM-dd}" Width="*"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+                <!-- 页7 代销付款确认（旧 GRDPJ：选项/mark/paper/outdate/per/skper/depotno/ckamount/nno/na1/人进价合计/外币价合计/gname/iprc/iprj/skdate/cp） -->
+                <DataGrid ItemsSource="{Binding ConsignRows}" SelectedItem="{Binding SelectedConsign}"
+                          AutoGenerateColumns="False" SelectionMode="Single"
+                          GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12" Margin="1"
+                          VirtualizingPanel.IsVirtualizing="True">
+                    <DataGrid.Columns>
+                        <!-- 旧 VFP GRDPJ 选项列单击即勾；DataGridCheckBoxColumn 非编辑态不可命中 → 模板列直接切换 -->
+                        <DataGridTemplateColumn Header="选项" Width="40">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <CheckBox IsChecked="{Binding Checked, UpdateSourceTrigger=PropertyChanged}"
+                                              HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTextColumn Header="标识" Binding="{Binding Mark}" Width="60"/>
+                        <DataGridTextColumn Header="单号" Binding="{Binding Paper}" Width="90"/>
+                        <DataGridTextColumn Header="出库日期" Binding="{Binding Outdate, StringFormat=yyyy-MM-dd}" Width="85"/>
+                        <DataGridTextColumn Header="操作员" Binding="{Binding Per}" Width="60"/>
+                        <DataGridTextColumn Header="付款经手人" Binding="{Binding Skper}" Width="70"/>
+                        <DataGridTextColumn Header="仓库" Binding="{Binding Depotno}" Width="55"/>
+                        <DataGridTextColumn Header="数量" Binding="{Binding Ckamount, StringFormat=N2}" Width="55"/>
+                        <DataGridTextColumn Header="零件编码" Binding="{Binding Nno}" Width="100"/>
+                        <DataGridTextColumn Header="零件名" Binding="{Binding Na1}" Width="130"/>
+                        <DataGridTextColumn Header="人进价合计" Binding="{Binding Oprc, StringFormat=N2}" Width="80"/>
+                        <DataGridTextColumn Header="外币价合计" Binding="{Binding Oprct, StringFormat=N2}" Width="80"/>
+                        <DataGridTextColumn Header="客户" Binding="{Binding Gname}" Width="120"/>
+                        <DataGridTextColumn Header="付款日期" Binding="{Binding Skdate, StringFormat=yyyy-MM-dd}" Width="85"/>
+                        <DataGridTextColumn Header="厂牌" Binding="{Binding Cp}" Width="*"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
+        </Border>
+
+        <!-- Row3: 单号明细（旧 GRDMX，红字规则：实售价<人进价 → 契约§说明2） -->
+        <Border Grid.Row="3" Background="White" BorderBrush="#DDD" BorderThickness="1" CornerRadius="3">
+            <DockPanel>
+                <Border DockPanel.Dock="Top" Background="#FFF0F0F0" Padding="8,3">
+                    <TextBlock Text="单号明细" FontWeight="Bold" Foreground="#C0392B"/>
+                </Border>
+                <TextBlock DockPanel.Dock="Bottom" Text="{Binding Message}" Foreground="#C0392B" Margin="8,2,8,4"
+                           TextTrimming="CharacterEllipsis"/>
+                <DataGrid ItemsSource="{Binding Lines}" AutoGenerateColumns="False" IsReadOnly="True"
+                          GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12" Margin="1"
+                          VirtualizingPanel.IsVirtualizing="True">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="厂牌" Binding="{Binding Cp}" Width="60"/>
+                        <DataGridTextColumn Header="零件编码" Binding="{Binding Nno}" Width="100"/>
+                        <DataGridTextColumn Header="零件名" Binding="{Binding Na1}" Width="150"/>
+                        <DataGridTextColumn Header="车型" Binding="{Binding Ty}" Width="90"/>
+                        <DataGridTextColumn Header="产地" Binding="{Binding Fa}" Width="60"/>
+                        <DataGridTextColumn Header="材料单位" Binding="{Binding Unit}" Width="60"/>
+                        <DataGridTextColumn Header="数量" Binding="{Binding Amount, StringFormat=N2}" Width="55"/>
+                        <DataGridTextColumn Header="售价" Binding="{Binding Oprc, StringFormat=N2}" Width="65"/>
+                        <DataGridTextColumn Header="实售价" Binding="{Binding Oprct, StringFormat=N2}" Width="65"/>
+                        <DataGridTextColumn Header="人进价" Binding="{Binding Iprc, StringFormat=N2}" Width="65"/>
+                        <DataGridTextColumn Header="仓库" Binding="{Binding Depotno}" Width="55"/>
+                    </DataGrid.Columns>
+                    <DataGrid.RowStyle>
+                        <Style TargetType="DataGridRow">
+                            <Style.Triggers>
+                                <!-- 旧 鍻.row6 GRDMX Init：iif(oprct<iprc, RGB(255,0,0), RGB(0,0,0))（实售价<人进价红字） -->
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=DataContext.ActivePage}" Value="1"/>
+                                        <Condition Binding="{Binding IsRedLine}" Value="True"/>
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Foreground" Value="Red"/>
+                                </MultiDataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </DataGrid.RowStyle>
+                </DataGrid>
+            </DockPanel>
+        </Border>
+    </Grid>
+</UserControl>

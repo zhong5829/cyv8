@@ -1,0 +1,31 @@
+<UserControl x:Class="QPGL.Desktop.Views.DailyStatControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <DockPanel Margin="8">
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,6">
+            <Button Content="刷新" Command="{Binding ReloadCommand}" Margin="0,0,12,0"/>
+            <Button Content="统计确认" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding PostCommand}" Margin="0,0,12,0"/>
+            <Button Content="恢复未统计" Command="{Binding UnpostCommand}"/>
+        </StackPanel>
+        <TextBlock DockPanel.Dock="Bottom" Text="{Binding Message}" Foreground="#C0392B" Margin="0,6,0,0" TextWrapping="Wrap"/>
+        <DataGrid ItemsSource="{Binding Rows}" SelectedItem="{Binding SelectedRow}"
+                  AutoGenerateColumns="False" CanUserAddRows="False" HeadersVisibility="Column"
+                  IsReadOnly="True" Margin="0,4,0,4">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="日期" Binding="{Binding Outdate, StringFormat=yyyy-MM-dd}" Width="90"/>
+                <DataGridTextColumn Header="单数" Binding="{Binding PaperCount}" Width="50"/>
+                <DataGridTextColumn Header="销售数量" Binding="{Binding Ckamount}" Width="80"/>
+                <DataGridTextColumn Header="销售收入" Binding="{Binding Iprj}" Width="90"/>
+                <DataGridTextColumn Header="销售成本" Binding="{Binding Iprc}" Width="90"/>
+                <DataGridTextColumn Header="销售额" Binding="{Binding Oprc}" Width="90"/>
+                <DataGridTextColumn Header="实收额" Binding="{Binding Oprct}" Width="90"/>
+                <DataGridTextColumn Header="毛利" Binding="{Binding Ml}" Width="90"/>
+                <DataGridTextColumn Header="状态" Binding="{Binding Mark}" Width="70"/>
+                <DataGridTextColumn Header="入库单数" Binding="{Binding Rccno}" Width="70"/>
+                <DataGridTextColumn Header="入库数量" Binding="{Binding Rcamt}" Width="80"/>
+                <DataGridTextColumn Header="入库金额" Binding="{Binding Rciprj}" Width="90"/>
+                <DataGridTextColumn Header="入库成本" Binding="{Binding Rciprc}" Width="90"/>
+            </DataGrid.Columns>
+        </DataGrid>
+    </DockPanel>
+</UserControl>

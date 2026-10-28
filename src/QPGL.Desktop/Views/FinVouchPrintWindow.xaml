@@ -1,0 +1,26 @@
+<Window x:Class="QPGL.Desktop.Views.FinVouchPrintWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="凭证打印版式" Width="360" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        Background="{StaticResource WindowBackBrush}" ShowInTaskbar="False">
+    <StackPanel Margin="16">
+        <TextBlock Text="打印版式：" FontWeight="Bold" Margin="0,0,0,6"/>
+        <RadioButton x:Name="OptAuto" Content="自动判定（按金额/外币行）" IsChecked="True" Margin="8,2"/>
+        <RadioButton x:Name="Opt3" Content="金额版式（Finvouch3）" Margin="8,2"/>
+        <RadioButton x:Name="Opt2" Content="外币版式（Finvouch2）" Margin="8,2"/>
+        <RadioButton x:Name="Opt1" Content="全栏版式（Finvouch）" Margin="8,2"/>
+        <RadioButton x:Name="Opt5" Content="简表版式（Finvouch1）" Margin="8,2"/>
+        <RadioButton x:Name="Opt4" Content="外币独立版式（Finvouch4）" Margin="8,2"/>
+        <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+            <TextBlock Text="每页行数：" VerticalAlignment="Center"/>
+            <TextBox x:Name="TxtRows" Width="50" Text="5" VerticalAlignment="Center"
+                     ToolTip="tbsysset name='finvprn'，0 视为 5"/>
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+            <Button Content="打印" Click="OnPrint" Padding="16,4" Margin="0,0,8,0"/>
+            <Button Content="预览" Style="{StaticResource PrimaryButtonStyle}" Click="OnPreview" Padding="16,4" Margin="0,0,8,0"/>
+            <Button Content="取消" IsCancel="True" Padding="16,4"/>
+        </StackPanel>
+    </StackPanel>
+</Window>

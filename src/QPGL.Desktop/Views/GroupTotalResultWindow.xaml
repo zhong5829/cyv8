@@ -1,0 +1,19 @@
+<Window x:Class="QPGL.Desktop.Views.GroupTotalResultWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="数据汇总结果" Width="775" Height="481" WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False">
+    <DockPanel>
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="6,4">
+            <TextBlock Text="数据汇总结果" Foreground="Blue" FontWeight="Bold" VerticalAlignment="Center"/>
+            <Button x:Name="BtnChart" Content="图表" Width="60" Margin="8,0,0,0" IsEnabled="False"
+                    ToolTip="VFP Graph 图表（备案不实现）"/>
+            <Button Content="排序" Width="60" Margin="8,0,0,0" Click="BtnSort_Click"/>
+            <Button Content="打印" Width="60" Margin="8,0,0,0" Click="BtnPrint_Click"/>
+            <Button Content="关闭" Width="60" Margin="8,0,0,0" Click="BtnClose_Click"/>
+        </StackPanel>
+        <DataGrid x:Name="Grd" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
+                  GridLinesVisibility="Horizontal" HeadersVisibility="Column" Margin="2"
+                  LoadingRow="Grd_LoadingRow"/>
+    </DockPanel>
+</Window>

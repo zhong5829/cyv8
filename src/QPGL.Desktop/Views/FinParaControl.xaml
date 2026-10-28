@@ -1,0 +1,69 @@
+<UserControl x:Class="QPGL.Desktop.Views.FinParaControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Loaded="UserControl_Loaded">
+    <DockPanel Margin="16" MaxWidth="640" HorizontalAlignment="Left">
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,10,0,0">
+            <Button Content="保存" Command="{Binding SaveCommand}" Padding="16,5"/>
+            <TextBlock Text="{Binding Message}" VerticalAlignment="Center" Margin="12,0,0,0" Foreground="{StaticResource BrandBrush}"/>
+        </StackPanel>
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <TextBlock Text="帐套选项（syscontrol）" FontSize="18" FontWeight="Bold" Margin="0,0,0,4"/>
+                <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Foreground="Gray" Margin="0,0,0,12"/>
+                <StackPanel IsEnabled="{Binding IsEditable}">
+                    <Grid Margin="0,0,0,6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="130"/><ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="130"/><ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/>
+                        </Grid.RowDefinitions>
+                        <TextBlock Text="帐套编号" VerticalAlignment="Center"/>
+                        <TextBox Grid.Column="1" Text="{Binding Para.CId, Mode=OneWay}" IsEnabled="False" Margin="0,0,12,0"/>
+                        <TextBlock Grid.Column="2" Text="帐套名称" VerticalAlignment="Center"/>
+                        <TextBox Grid.Column="3" Text="{Binding Para.CName}" Margin="0"/>
+                        <TextBlock Grid.Row="1" Text="地址" VerticalAlignment="Center"/>
+                        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Para.Addr}" Margin="0,0,12,0"/>
+                        <TextBlock Grid.Row="1" Grid.Column="2" Text="类型" VerticalAlignment="Center"/>
+                        <TextBox Grid.Row="1" Grid.Column="3" Text="{Binding Para.CType}"/>
+                        <TextBlock Grid.Row="2" Text="纳税人识别号" VerticalAlignment="Center"/>
+                        <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Para.Taxid}" Margin="0,0,12,0"/>
+                        <TextBlock Grid.Row="2" Grid.Column="2" Text="开户银行" VerticalAlignment="Center"/>
+                        <TextBox Grid.Row="2" Grid.Column="3" Text="{Binding Para.Bank}"/>
+                        <TextBlock Grid.Row="3" Text="银行帐号" VerticalAlignment="Center"/>
+                        <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding Para.Bankid}" Margin="0,0,12,0"/>
+                        <TextBlock Grid.Row="3" Grid.Column="2" Text="电话" VerticalAlignment="Center"/>
+                        <TextBox Grid.Row="3" Grid.Column="3" Text="{Binding Para.Tel}"/>
+                        <TextBlock Grid.Row="4" Text="传真" VerticalAlignment="Center"/>
+                        <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding Para.Fax}" Margin="0,0,12,0"/>
+                        <TextBlock Grid.Row="4" Grid.Column="2" Text="属性" VerticalAlignment="Center"/>
+                        <TextBox Grid.Row="4" Grid.Column="3" Text="{Binding Para.Attri}"/>
+                        <TextBlock Grid.Row="5" Text="折旧周期" VerticalAlignment="Center"/>
+                        <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding Para.Artper}" Margin="0,0,12,0"/>
+                        <TextBlock Grid.Row="5" Grid.Column="2" Text="科目级数" VerticalAlignment="Center"/>
+                        <TextBox Grid.Row="5" Grid.Column="3" Text="{Binding Para.Gramount}"/>
+                    </Grid>
+                    <Separator Margin="0,6"/>
+                    <TextBlock Text="科目代码结构（各级位宽，合计≤18）" FontWeight="Bold" Margin="0,4,0,6"/>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="一级" VerticalAlignment="Center"/><TextBox Width="40" Text="{Binding Para.Leng1}" Margin="4,0,10,0"/>
+                        <TextBlock Text="二级" VerticalAlignment="Center"/><TextBox Width="40" Text="{Binding Para.Leng2}" Margin="4,0,10,0"/>
+                        <TextBlock Text="三级" VerticalAlignment="Center"/><TextBox Width="40" Text="{Binding Para.Leng3}" Margin="4,0,10,0"/>
+                        <TextBlock Text="四级" VerticalAlignment="Center"/><TextBox Width="40" Text="{Binding Para.Leng4}" Margin="4,0,10,0"/>
+                        <TextBlock Text="五级" VerticalAlignment="Center"/><TextBox Width="40" Text="{Binding Para.Leng5}" Margin="4,0,10,0"/>
+                        <TextBlock Text="六级" VerticalAlignment="Center"/><TextBox Width="40" Text="{Binding Para.Leng6}" Margin="4,0,10,0"/>
+                    </StackPanel>
+                    <Separator Margin="0,8"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                        <TextBlock Text="启用期间（yyyyMM）：" VerticalAlignment="Center"/>
+                        <TextBox Width="80" Text="{Binding Para.Uperiod}"/>
+                        <TextBlock Text="当前期间：" VerticalAlignment="Center" Margin="16,0,4,0"/>
+                        <TextBlock Text="{Binding Para.Period}" VerticalAlignment="Center" FontWeight="Bold"/>
+                    </StackPanel>
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</UserControl>

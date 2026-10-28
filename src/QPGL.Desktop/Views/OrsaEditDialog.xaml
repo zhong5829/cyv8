@@ -1,0 +1,40 @@
+<Window x:Class="QPGL.Desktop.Views.OrsaEditDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="报价编辑" Width="380" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize" ShowInTaskbar="False"
+        Background="{StaticResource WindowBackBrush}">
+    <StackPanel Margin="16">
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="80"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <TextBlock Text="单位编号" VerticalAlignment="Center" Margin="0,4"/>
+            <TextBox x:Name="TxtGno" Grid.Column="1" Margin="0,4"/>
+            <TextBlock Text="单位名称" Grid.Row="1" VerticalAlignment="Center" Margin="0,4"/>
+            <TextBox x:Name="TxtGname" Grid.Row="1" Grid.Column="1" Margin="0,4"/>
+            <TextBlock Text="零件编码" Grid.Row="2" VerticalAlignment="Center" Margin="0,4"/>
+            <TextBox x:Name="TxtNno" Grid.Row="2" Grid.Column="1" Margin="0,4" LostFocus="TxtNno_LostFocus"/>
+            <TextBlock Text="名称" Grid.Row="3" VerticalAlignment="Center" Margin="0,4"/>
+            <TextBlock x:Name="TxtNa1" Grid.Row="3" Grid.Column="1" VerticalAlignment="Center" FontWeight="Bold"/>
+            <TextBlock Text="报价数量" Grid.Row="4" VerticalAlignment="Center" Margin="0,4"/>
+            <TextBox x:Name="TxtQty" Grid.Row="4" Grid.Column="1" Text="1" Margin="0,4"/>
+            <TextBlock Text="报价单价" Grid.Row="5" VerticalAlignment="Center" Margin="0,4"/>
+            <TextBox x:Name="TxtOprc" Grid.Row="5" Grid.Column="1" Text="0" Margin="0,4"/>
+        </Grid>
+        <TextBlock Text="提示：名称/车型由零件档案（tbprnoty）自动带出（row61 LostFocus 语义）"
+                   Foreground="#888" FontSize="11" Margin="0,8,0,0" TextWrapping="Wrap"/>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button Content="确定" Width="80" Height="26" Margin="0,0,10,0" IsDefault="True"
+                    Style="{StaticResource PrimaryButtonStyle}" Click="BtnOk_Click"/>
+            <Button Content="取消 (Esc)" Width="80" Height="26" IsCancel="True"/>
+        </StackPanel>
+    </StackPanel>
+</Window>

@@ -1,0 +1,35 @@
+<Window x:Class="QPGL.Desktop.Views.CustomFieldLocalWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="自定义字段--从本地数据源" Width="384" Height="348" WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize" ShowInTaskbar="False">
+    <Grid Margin="8">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="140"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+        <StackPanel>
+            <TextBlock Text="请选择源字段列表" Foreground="Blue" FontSize="11"/>
+            <DataGrid x:Name="GrdField" Height="240" Margin="0,6,0,0" AutoGenerateColumns="False"
+                      IsReadOnly="True" CanUserAddRows="False" HeadersVisibility="Column" GridLinesVisibility="Horizontal">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="字段列表" Binding="{Binding Display}" Width="120"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </StackPanel>
+        <StackPanel Grid.Column="1" Margin="12,20,0,0">
+            <TextBlock Text="新字段名称：" Foreground="Green" FontSize="11"/>
+            <TextBox x:Name="TxtNewField" Height="22" Margin="0,4,0,0"/>
+            <TextBlock Text="注:可以对各字段进行运算,新字段名称前面加'_'。" Foreground="Red" TextWrapping="Wrap" Margin="0,6,0,0" FontSize="10"/>
+            <TextBlock Text="表达式:" Foreground="Green" FontSize="11" Margin="0,10,0,0"/>
+            <TextBox x:Name="TxtExpression" Height="90" Margin="0,4,0,0" TextWrapping="Wrap"
+                     AcceptsReturn="True" VerticalScrollBarVisibility="Auto"/>
+            <TextBlock Text="注:表达式中可使用FOXPRO函数和行函数。" Foreground="Red" TextWrapping="Wrap" Margin="0,6,0,0" FontSize="10"/>
+        </StackPanel>
+        <StackPanel Grid.ColumnSpan="2" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,8,0,0">
+            <Button Content="返回 &lt;&lt;" Width="84" Height="25" Click="BtnBack_Click"/>
+            <Button Content="确定" Width="90" Height="25" Margin="12,0,0,0" Click="BtnOk_Click"/>
+            <Button Content="退出" Width="90" Height="25" Margin="12,0,0,0" Click="BtnExit_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

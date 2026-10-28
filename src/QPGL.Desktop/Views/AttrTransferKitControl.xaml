@@ -1,0 +1,92 @@
+<UserControl x:Class="QPGL.Desktop.Views.AttrTransferKitControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Loaded="UserControl_Loaded">
+    <DockPanel Margin="8">
+        <Border DockPanel.Dock="Top" Background="White" BorderBrush="{StaticResource PanelBorderBrush}"
+                BorderThickness="1" CornerRadius="3" Padding="10,6" Margin="0,0,0,6">
+            <TextBlock Text="属性传递（A3）与套件管理（A4 · tbprtj）" FontWeight="Bold"/>
+        </Border>
+        <TabControl>
+            <TabItem x:Name="SxcdTab" Header="属性传递（fr_sxcd）">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,4,0,6">
+                        <Button Content="全选字段" Command="{Binding SelectAllCommand}" Margin="0,0,8,0"/>
+                        <Button Content="全不选" Command="{Binding SelectNoneCommand}" Margin="0,0,8,0"/>
+                        <Button Content="执行传递" Command="{Binding TransferCommand}" FontWeight="Bold" Margin="0,0,8,0"/>
+                        <TextBlock Text="{Binding Message}" VerticalAlignment="Center" Foreground="{StaticResource BrandBrush}"/>
+                    </StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="280"/>
+                        </Grid.ColumnDefinitions>
+                        <DataGrid ItemsSource="{Binding Fields}" AutoGenerateColumns="False" CanUserAddRows="False"
+                                  GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                            <DataGrid.Columns>
+                                <DataGridCheckBoxColumn Header="传递" Binding="{Binding Is_cd, UpdateSourceTrigger=PropertyChanged}" Width="50"/>
+                                <DataGridTextColumn Header="字段" Binding="{Binding Field_name}" Width="110"/>
+                                <DataGridTextColumn Header="说明" Binding="{Binding Explain}" Width="*"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                        <DataGrid Grid.Column="1" ItemsSource="{Binding Targets}" AutoGenerateColumns="False" CanUserAddRows="False"
+                                  GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB" Margin="8,0,0,0">
+                            <DataGrid.Columns>
+                                <DataGridCheckBoxColumn Header="目标" Binding="{Binding IsCd, UpdateSourceTrigger=PropertyChanged}" Width="50"/>
+                                <DataGridTextColumn Header="表" Binding="{Binding Tbname}" Width="80"/>
+                                <DataGridTextColumn Header="说明" Binding="{Binding Explain}" Width="*"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Grid>
+                </DockPanel>
+            </TabItem>
+            <TabItem x:Name="TjglTab" Header="套件管理（fr_tjgl）">
+                <DockPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <DockPanel Grid.Column="0" Margin="0,4,8,0">
+                            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,6">
+                                <Button Content="刷新" Command="{Binding LoadCommand}" Margin="0,0,8,0"/>
+                                <Button Content="保存套件头" Command="{Binding SaveHeadCommand}" Margin="0,0,8,0"/>
+                                <Button Content="删除套件" Command="{Binding DeleteKitCommand}" Margin="0,0,8,0"/>
+                                <Button Content="拆套" Command="{Binding DisassembleCommand}"/>
+                            </StackPanel>
+                            <DataGrid ItemsSource="{Binding Heads}" SelectedItem="{Binding SelectedHead}" AutoGenerateColumns="False" CanUserAddRows="False"
+                                      GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB" SelectionChanged="OnHeadSelected">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="套件码" Binding="{Binding Tj}" Width="100"/>
+                                    <DataGridTextColumn Header="名称" Binding="{Binding Na1}" Width="120"/>
+                                    <DataGridTextColumn Header="车型" Binding="{Binding Ty}" Width="80"/>
+                                    <DataGridTextColumn Header="套件价" Binding="{Binding Iprj, StringFormat=N2}" Width="66"/>
+                                    <DataGridTextColumn Header="库存" Binding="{Binding Kcamou, StringFormat=N0}" Width="50"/>
+                                    <DataGridTextColumn Header="备注" Binding="{Binding Note}" Width="*"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </DockPanel>
+                        <DockPanel Grid.Column="1" Margin="8,4,0,0">
+                            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,6">
+                                <Button Content="保存组件" Command="{Binding SaveLineCommand}" Margin="0,0,8,0"/>
+                                <Button Content="删除组件" Command="{Binding DeleteLineCommand}" Margin="0,0,8,0"/>
+                                <Button Content="组套" Command="{Binding AssembleCommand}" FontWeight="Bold"/>
+                            </StackPanel>
+                            <DataGrid ItemsSource="{Binding Lines}" AutoGenerateColumns="False" CanUserAddRows="True"
+                                      GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="组件编码" Binding="{Binding Nno}" Width="100"/>
+                                    <DataGridTextColumn Header="名称" Binding="{Binding Na1}" Width="110"/>
+                                    <DataGridTextColumn Header="数量" Binding="{Binding Num}" Width="54"/>
+                                    <DataGridTextColumn Header="单价" Binding="{Binding Iprj, StringFormat=N2}" Width="60"/>
+                                    <DataGridTextColumn Header="库存" Binding="{Binding Kcamou, StringFormat=N0}" Width="50"/>
+                                    <DataGridTextColumn Header="备注" Binding="{Binding Note}" Width="*"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </DockPanel>
+                    </Grid>
+                </DockPanel>
+            </TabItem>
+        </TabControl>
+    </DockPanel>
+</UserControl>
