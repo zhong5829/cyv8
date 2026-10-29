@@ -1028,6 +1028,15 @@ public sealed class YsyfDetailRow
     public string Per { get; set; } = "";
     public string Note { get; set; } = "";
     public string Isord { get; set; } = "";
+
+    /// <summary>收（付）款单号（旧 _K.row5 L110：tblsz 流水 paper=cno + ytu in 收/付款 取最新 skno；仅 入库/销售/维修 行）。</summary>
+    public string Skno { get; set; } = "";
+
+    /// <summary>收（付）款日期（同上子查询的 ls_date；无匹配为 null）。</summary>
+    public DateTime? Jzdate { get; set; }
+
+    /// <summary>结账标记（旧 _K.row5 L110 mark：ys-yf=0 → √；ys-yf≠0 且 |已收|≥|ys-yf| → √；否则空白）。</summary>
+    public string Mark { get; set; } = "";
 }
 
 public sealed record YsyfCustomerCommand(string Gname, decimal Cb, decimal Tick, decimal Yjb, string? Htno,
@@ -1049,6 +1058,15 @@ public interface IYsyfRepository
     Task DeleteDetailAsync(int id, string gname, bool deleteInvoice, string per, CancellationToken ct = default);
     Task MultiDeleteBeforeAsync(int anchorId, string gname, DateTime today, string per, CancellationToken ct = default);
     Task<IReadOnlyList<YsyfTwelveMonthRow>> GetTwelveMonthAsync(string gname, DateTime periodDate, CancellationToken ct = default);
+
+    /// <summary>业务主管/财务负责人下拉名单（旧 __.row2 set_ywy/set_cwfzr：tbkey.per WHERE dpmbh=当前部门）。</summary>
+    Task<IReadOnlyList<string>> GetStaffListAsync(string dpm, CancellationToken ct = default);
+
+    /// <summary>明细类型下拉（旧 ___.row129：tbsysset WHERE type='业务类型' 的 name）。</summary>
+    Task<IReadOnlyList<string>> GetTypeOptionsAsync(CancellationToken ct = default);
+
+    /// <summary>收款方式下拉（旧 ___.row175/幭_.row121：tbsysset WHERE type='guno' 的 name）。</summary>
+    Task<IReadOnlyList<string>> GetFkfsOptionsAsync(CancellationToken ct = default);
 }
 
 /// <summary>前十二月应收应付行（fr_ysyf_12y C_YSYF：期初 + 12 个月 + 累计）。</summary>
@@ -1167,7 +1185,21 @@ public sealed class YsyfRepository(SqlConnectionFactory factory) : IYsyfReposito
             """
             SELECT id, RTRIM(gname) gname, datime, RTRIM(cno) cno, ISNULL(RTRIM(xm),'') xm, ISNULL(RTRIM(pno),'') pno,
                    ys, yf, lj, RTRIM(type) type, RTRIM(fkfs) fkfs, skmoney, RTRIM(per) per,
-                   ISNULL(RTRIM(note),'') note, RTRIM(ISNULL(isord,'')) isord
+                   ISNULL(RTRIM(note),'') note, RTRIM(ISNULL(isord,'')) isord,
+                   -- 收（付）款单号/日期（旧 fr_ysyf _K.row5 L110/L120）：tblsz 流水 paper=cno、ytu in 收/付款、
+                   -- 回扣行(pno in 回扣/KH)匹配 pno='KH' 否则 ''，按 ls_date 倒序取首条；仅 入库/销售/维修 行显示
+                   CASE WHEN RTRIM(type) IN (N'入库', N'销售', N'维修') THEN
+                        ISNULL((SELECT TOP 1 RTRIM(s.skno) FROM tblsz s WITH (NOLOCK)
+                                WHERE s.paper = tbysyf.cno AND RTRIM(s.ytu) IN (N'收款', N'付款')
+                                  AND RTRIM(s.pno) = CASE WHEN RTRIM(tbysyf.pno) IN (N'回扣', N'KH') THEN 'KH' ELSE '' END
+                                ORDER BY s.ls_date DESC), '') ELSE '' END skno,
+                   CASE WHEN RTRIM(type) IN (N'入库', N'销售', N'维修') THEN
+                        (SELECT TOP 1 s.ls_date FROM tblsz s WITH (NOLOCK)
+                         WHERE s.paper = tbysyf.cno AND RTRIM(s.ytu) IN (N'收款', N'付款')
+                           AND RTRIM(s.pno) = CASE WHEN RTRIM(tbysyf.pno) IN (N'回扣', N'KH') THEN 'KH' ELSE '' END
+                         ORDER BY s.ls_date DESC) ELSE NULL END jzdate,
+                   -- 结账标记（旧 _K.row5 L110 mark）：结清或已收够 → √，否则空白
+                   CASE WHEN (ys - yf = 0) OR (ys - yf <> 0 AND ABS(skmoney) >= ABS(ys - yf)) THEN N'√' ELSE '' END mark
             FROM tbysyf WITH (NOLOCK) WHERE gname = @gname ORDER BY datime, id
             """,
             new { gname = Ansi(gname.Trim(), 60) }, cancellationToken: ct));
@@ -1180,6 +1212,36 @@ public sealed class YsyfRepository(SqlConnectionFactory factory) : IYsyfReposito
             r.Lj = run;
         }
         return list;
+    }
+
+    /// <summary>业务主管/财务负责人名单（旧 __.row2 set_ywy/set_cwfzr：tbkey.per WHERE dpmbh=当前部门）。</summary>
+    public async Task<IReadOnlyList<string>> GetStaffListAsync(string dpm, CancellationToken ct = default)
+    {
+        await using var conn = await factory.OpenAsync(ct);
+        var rows = await conn.QueryAsync<string>(new CommandDefinition(
+            "SELECT DISTINCT RTRIM(per) AS per FROM tbkey WITH (NOLOCK) WHERE dpmbh = @dpm AND per <> '' ORDER BY per",
+            new { dpm = Ansi(dpm.Trim(), 10) }, cancellationToken: ct));
+        return rows.AsList();
+    }
+
+    /// <summary>明细类型下拉（旧 ___.row129：tbsysset WHERE type='业务类型' 的 name）。</summary>
+    public async Task<IReadOnlyList<string>> GetTypeOptionsAsync(CancellationToken ct = default)
+    {
+        await using var conn = await factory.OpenAsync(ct);
+        var rows = await conn.QueryAsync<string>(new CommandDefinition(
+            "SELECT RTRIM(name) FROM tbsysset WITH (NOLOCK) WHERE type = N'业务类型' AND RTRIM(name) <> '' ORDER BY id",
+            cancellationToken: ct));
+        return rows.AsList();
+    }
+
+    /// <summary>收款方式下拉（旧 ___.row175：tbsysset WHERE type='guno' 的 name，按 id 序，首项即默认）。</summary>
+    public async Task<IReadOnlyList<string>> GetFkfsOptionsAsync(CancellationToken ct = default)
+    {
+        await using var conn = await factory.OpenAsync(ct);
+        var rows = await conn.QueryAsync<string>(new CommandDefinition(
+            "SELECT RTRIM(name) FROM tbsysset WITH (NOLOCK) WHERE type = 'guno' AND RTRIM(name) <> '' ORDER BY id",
+            cancellationToken: ct));
+        return rows.AsList();
     }
 
     /// <summary>
@@ -1229,9 +1291,11 @@ public sealed class YsyfRepository(SqlConnectionFactory factory) : IYsyfReposito
         await using var tx = (SqlTransaction)await conn.BeginTransactionAsync(ct);
         try
         {
+            QPGL.Infrastructure.DebugLog.Log($"[YsyfAddCust] dup检查 gname='{cmd.Gname}'");
             var dup = await conn.ExecuteScalarAsync<int>(new CommandDefinition(
                 "SELECT COUNT(1) FROM tbysyf WITH (NOLOCK) WHERE gname = @gname",
                 new { gname = Ansi(cmd.Gname, 60) }, transaction: tx, cancellationToken: ct));
+            QPGL.Infrastructure.DebugLog.Log($"[YsyfAddCust] dup={dup}");
             if (dup > 0) throw new AppException("GU_EXISTS", "此客户已存在", 409);
             var sql = withHtno
                 ? "INSERT INTO tbysyf (gname, cb, tick, yjb, htno, dpm) VALUES (@gname, @cb, @tick, @yjb, @htno, @dpm); SELECT CAST(SCOPE_IDENTITY() AS int);"

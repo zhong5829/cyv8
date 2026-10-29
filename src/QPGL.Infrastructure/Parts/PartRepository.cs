@@ -10,9 +10,12 @@ public interface IPartRepository
 {
     /// <summary>配件库存三条件搜索（本部门）：编码/名称/车型，可空 AND 组合。
     /// brand：厂牌过滤（tbisto.cp = 厂牌，AppSession.Brand；空 = 不过滤）。
-    /// fillLastIprj：是否回填最近进价（远程链路优化 2026-10-29：该列默认隐藏，隐藏时省一次 tbistoed 查询+往返；列可见后调 <see cref="FillLastIprjAsync"/> 补取）。</summary>
+    /// fillLastIprj：是否回填最近进价（远程链路优化 2026-10-29：该列默认隐藏，隐藏时省一次 tbistoed 查询+往返；列可见后调 <see cref="FillLastIprjAsync"/> 补取）。
+    /// includeAttrOnly：补集属性库行（2026-10-29 bug 修复：旧散件入库选件窗直接查 tbprnoty（fr_isto __.row2 L33），
+    /// 属性定义新增配件无需「传递到库存」即可搜到；新系统仅查 tbisto 导致新配件搜不到。true 时 UNION tbprnoty
+    /// 中本部门无库存行的配件（kcamount=0、iprj/oprc 取属性库价，id=0 无库存行语义）。</summary>
     Task<PagedResult<PartItem>> SearchAsync(string dpm, string? cp, string? na1, string? ty, PagedRequest request,
-        bool fillLastIprj = true, string? brand = null, CancellationToken ct = default);
+        bool fillLastIprj = true, string? brand = null, bool includeAttrOnly = false, CancellationToken ct = default);
 
     /// <summary>跨厂牌命中统计（2026-10-29 需求）：同 dpm+三条件、cp &lt;&gt; brand 的各厂牌行数。
     /// 仅主查询为空且带条件时调用（回退提示"是否加载门市编码"）。返回 (厂牌, 行数) 列表。</summary>
@@ -74,7 +77,7 @@ public sealed class PartRepository(SqlConnectionFactory factory) : IPartReposito
     }
 
     public async Task<PagedResult<PartItem>> SearchAsync(string dpm, string? cp, string? na1, string? ty, PagedRequest request,
-        bool fillLastIprj = true, string? brand = null, CancellationToken ct = default)
+        bool fillLastIprj = true, string? brand = null, bool includeAttrOnly = false, CancellationToken ct = default)
     {
         var cpKw = (cp ?? "").Trim();
         var na1Kw = (na1 ?? "").Trim();
@@ -111,6 +114,43 @@ public sealed class PartRepository(SqlConnectionFactory factory) : IPartReposito
         // 名称条件带拼音码 IN 子查询，优化器可能误选嵌套循环导致逐行重扫 tbname0（实测 10s+），强制 HASH JOIN 后 85ms
         var hint = na1Kw.Length > 0 ? " OPTION (HASH JOIN)" : "";
 
+        // 属性库补集条件（includeAttrOnly）：与 tbisto 侧同构（p. 别名），另带厂牌过滤 + 本部门无库存行排除；
+        // tbprnoty 无 dpm 列（本地库实测），旧散件入库选件也仅 cp=?P_cp（fr_isto __.row2 L23）
+        string attrBranch = "";
+        if (includeAttrOnly)
+        {
+            var attrConditions = new List<string>();
+            if (brandKw.Length > 0)
+                attrConditions.Add("rtrim(p.cp) = @brand");
+            if (cpKw.Length > 0)
+                attrConditions.Add("rtrim(p.nno) LIKE '%' + @cp + '%'");
+            if (na1Kw.Length > 0)
+            {
+                attrConditions.Add($"""
+                    (rtrim(p.na1) LIKE '%' + @na1 + '%'
+                     OR rtrim(p.nno) LIKE '%' + @na1 + '%'
+                     OR rtrim(p.ty) LIKE '%' + @na1 + '%'
+                     OR rtrim(p.na1) IN (SELECT RTRIM(name) FROM tbname0 WITH (NOLOCK) WHERE code LIKE '%' + @na1 + '%'))
+                    """);
+            }
+            if (tyKw.Length > 0)
+                attrConditions.Add("(rtrim(p.ty) LIKE '%' + @ty + '%' OR rtrim(p.na1) LIKE '%' + @ty + '%')");
+            attrConditions.Add("""
+                NOT EXISTS (SELECT 1 FROM tbisto x WITH (NOLOCK)
+                            WHERE x.dpm = @dpm AND rtrim(x.cp) = rtrim(p.cp) AND rtrim(x.nno) = rtrim(p.nno))
+                """);
+            attrBranch = $"""
+
+                UNION ALL
+                SELECT 0 AS id, '' AS dpm, rtrim(p.cp) AS cp, rtrim(p.nno) AS nno, rtrim(p.na1) AS na1,
+                       rtrim(p.ty) AS ty, rtrim(p.fa) AS fa, rtrim(p.dc) AS dc, rtrim(p.unit) AS unit,
+                       0 AS kcamount, ISNULL(p.iprj,0) AS iprj, 0 AS iprc, ISNULL(p.oprc_cp,0) AS oprc, 0 AS oprb,
+                       '' AS posi, '' AS depotno, rtrim(p.note) AS note
+                FROM tbprnoty p WITH (NOLOCK)
+                WHERE {string.Join(" AND ", attrConditions)}
+                """;
+        }
+
         var args = new
         {
             dpm = new DbString { Value = dpm, IsAnsi = true, Length = 10 },
@@ -141,7 +181,18 @@ public sealed class PartRepository(SqlConnectionFactory factory) : IPartReposito
         // _total=COUNT(1) OVER() 在过滤后的同一行集上计数，tbisto 只扫一遍，总数与分页+COUNT 完全一致
         var hasCondition = cpKw.Length > 0 || na1Kw.Length > 0 || tyKw.Length > 0;
         var orderX = order.Replace("t.", "x.");   // 骨架外层 t=派生表（仅 id/_total），排序须引用 x（回取的 tbisto 宽行）
-        var pageSql = hasCondition
+        var orderU = order.Replace("t.", "u.");   // 属性库补集骨架外层 u=UNION 派生表（tbisto ∪ tbprnoty-only）
+        var pageSql = attrBranch.Length > 0
+            ? $"""
+               SELECT u.*, COUNT(1) OVER() AS _total
+               FROM (SELECT {SelectColumns}
+                     FROM tbisto t WITH (NOLOCK)
+                     {where}{attrBranch}
+                    ) u
+               ORDER BY {orderU}
+               OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY{hint}
+               """
+            : hasCondition
             ? $"""
                SELECT x.id, x.dpm, x.cp, x.nno, x.na1, x.ty, x.fa, x.dc, x.unit, x.kcamount, x.iprj, x.iprc, x.oprc, x.oprb, x.posi, x.depotno, x.note, t._total
                FROM (SELECT t.id, COUNT(1) OVER() AS _total
@@ -164,7 +215,7 @@ public sealed class PartRepository(SqlConnectionFactory factory) : IPartReposito
         var rows = (await conn.QueryAsync<PartSearchRow>(new CommandDefinition(pageSql, args, cancellationToken: ct))).AsList();
         var items = rows.Select(r => r.ToItem()).ToList();
         var total = rows.Count > 0 ? rows[0]._total : 0;
-        QPGL.Infrastructure.DebugLog.Log($"[PartSearch] {(hasCondition ? "骨架" : "直查")}={sw.ElapsedMilliseconds}ms rows={items.Count} total={total} dpm={dpm} cp='{cpKw}' na1='{na1Kw}' ty='{tyKw}'");
+        QPGL.Infrastructure.DebugLog.Log($"[PartSearch] {(attrBranch.Length > 0 ? "补集" : hasCondition ? "骨架" : "直查")}={sw.ElapsedMilliseconds}ms rows={items.Count} total={total} dpm={dpm} cp='{cpKw}' na1='{na1Kw}' ty='{tyKw}'");
         // 最近一次进价批量回填（2026-10-28 需求：开单页隐藏列）：与本页零件号 IN 一次取
         //   每号最近一条入库行 iprj，口径与进货历史一致（type IN 入库/历史、jkamount>0、indate DESC,id DESC）
         //   远程优化：fillLastIprj=false 时跳过（列默认隐藏，隐藏时白跑一查+一往返）
@@ -209,13 +260,43 @@ public sealed class PartRepository(SqlConnectionFactory factory) : IPartReposito
             conditions.Add("(ty LIKE '%' + @ty + '%' OR na1 LIKE '%' + @ty + '%')");
         var hint = na1Kw.Length > 0 ? " OPTION (HASH JOIN)" : "";
 
+        // 属性库补集同计入跨厂牌命中（2026-10-29：属性定义新增配件无任何库存行，仅统计 tbisto 会漏报），
+        // 条件与 SearchAsync 的 attrBranch 同构，厂牌条件换为 rtrim(p.cp) <> @brand
+        var attrConditions = new List<string> { "rtrim(p.cp) <> @brand" };
+        if (cpKw.Length > 0)
+            attrConditions.Add("rtrim(p.nno) LIKE '%' + @cp + '%'");
+        if (na1Kw.Length > 0)
+        {
+            attrConditions.Add($"""
+                (rtrim(p.na1) LIKE '%' + @na1 + '%'
+                 OR rtrim(p.nno) LIKE '%' + @na1 + '%'
+                 OR rtrim(p.ty) LIKE '%' + @na1 + '%'
+                 OR rtrim(p.na1) IN (SELECT RTRIM(name) FROM tbname0 WITH (NOLOCK) WHERE code LIKE '%' + @na1 + '%'))
+                """);
+        }
+        if (tyKw.Length > 0)
+            attrConditions.Add("(rtrim(p.ty) LIKE '%' + @ty + '%' OR rtrim(p.na1) LIKE '%' + @ty + '%')");
+        attrConditions.Add("""
+            NOT EXISTS (SELECT 1 FROM tbisto x WITH (NOLOCK)
+                        WHERE x.dpm = @dpm AND rtrim(x.cp) = rtrim(p.cp) AND rtrim(x.nno) = rtrim(p.nno))
+            """);
+
         await using var conn = await factory.OpenAsync(ct);
         var rows = await conn.QueryAsync<(string cp, int n)>(new CommandDefinition(
             $"""
-            SELECT RTRIM(t.cp) AS cp, COUNT(1) AS n
-            FROM tbisto t WITH (NOLOCK)
-            WHERE {string.Join(" AND ", conditions)}
-            GROUP BY RTRIM(t.cp){hint}
+            SELECT z.cp, SUM(z.n) AS n
+            FROM (
+                SELECT RTRIM(t.cp) AS cp, COUNT(1) AS n
+                FROM tbisto t WITH (NOLOCK)
+                WHERE {string.Join(" AND ", conditions)}
+                GROUP BY RTRIM(t.cp)
+                UNION ALL
+                SELECT rtrim(p.cp) AS cp, COUNT(1) AS n
+                FROM tbprnoty p WITH (NOLOCK)
+                WHERE {string.Join(" AND ", attrConditions)}
+                GROUP BY rtrim(p.cp)
+            ) z
+            GROUP BY z.cp{hint}
             """,
             new
             {

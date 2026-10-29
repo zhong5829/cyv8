@@ -20,12 +20,16 @@ public partial class YsyfViewModel : ObservableObject
 {
     public ObservableCollection<YsyfSummaryRow> Summaries { get; } = [];
     public ObservableCollection<YsyfDetailRow> Details { get; } = [];
-    public ObservableCollection<string> Options { get; } = ["", "应收", "应付", "余额大于零", "供货单位"];
+    public ObservableCollection<string> Options { get; } = ["全部", "大于零", "小于零", "等于零"];
+
+    /// <summary>明细显示筛选（2026-10-29 需求）：结账状态或业务类型，切换后立即刷新明细。</summary>
+    public ObservableCollection<string> DetailFilters { get; } = ["所有", "已结账", "未结账", "销售", "入库", "收款", "付款"];
 
     [ObservableProperty] private YsyfSummaryRow? _selectedSummary;
     [ObservableProperty] private YsyfDetailRow? _selectedDetail;
     [ObservableProperty] private string _gnameFilter = "";
-    [ObservableProperty] private string _option = "";
+    [ObservableProperty] private string _option = "全部";
+    [ObservableProperty] private string _detailFilter = "所有";
     [ObservableProperty] private DateTime? _dateFrom;
     [ObservableProperty] private DateTime? _dateTo;
     [ObservableProperty] private string _fkfs = "";
@@ -95,6 +99,21 @@ public partial class YsyfViewModel : ObservableObject
         if (value is not null) LoadDetailsCommand.Execute(null);
     }
 
+    /// <summary>2026-10-29 需求：查询后切换「选项」→ 下方明细立即按选项刷新（不再作为查询前置条件）。</summary>
+    partial void OnOptionChanged(string value)
+    {
+        if (SelectedSummary is not null) LoadDetailsCommand.Execute(null);
+    }
+
+    /// <summary>2026-10-29 需求：切换「明细显示」筛选（结账状态/业务类型）→ 明细立即刷新。</summary>
+    partial void OnDetailFilterChanged(string value)
+    {
+        if (SelectedSummary is not null) LoadDetailsCommand.Execute(null);
+    }
+
+    /// <summary>最近添加/修改的客户名：刷新后自动选中定位（2026-10-29 需求，汇总区仅 2 行高需滚动可见）。</summary>
+    public string? NewlyAddedGname { get; private set; }
+
     /// <summary>页1 查询（o__.row170）。</summary>
     [RelayCommand]
     public async Task SearchAsync(CancellationToken ct = default)
@@ -103,19 +122,26 @@ public partial class YsyfViewModel : ObservableObject
         {
             IsBusy = true;
             Message = "";
-            var rows = await Db.Ysyf.GetSummariesAsync(GnameFilter, Option, DateFrom, DateTo, Fkfs, AppSession.DeptNo, ct);
+            // 2026-10-29 需求：选项不再作为查询前置条件（汇总查全量），选项仅用于查询后切换时过滤下方明细
+            var rows = await Db.Ysyf.GetSummariesAsync(GnameFilter, "", DateFrom, DateTo, "", AppSession.DeptNo, ct);
             Summaries.Clear();
             foreach (var r in rows) Summaries.Add(r);
             TotalYs = rows.Sum(r => r.SYs);
             TotalYf = rows.Sum(r => r.SYf);
             TotalLj = rows.Sum(r => r.Lj);
             Message = $"应收 {TotalYs:N2}    应付 {TotalYf:N2}    余额 {TotalYs - TotalYf:N2}";
+            // 添加/修改客户后：自动选中新客户（View 端滚动到该行，明细联动加载）
+            if (NewlyAddedGname is not null)
+            {
+                SelectedSummary = Summaries.FirstOrDefault(s => s.Gname == NewlyAddedGname);
+                NewlyAddedGname = null;
+            }
         }
         catch (AppException ex) { Message = ex.Message; }
         finally { IsBusy = false; }
     }
 
-    /// <summary>页2 明细（gname 过滤 + LJ 累计列应用层计算）。</summary>
+    /// <summary>页2 明细（gname 过滤 + 选项过滤 + 明细显示筛选 + LJ 累计列应用层计算）。</summary>
     [RelayCommand]
     public async Task LoadDetailsAsync(CancellationToken ct = default)
     {
@@ -124,10 +150,30 @@ public partial class YsyfViewModel : ObservableObject
         {
             var rows = await Db.Ysyf.GetDetailsAsync(SelectedSummary.Gname, ct);
             Details.Clear();
-            foreach (var r in rows) Details.Add(r);
+            foreach (var r in FilterDetails(FilterDetailsByOption(rows, Option), DetailFilter)) Details.Add(r);
         }
         catch (AppException ex) { Message = ex.Message; }
     }
+
+    /// <summary>选项明细过滤（2026-10-29 需求：全部/大于零/小于零/等于零，按该行余额 ys-yf）。</summary>
+    private static IReadOnlyList<YsyfDetailRow> FilterDetailsByOption(IReadOnlyList<YsyfDetailRow> rows, string option) =>
+        option.Trim() switch
+        {
+            "大于零" => rows.Where(r => r.Ys - r.Yf > 0).ToList(),
+            "小于零" => rows.Where(r => r.Ys - r.Yf < 0).ToList(),
+            "等于零" => rows.Where(r => r.Ys - r.Yf == 0).ToList(),
+            _ => rows,
+        };
+
+    /// <summary>明细显示过滤（2026-10-29 需求）：已结账=mark√；未结账=非√；销售/入库/收款/付款=按类型；所有=不过滤。</summary>
+    private static IReadOnlyList<YsyfDetailRow> FilterDetails(IReadOnlyList<YsyfDetailRow> rows, string detailFilter) =>
+        detailFilter.Trim() switch
+        {
+            "已结账" => rows.Where(r => r.Mark == "√").ToList(),
+            "未结账" => rows.Where(r => r.Mark != "√").ToList(),
+            "销售" or "入库" or "收款" or "付款" => rows.Where(r => r.Type.Trim() == detailFilter.Trim()).ToList(),
+            _ => rows,
+        };
 
     /// <summary>结账凭证（JZPZ，fr_ysyf_12y）：前十二月应收应付及余额弹窗（只读）。</summary>
     [RelayCommand]
@@ -204,9 +250,26 @@ public partial class YsyfViewModel : ObservableObject
             await Db.Ysyf.AddCustomerAsync(dlg.Result, !string.IsNullOrWhiteSpace(dlg.Result.Htno),
                 AppSession.Operator, AppSession.DeptNo, ct);
             Message = "客户已添加";
-            await SearchAsync(ct);
+            // 旧 婅_.row140 L12/L31：APPEND BLANK + GATHER——新客户行立即追加到列表并选中（不做全量重查）
+            var newRow = new YsyfSummaryRow
+            {
+                Gname = dlg.Result.Gname.Trim(),
+                Cb = dlg.Result.Cb, Tick = dlg.Result.Tick, Yjb = dlg.Result.Yjb,
+            };
+            Summaries.Add(newRow);
+            SelectedSummary = newRow;
         }
-        catch (AppException ex) { Message = ex.Message; }
+        catch (AppException ex)
+        {
+            Message = ex.Message;
+            // 重名（旧 婅_.row140 L8 仅提示）：增强——定位到列表中已存在的该客户（数万行不滚动确认不了）
+            if (ex.Code == "GU_EXISTS")
+            {
+                GnameFilter = "";
+                NewlyAddedGname = dlg.Result.Gname;
+                await SearchAsync(ct);
+            }
+        }
     }
 
     [RelayCommand]
@@ -220,6 +283,9 @@ public partial class YsyfViewModel : ObservableObject
             await Db.Ysyf.UpdateCustomerAsync(SelectedSummary.Gname, dlg.Result,
                 !string.IsNullOrWhiteSpace(dlg.Result.Htno), AppSession.Operator, ct);
             Message = "客户已修改";
+            // 同上：改名后新名可能不在原前缀过滤范围内
+            GnameFilter = "";
+            NewlyAddedGname = dlg.Result.Gname;
             await SearchAsync(ct);
         }
         catch (AppException ex) { Message = ex.Message; }

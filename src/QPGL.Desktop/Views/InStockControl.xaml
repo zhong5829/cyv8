@@ -59,10 +59,10 @@
             </StackPanel>
         </Border>
 
-        <!-- 明细行（可编辑） -->
+        <!-- 明细行（可编辑；2026-10-29 需求：双击行弹入库编辑窗修改该行） -->
         <DataGrid ItemsSource="{Binding Lines}" SelectedItem="{Binding SelectedLine}"
                   AutoGenerateColumns="False" CanUserAddRows="False" GridLinesVisibility="Horizontal"
-                  HeadersVisibility="Column" FontSize="12">
+                  HeadersVisibility="Column" FontSize="12" MouseDoubleClick="Lines_MouseDoubleClick">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="厂牌" Binding="{Binding Cp, UpdateSourceTrigger=PropertyChanged}" Width="70"/>
                 <DataGridTextColumn Header="零件号*" Binding="{Binding Nno, UpdateSourceTrigger=PropertyChanged}" Width="120"/>

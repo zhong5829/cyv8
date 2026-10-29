@@ -27,6 +27,7 @@ public partial class PartPickWindow : Window
     private bool _loadingMore;
     private int _searchSeq;
     private bool _hasCondition;
+    private string _effectiveBrand = "";   // 当前生效厂牌（跨厂牌回退后为临时厂牌，LoadMore 沿用）
 
     public ObservableCollection<PartItem> Parts { get; } = [];
 
@@ -129,14 +130,50 @@ public partial class PartPickWindow : Window
             var cp = CpBox.Text.Trim();
             var na1 = Na1Box.Text.Trim();
             var ty = TyBox.Text.Trim();
+            var brand = AppSession.Brand.Trim();
             _hasCondition = cp.Length > 0 || na1.Length > 0 || ty.Length > 0;
             var request = new PagedRequest { Page = 1, PageSize = PageSize };
-            var result = await Db.Parts.SearchAsync(_dept, cp, na1, ty, request, fillLastIprj: false, AppSession.Brand.Trim());
+            var result = await Db.Parts.SearchAsync(_dept, cp, na1, ty, request, fillLastIprj: false, brand, includeAttrOnly: true);
             if (seq != _searchSeq) return;
+
+            // 跨厂牌回退（2026-10-29，与 SaleViewModel 同构）：当前厂牌无命中且带条件时，
+            // 查其它厂牌命中数（含属性库独有行——属性定义新增配件可能挂错厂牌），弹窗确认后临时加载
+            if (result.Total == 0 && _hasCondition && brand.Length > 0)
+            {
+                var others = await Db.Parts.CountOtherBrandsAsync(_dept, brand, cp, na1, ty);
+                if (seq != _searchSeq) return;
+                // 厂牌白名单（角色 usemcp）：非空时仅提示白名单内的厂牌；空 = 无限制
+                var wl = AppSession.BrandWhitelist;
+                if (wl.Length > 0) others = [.. others.Where(o => wl.Contains(o.Cp))];
+                if (others.Count > 0)
+                {
+                    var detail = string.Join("，", others.Select(o => $"【{o.Cp}】{o.Count} 条"));
+                    var top = others.OrderByDescending(o => o.Count).First().Cp;
+                    var answer = MessageBox.Show(
+                        $"当前厂牌【{brand}】未检索到该配件，{detail}。\n\n是否加载{top}编码？",
+                        "跨厂牌检索", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No);
+                    if (answer == MessageBoxResult.Yes)
+                    {
+                        var alt = await Db.Parts.SearchAsync(_dept, cp, na1, ty, request, fillLastIprj: false, top, includeAttrOnly: true);
+                        if (seq != _searchSeq) return;
+                        Parts.Clear();
+                        foreach (var p in alt.Items) Parts.Add(p);
+                        _page = 1;
+                        _total = alt.Total;
+                        _effectiveBrand = top;
+                        _loadingMore = false;
+                        TxtStatus.Text = $"临时查看：{top}（共 {alt.Total} 条）";
+                        QPGL.Infrastructure.DebugLog.Log($"[PartPick] 跨厂牌回退 brand='{top}' rows={alt.Items.Count} total={alt.Total}");
+                        return;
+                    }
+                }
+            }
+
             Parts.Clear();
             foreach (var p in result.Items) Parts.Add(p);
             _page = 1;
             _total = result.Total;
+            _effectiveBrand = brand;
             _loadingMore = false;
             TxtStatus.Text = result.Total == 0 && _hasCondition ? "无匹配配件" : $"共 {result.Total} 条";
         }
@@ -155,7 +192,7 @@ public partial class PartPickWindow : Window
         try
         {
             var request = new PagedRequest { Page = _page + 1, PageSize = PageSize };
-            var result = await Db.Parts.SearchAsync(_dept, CpBox.Text.Trim(), Na1Box.Text.Trim(), TyBox.Text.Trim(), request, fillLastIprj: false, AppSession.Brand.Trim());
+            var result = await Db.Parts.SearchAsync(_dept, CpBox.Text.Trim(), Na1Box.Text.Trim(), TyBox.Text.Trim(), request, fillLastIprj: false, _effectiveBrand, includeAttrOnly: true);
             if (seq != _searchSeq) return;
             _page++;
             _total = result.Total;

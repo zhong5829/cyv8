@@ -89,7 +89,10 @@ public partial class InStockLineEditDialog : Window
         CboDepotno.ItemsSource = _warehouses;
         CboDepotno.SelectedItem = _warehouses.Contains(existing?.Depotno ?? part.Depotno)
             ? (existing?.Depotno ?? part.Depotno) : _warehouses.FirstOrDefault();
-        TxtStockInfo.Text = $"当前库存：{part.Kcamount:0.##}    货位：{part.Posi}    备注：{part.Note}";
+        // 编辑模式无库存上下文（PartItem 仅含行值），不显示"当前库存"以免误导
+        TxtStockInfo.Text = existing is not null
+            ? $"货位：{existing.Posi?.Trim()}    备注：{existing.Note?.Trim()}"
+            : $"当前库存：{part.Kcamount:0.##}    货位：{part.Posi}    备注：{part.Note}";
         Title = existing is not null ? $"入库明细编辑 - {part.Nno}（修改已有行）" : "入库明细编辑";
     }
 

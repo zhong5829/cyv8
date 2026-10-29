@@ -346,12 +346,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
         OpenTab("xlskFK", "付款管理", () => new XlskControl("付款"));
     }
 
-    /// <summary>G.4 应收应付（2026-10-29 用户确认：页面内容与 I.6 对调，出纳管理下显示科目台账页）。</summary>
+    /// <summary>G.4 应收应付（fr_ysyf；2026-10-29 曾按用户要求对调，现按用户要求调回原接线）。</summary>
     [RelayCommand]
     private void OpenYsyf()
     {
         if (!Guard("G4", "应收应付")) return;
-        OpenTab("ysyf", "应收应付", () => new FinYsyfLedgerControl());
+        OpenTab("ysyf", "应收应付", () => new YsyfControl());
     }
 
     /// <summary>G.5 收支流水帐（fr_lsz）。</summary>
@@ -430,12 +430,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
         OpenTab("finledger", "账簿查询（五账）", () => new FinLedgerControl());
     }
 
-    /// <summary>I.6 应收应付帐（权限码 I6，fr_finysyf；2026-10-29 用户确认：页面内容与 G.4 对调，账务管理下显示客户汇总页）。</summary>
+    /// <summary>I.6 应收应付帐（权限码 I6，fr_finysyf；2026-10-29 曾对调，现调回原接线）。</summary>
     [RelayCommand]
     private void OpenFinYsyfLedger()
     {
         if (!Guard("I6", "应收应付帐")) return;
-        OpenTab("finysyfledger", "应收应付帐", () => new YsyfControl());
+        OpenTab("finysyfledger", "应收应付帐", () => new FinYsyfLedgerControl());
     }
 
     /// <summary>I.7 出纳帐（权限码 I7，fr_finrnp）。</summary>

@@ -75,6 +75,29 @@ public partial class InStockControl : UserControl
             VM.AddImportedRow(item);
     }
 
+    /// <summary>
+    /// 双击明细行 = 弹入库编辑窗修改该行（2026-10-29 需求，与「重复添加询问修改」同一编辑窗）：
+    /// 以行值构造最小 PartItem 传入编辑模式（预填该行当前值），确认后 UpdatePartRow 回写。
+    /// </summary>
+    private void Lines_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (VM.SelectedLine is not InStockLineRow row) return;
+        var part = new Domain.Parts.PartItem
+        {
+            Cp = row.Cp, Nno = row.Nno, Na1 = row.Na1,
+            Depotno = row.Depotno, Posi = row.Posi,
+        };
+        var edit = new InStockLineEditDialog(part, VM.Warehouses.ToList(), row) { Owner = Window.GetWindow(this) };
+        if (edit.ShowDialog() != true) return;
+        VM.UpdatePartRow(row, new InStockLineEditResult
+        {
+            Jkamount = edit.Jkamount, Iprc = edit.Iprc, Iprj = edit.Iprj,
+            Oprc = edit.Oprc, Oprb = edit.Oprb,
+            Depotno = edit.Depotno, Posi = edit.Posi,
+            Fa = edit.Fa, Dc = edit.Dc, Unit = edit.Unit, Ty = edit.Ty, Note = edit.Note,
+        });
+    }
+
     // 供应商联想（旧 cmm_class row326 FRDM 下拉机制，与 SaleControl GnameBox 同构）：
     // 输入即搜（300ms 防抖），支持拼音码/数字码/编号/名称
     private void GynameBox_TextChanged(object sender, TextChangedEventArgs e)

@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Net.Http;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -212,7 +212,7 @@ public partial class SaleViewModel : ObservableObject, IDisposable
         {
             var request = new PagedRequest { Page = 1, PageSize = PartPageSize };
             var result = await Db.Parts.SearchAsync(Dept, PartCp.Trim(), PartNa1.Trim(), PartTy.Trim(), request,
-                fillLastIprj: IsLastIprjVisible, brand, ct);
+                fillLastIprj: IsLastIprjVisible, brand, ct: ct);
             if (seq != _searchSeq) return;
             var tDb = sw.ElapsedMilliseconds;
             PartResults.Clear();
@@ -244,7 +244,7 @@ public partial class SaleViewModel : ObservableObject, IDisposable
                     if (answer == System.Windows.MessageBoxResult.Yes)
                     {
                         var alt = await Db.Parts.SearchAsync(Dept, PartCp.Trim(), PartNa1.Trim(), PartTy.Trim(), request,
-                            fillLastIprj: IsLastIprjVisible, top, ct);
+                            fillLastIprj: IsLastIprjVisible, top, ct: ct);
                         if (seq != _searchSeq) return;
                         PartResults.Clear();
                         foreach (var p in alt.Items) PartResults.Add(p);
@@ -276,7 +276,7 @@ public partial class SaleViewModel : ObservableObject, IDisposable
         {
             var request = new PagedRequest { Page = _partPage + 1, PageSize = PartPageSize };
             var result = await Db.Parts.SearchAsync(Dept, PartCp.Trim(), PartNa1.Trim(), PartTy.Trim(), request,
-                fillLastIprj: IsLastIprjVisible, _effectiveBrand, ct);
+                fillLastIprj: IsLastIprjVisible, _effectiveBrand, ct: ct);
             if (seq != _searchSeq) return;
             _partPage++;
             _partTotal = result.Total;

@@ -3,9 +3,9 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Loaded="UserControl_Loaded">
     <DockPanel Margin="8">
-        <!-- 查询条 -->
+        <!-- 查询条（2026-10-29：已移除"方式"筛选，回车或查询按钮触发） -->
         <Border DockPanel.Dock="Top" Background="White" BorderBrush="{StaticResource PanelBorderBrush}"
-                BorderThickness="1" CornerRadius="3" Padding="10,8" Margin="0,0,0,6">
+                BorderThickness="1" CornerRadius="3" Padding="10,8" Margin="0,0,0,6" KeyDown="QueryBar_KeyDown">
             <StackPanel Orientation="Horizontal">
                 <TextBlock Text="客户" VerticalAlignment="Center"/>
                 <!-- 客户输入：可编辑联想下拉（旧 cmm_class FRDM 机制：拼音码 code/数字码 code1/名称/编号前缀匹配） -->
@@ -40,13 +40,11 @@
                 <DatePicker Width="105" SelectedDate="{Binding DateFrom}" VerticalAlignment="Center" Margin="4,0,4,0"/>
                 <TextBlock Text="~" VerticalAlignment="Center"/>
                 <DatePicker Width="105" SelectedDate="{Binding DateTo}" VerticalAlignment="Center" Margin="4,0,12,0"/>
-                <TextBlock Text="方式" VerticalAlignment="Center"/>
-                <TextBox Width="80" Text="{Binding Fkfs, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center" Margin="4,0,12,0"/>
                 <Button Content="查询" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding SearchCommand}" VerticalAlignment="Center"/>
                 <Button Content="添加客户" Command="{Binding AddCustomerCommand}" Padding="10,3" Margin="16,0,0,0"/>
                 <Button Content="修改客户" Command="{Binding EditCustomerCommand}" Padding="10,3" Margin="6,0,0,0"/>
                 <Button Content="删除客户" Command="{Binding DeleteCustomerCommand}" Padding="10,3" Margin="6,0,0,0"/>
-                <Button Content="结账凭证" Command="{Binding TwelveMonthCommand}" Padding="10,3" Margin="16,0,0,0"
+                <Button Content="月份余额" Command="{Binding TwelveMonthCommand}" Padding="10,3" Margin="16,0,0,0"
                         ToolTip="fr_ysyf_12y：前十二月应收应付及余额（需先选中客户）"/>
                 <Button Content="业务明细" Command="{Binding ShowBizDetailCommand}" Padding="10,3" Margin="6,0,0,0"
                         ToolTip="YWMX：销售/调拨→出库明细、入库→入库明细、收/付款→收付款单明细（需先选中明细行）"/>
@@ -58,7 +56,11 @@
                 BorderThickness="1" CornerRadius="3" Padding="10,4" Margin="0,0,0,6">
             <StackPanel Orientation="Horizontal">
                 <TextBlock Text="{Binding Message}" Foreground="{StaticResource BrandBrush}" VerticalAlignment="Center"/>
-                <TextBlock Text="    明细操作：" VerticalAlignment="Center"/>
+                <TextBlock Text="    明细显示：" VerticalAlignment="Center"/>
+                <ComboBox Width="90" ItemsSource="{Binding DetailFilters}" SelectedItem="{Binding DetailFilter}"
+                          VerticalAlignment="Center" Margin="4,0,12,0"
+                          ToolTip="切换后立即刷新明细：结账状态或业务类型"/>
+                <TextBlock Text="明细操作：" VerticalAlignment="Center"/>
                 <Button Content="添加明细" Command="{Binding AddDetailCommand}" Padding="10,3" Margin="4,0,6,0"/>
                 <Button Content="修改明细" Command="{Binding EditDetailCommand}" Padding="10,3" Margin="0,0,6,0"/>
                 <Button Content="删除明细" Command="{Binding DeleteDetailCommand}" Padding="10,3" Margin="0,0,6,0"/>
@@ -69,20 +71,21 @@
 
         <Grid>
             <Grid.RowDefinitions>
-                <RowDefinition Height="*"/>
+                <!-- 2026-10-29 需求：上方客户汇总固定约 2 行高度，中间分隔条可拖动调整，剩余空间给下方明细 -->
+                <RowDefinition Height="70"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
-            <DataGrid Grid.Row="0" ItemsSource="{Binding Summaries}" AutoGenerateColumns="False" CanUserAddRows="False"
+            <DataGrid x:Name="SummariesGrid" Grid.Row="0" ItemsSource="{Binding Summaries}" AutoGenerateColumns="False" CanUserAddRows="False"
                       GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12" IsReadOnly="True"
                       SelectedItem="{Binding SelectedSummary}">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="客户" Binding="{Binding Gname}" Width="*"/>
-                    <DataGridTextColumn Header="应收" Binding="{Binding SYs, StringFormat=N2}" Width="95" ElementStyle="{StaticResource NumCellRight}"/>
-                    <DataGridTextColumn Header="应付" Binding="{Binding SYf, StringFormat=N2}" Width="95" ElementStyle="{StaticResource NumCellRight}"/>
-                    <DataGridTextColumn Header="余额" Binding="{Binding Lj, StringFormat=N2}" Width="95" ElementStyle="{StaticResource NumCellRight}"/>
-                    <DataGridTextColumn Header="余款" Binding="{Binding Cb, StringFormat=N2}" Width="80" ElementStyle="{StaticResource NumCellRight}"/>
-                    <DataGridTextColumn Header="可挂帐余额" Binding="{Binding Gzye, StringFormat=N2}" Width="90" ElementStyle="{StaticResource NumCellRight}"/>
+                    <DataGridTextColumn Header="应收" Binding="{Binding SYs, StringFormat=N2}" Width="95" ElementStyle="{StaticResource NumCellRightNeg}"/>
+                    <DataGridTextColumn Header="应付" Binding="{Binding SYf, StringFormat=N2}" Width="95" ElementStyle="{StaticResource NumCellRightNeg}"/>
+                    <DataGridTextColumn Header="余额" Binding="{Binding Lj, StringFormat=N2}" Width="95" ElementStyle="{StaticResource NumCellRightNeg}"/>
+                    <DataGridTextColumn Header="余款" Binding="{Binding Cb, StringFormat=N2}" Width="80" ElementStyle="{StaticResource NumCellRightNeg}"/>
+                    <DataGridTextColumn Header="可挂帐余额" Binding="{Binding Gzye, StringFormat=N2}" Width="90" ElementStyle="{StaticResource NumCellRightNeg}"/>
                     <DataGridTextColumn Header="业务员" Binding="{Binding Ywy}" Width="70"/>
                     <DataGridTextColumn Header="财负责人" Binding="{Binding Cwfzr}" Width="70"/>
                     <DataGridTextColumn Header="最近收款" Binding="{Binding Mindate, StringFormat=yyyy-MM-dd}" Width="90"/>
@@ -97,11 +100,14 @@
                     <DataGridTextColumn Header="单据号" Binding="{Binding Cno}" Width="130"/>
                     <DataGridTextColumn Header="类型" Binding="{Binding Type}" Width="60"/>
                     <DataGridTextColumn Header="项目" Binding="{Binding Xm}" Width="*"/>
-                    <DataGridTextColumn Header="应收" Binding="{Binding Ys, StringFormat=N2}" Width="90" ElementStyle="{StaticResource NumCellRight}"/>
-                    <DataGridTextColumn Header="应付" Binding="{Binding Yf, StringFormat=N2}" Width="90" ElementStyle="{StaticResource NumCellRight}"/>
-                    <DataGridTextColumn Header="累计" Binding="{Binding Lj, StringFormat=N2}" Width="90" ElementStyle="{StaticResource NumCellRight}"/>
-                    <DataGridTextColumn Header="已收" Binding="{Binding Skmoney, StringFormat=N2}" Width="90" ElementStyle="{StaticResource NumCellRight}"/>
-                    <DataGridTextColumn Header="方式" Binding="{Binding Fkfs}" Width="70"/>
+                    <DataGridTextColumn Header="应收" Binding="{Binding Ys, StringFormat=N2}" Width="90" ElementStyle="{StaticResource NumCellRightNeg}"/>
+                    <DataGridTextColumn Header="应付" Binding="{Binding Yf, StringFormat=N2}" Width="90" ElementStyle="{StaticResource NumCellRightNeg}"/>
+                    <DataGridTextColumn Header="累计" Binding="{Binding Lj, StringFormat=N2}" Width="90" ElementStyle="{StaticResource NumCellRightNeg}"/>
+                    <DataGridTextColumn Header="已收" Binding="{Binding Skmoney, StringFormat=N2}" Width="90" ElementStyle="{StaticResource NumCellRightNeg}"/>
+                    <DataGridTextColumn Header="结账" Binding="{Binding Mark}" Width="44" ElementStyle="{StaticResource MarkCellCenter}"/>
+                    <DataGridTextColumn Header="收(付)款单号" Binding="{Binding Skno}" Width="100"/>
+                    <DataGridTextColumn Header="收(付)款日期" Binding="{Binding Jzdate, StringFormat=yyyy-MM-dd}" Width="90"/>
+                    <DataGridTextColumn Header="付款方式" Binding="{Binding Fkfs}" Width="70"/>
                     <DataGridTextColumn Header="发票号" Binding="{Binding Pno}" Width="100"/>
                     <DataGridTextColumn Header="操作员" Binding="{Binding Per}" Width="60"/>
                 </DataGrid.Columns>
