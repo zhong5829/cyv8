@@ -99,7 +99,7 @@ public partial class OutDocQueryControl : UserControl
         await _vm.SearchAsync(System.Threading.CancellationToken.None);
     }
 
-    /// <summary>修改：校验选中行并携带单据数据切回开单模式。</summary>
+    /// <summary>修改：校验选中行并携带单据数据切回开单模式（2026-10-29：退单不支持修改）。</summary>
     private void EditBill_Click(object sender, RoutedEventArgs e)
     {
         if (_vm.SelectedBill is null)
@@ -108,6 +108,13 @@ public partial class OutDocQueryControl : UserControl
             return;
         }
         var bill = _vm.SelectedBill;
+        // 退货单拦截（旧系统退单语义：行 ckamount<0，单据行 TotalQty=SUM(ckamount) 必为负；
+        // 退单行 ypaper 指向原单且 ro 由退货联动，改单=删旧开新会破坏原单 ro 对账，故不允许）
+        if (bill.TotalQty < 0)
+        {
+            System.Windows.MessageBox.Show("退货单不支持修改", "修改", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
         EditBillRequested?.Invoke(this, (bill.Paper.Trim(), bill.Type.Trim(), bill.Dpm.Trim()));
     }
 }

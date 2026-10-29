@@ -26,11 +26,16 @@ public partial class PrintPreviewWindow : Window
         LoadPrinters();
     }
 
-    /// <summary>枚举本机打印机并记忆上次选择（qp11 LoadPrinters 同构；本工程记忆值存本地 print.log 同目录 ini）。</summary>
+    /// <summary>枚举本机打印机并记忆上次选择（qp11 LoadPrinters 同构；本工程记忆值存本地 print.log 同目录 ini）。
+    /// 枚举类型须含 Connections——无参默认只列 Local，识别不到其它电脑共享过来的打印机（\\主机\共享名）。</summary>
     private void LoadPrinters()
     {
         var server = new LocalPrintServer();
-        foreach (var queue in server.GetPrintQueues())
+        foreach (var queue in server.GetPrintQueues(new[]
+                 {
+                     EnumeratedPrintQueueTypes.Local,
+                     EnumeratedPrintQueueTypes.Connections,
+                 }))
             CmbPrinter.Items.Add(queue.Name);
 
         var saved = ReadLastPrinter();
@@ -63,8 +68,8 @@ public partial class PrintPreviewWindow : Window
         try
         {
             var server = new LocalPrintServer();
-            var queue = server.GetPrintQueue(printerName)
-                        ?? throw new InvalidOperationException($"未找到打印机: {printerName}");
+            // 共享打印机（\\主机\共享名）不走 GetPrintQueue 按名查找（其只解析本地队列），直接构造队列
+            var queue = new PrintQueue(server, printerName);
 
             // 独立 PrintTicket 设份数（qp11 同款：避免默认票 Commit 需管理员权限）
             var ticket = queue.DefaultPrintTicket.Clone();

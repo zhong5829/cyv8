@@ -41,7 +41,10 @@
                     </Popup>
                 </Grid>
                 <Button Content="加载可退行" Style="{StaticResource PrimaryButtonStyle}"
-                        Command="{Binding LoadSourceCommand}"/>
+                        Command="{Binding LoadSourceCommand}"
+                        ToolTip="默认只加载近 3 个月的可退行（远程库提速）"/>
+                <Button Content="加载全部" Command="{Binding LoadSourceCommand}" CommandParameter="all"
+                        Margin="8,0,0,0" ToolTip="加载该客户全部历史可退行（大客户在远程库上耗时较长）"/>
                 <!-- 退款方式/退货原因/发票号等在「确认退货」窗收集（旧 fr_sata Frmok 机制） -->
                 <TextBlock Text="{Binding SourceInfo}" VerticalAlignment="Center" Margin="16,0,0,0"
                            Foreground="{StaticResource BrandBrush}"/>

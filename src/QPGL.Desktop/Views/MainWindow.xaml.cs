@@ -87,6 +87,27 @@ public partial class MainWindow : Window
         new PrintFooterSettingsWindow().ShowDialog();
     }
 
+    /// <summary>系统管理(S) → VIN 查询（qp11 复刻：VIN 解码 + 318car/品秀 适配配件查询）。</summary>
+    private void OpenVinQuery_Click(object sender, RoutedEventArgs e)
+    {
+        if (Db.VinQuery is null || Db.VinLocalMatch is null)
+        {
+            MessageBox.Show("VIN 查询功能初始化失败，请检查 appsettings.json 的 VinQuery/Pinxiu 配置段。",
+                "VIN 查询", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        new VinQueryWindow { Owner = this }.Show();
+    }
+
+    /// <summary>VIN 查询窗添加配件入口：优先取激活 Tab 的销售开单页，其次任意已打开的销售开单 Tab
+    /// （qp11 MainWindow.GetActiveSellControl 同构）。</summary>
+    public SaleControl? GetActiveSaleControl()
+    {
+        if (_vm.ActiveTab?.Content is SaleControl active)
+            return active;
+        return _vm.Tabs.Select(t => t.Content).OfType<SaleControl>().FirstOrDefault();
+    }
+
     /// <summary>启动静默检查更新：有新版本才提示，网络失败不打扰。</summary>
     private async Task StartupUpdateCheckAsync()
     {

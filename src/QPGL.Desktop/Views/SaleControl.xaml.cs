@@ -92,10 +92,18 @@ public partial class SaleControl : UserControl
         }
     }
 
-    /// <summary>查询框按键：↓ 跳到配件列表选中第一行；←/→ 在文本边界时切换相邻查询框并全选。</summary>
+    /// <summary>查询框按键：回车立即搜索（不等防抖）；↓ 跳到配件列表选中第一行；←/→ 在文本边界时切换相邻查询框并全选。</summary>
     private void SearchBox_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (sender is not TextBox box) return;
+        if (e.Key == Key.Enter)
+        {
+            // 远程优化：回车跳过防抖立即搜（VM 内 seq 竞态守卫，防抖到期不会重复查询）
+            _vm.CancelPendingSearch();
+            e.Handled = true;
+            _ = _vm.SearchPartsAsync(System.Threading.CancellationToken.None);
+            return;
+        }
         if (e.Key == Key.Down)
         {
             JumpToPartGrid();
@@ -180,6 +188,9 @@ public partial class SaleControl : UserControl
             _spaceTimer = null;
             LastIprcColumn.Visibility = LastIprcColumn.Visibility == Visibility.Visible
                 ? Visibility.Collapsed : Visibility.Visible;
+            // 远程优化：列可见性同步给 VM（搜索按需回填进价），切为可见时对当前页补取一次
+            _vm.IsLastIprjVisible = LastIprcColumn.Visibility == Visibility.Visible;
+            if (_vm.IsLastIprjVisible) _ = _vm.FillLastIprjAsync();
         }
         else
         {
@@ -346,6 +357,10 @@ public partial class SaleControl : UserControl
         // 仅「销售开单」页提供双模式；预售/调拨/内耗/报价页保持原单面板
         if (_vm.DocType == "销售") ToggleMode();
     }
+
+    /// <summary>VIN 查询窗外部添加配件：转发 VM 的销售编辑对话框流程（SaleLineEditDialog 预填 + 确认后入明细，不重复弹编辑窗）。</summary>
+    public async System.Threading.Tasks.Task AddExternalPartAsync(Domain.Parts.PartItem part)
+        => await _vm.AddLineViaDialogAsync(part);
 }
 
 public partial class SaleControl : IDisposable

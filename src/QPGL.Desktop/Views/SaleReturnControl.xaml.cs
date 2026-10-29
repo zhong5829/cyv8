@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using QPGL.Desktop.ViewModels;
@@ -88,11 +88,11 @@ public partial class SaleReturnControl : UserControl
                     _vm.ApplyCustomer(p);
                     CustPopup.IsOpen = false;
                     // 回车确定客户后直接加载可退行
-                    await _vm.LoadSourceAsync(System.Threading.CancellationToken.None);
+                    await _vm.LoadSourceAsync();
                 }
                 else
                 {
-                    await _vm.LoadSourceAsync(System.Threading.CancellationToken.None);
+                    await _vm.LoadSourceAsync();
                 }
                 e.Handled = true;
                 break;
@@ -105,7 +105,7 @@ public partial class SaleReturnControl : UserControl
         {
             _vm.ApplyCustomer(p);
             CustPopup.IsOpen = false;
-            await _vm.LoadSourceAsync(System.Threading.CancellationToken.None);
+            await _vm.LoadSourceAsync();
         }
     }
 
@@ -145,11 +145,11 @@ public partial class SaleReturnControl : UserControl
             src.Qty, src.Returned, src.Remain,
             editing?.DepotNo ?? src.DepotNo,
             editing?.Posi ?? src.Posi,
-            batches)
+            batches, editing?.IsScrap ?? false)
         { Owner = owner };
         if (dialog.ShowDialog() == true)
         {
-            _vm.ApplyDetail(src, dialog.ReturnQty, dialog.Oprc, dialog.Oprct, dialog.DepotNo, dialog.Posi);
+            _vm.ApplyDetail(src, dialog.ReturnQty, dialog.Oprc, dialog.Oprct, dialog.DepotNo, dialog.Posi, dialog.ScrapWarehouse);
         }
     }
 }

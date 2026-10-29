@@ -1,4 +1,5 @@
 using System.IO;
+using System.Net.Http;
 using Microsoft.Extensions.Configuration;
 using QPGL.Infrastructure.Auth;
 using QPGL.Infrastructure.Db;
@@ -14,6 +15,7 @@ using QPGL.Infrastructure.Receipt;
 using QPGL.Infrastructure.Report;
 using QPGL.Infrastructure.Sales;
 using QPGL.Infrastructure.Stock;
+using QPGL.Infrastructure.Vin;
 
 namespace QPGL.Desktop.Services;
 
@@ -84,6 +86,8 @@ public static class Db
     public static ISysDefineRepository SysDefine { get; private set; } = null!;
     public static IOrsaRepository Orsa { get; private set; } = null!;
     public static IDmService Dm { get; private set; } = null!;
+    public static IVinQueryService VinQuery { get; private set; } = null!;
+    public static IVinLocalMatchService VinLocalMatch { get; private set; } = null!;
 
     public static bool Initialized { get; private set; }
 
@@ -160,6 +164,26 @@ public static class Db
         Orsa = new OrsaRepository(Factory);
 
         Initialized = true;
+    }
+
+    /// <summary>
+    /// VIN 查询功能初始化（外部平台数据源 + 本地库存匹配，与主库 Init() 分离；需在 Init() 之后调用）。
+    /// UseMock 仅备案：Mock 服务未迁移，true 时组装无数据源的空组合服务（所有查询返回未登录）。
+    /// </summary>
+    public static void InitVin(IConfiguration config)
+    {
+        if (VinQuery != null) return;
+        if (!Initialized) throw new InvalidOperationException("请先调用 Db.Init()");
+
+        var httpClient = new HttpClient(); // 各数据源共享实例
+        var sources = new List<IVinDataSource> { new VinQueryService(httpClient, config) };
+        if (string.Equals(config["Pinxiu:Enabled"], "true", StringComparison.OrdinalIgnoreCase))
+            sources.Add(new PinxiuDataSource(httpClient, config));
+        if (string.Equals(config["VinQuery:UseMock"], "true", StringComparison.OrdinalIgnoreCase))
+            sources.Clear(); // Mock 备案：不组装任何真实数据源
+
+        VinQuery = new CompositeVinQueryService(sources);
+        VinLocalMatch = new VinLocalMatchService(Factory);
     }
 
     private sealed class StaticConnectionStringProvider(string connectionString) : IConnectionStringProvider

@@ -14,8 +14,8 @@ public interface ISaleReturnRepository
     /// <summary>原单可退行加载（退货页；paper 校验 type IN ('历史','销售') 且有正数出库行）。</summary>
     Task<SaleSourceResult> GetSourceAsync(string paper, CancellationToken ct = default);
 
-    /// <summary>按客户加载可退行（退货页；该客户全部销售单中未退完的正数出库行）。</summary>
-    Task<CustomerSourceResult> GetSourceByCustomerAsync(string gno, string dpm, CancellationToken ct = default);
+    /// <summary>按客户加载可退行（退货页；该客户全部销售单中未退完的正数出库行；from=出库日期下界，null=全量）。</summary>
+    Task<CustomerSourceResult> GetSourceByCustomerAsync(string gno, string dpm, DateTime? from = null, CancellationToken ct = default);
 
     /// <summary>退款方式字典（tbsysset type='guno'，row145 COMBO1 行来源）。</summary>
     Task<IReadOnlyList<string>> GetRefundMethodsAsync(CancellationToken ct = default);
@@ -66,15 +66,17 @@ public sealed class SaleReturnRepository(SqlConnectionFactory factory, IDocNoSer
         string paper;
         try
         {
-            // 1) 锁定并校验原单行（UPDLOCK 串行化同一原单的并发退货；来源类型=历史/销售）
+            // 1) 锁定并校验原单行（UPDLOCK 串行化并发退货；来源类型=历史/销售；
+            //    2026-10-29 对齐旧 fr_sata row145：一张退货单可混装多张原单的行——不再按 paper 过滤，
+            //    行级 ypaper 各写各的原单号；dpm 必须属于当前部门，防跨部门行混入）
             var sourceIds = command.Lines.Select(l => l.RowId).Distinct().ToList();
             var sourceRows = (await conn.QueryAsync<SourceRow>(new CommandDefinition(
                 $"""
                 SELECT {SourceColumns}
                 FROM tbsada WITH (UPDLOCK)
-                WHERE id IN @ids AND type IN @types AND paper = @paper
+                WHERE id IN @ids AND type IN @types AND dpm = @dpm
                 """,
-                new { ids = sourceIds, types = SourceTypes, paper = Ansi(command.SourcePaper.Trim(), 10) },
+                new { ids = sourceIds, types = SourceTypes, dpm = Ansi(command.Dept.Trim(), 10) },
                 transaction: tx, cancellationToken: ct))).AsList();
 
             if (sourceRows.Count != sourceIds.Count)
@@ -114,18 +116,35 @@ public sealed class SaleReturnRepository(SqlConnectionFactory factory, IDocNoSer
                 var oprc = line.Oprc ?? src.oprc;
                 var oprct = line.Oprct ?? src.oprct;
 
-                // 3) 批次重解析（旧 KCID('c_th') 链）：id 全匹配 → cp+nno+iprc+posi+depotno(+dpm) → 未命中新建批次
-                var kcid = await ResolveKcidAsync(conn, tx, src, depotno, posi, ct);
+                // 废品行（2026-10-29 需求）：勾选废品仓 → 不回补库存。
+                // 实现=该行 kcid=0 不关联批次：sale_up 触发器按行上 kcid 回补（update tbisto ... where id=@kcid），
+                // kcid=0 时回补空转 0 行受影响；退货单行/原单 ro 统计照常成立。落库自动备注[已作废]。
+                var remark = (src.remark.Trim()
+                              + (reason.Length > 0 ? $"[退货原因：{reason}]" : "")
+                              + (line.Scrap ? "[已作废]" : ""));
 
-                // 快照以解析后批次为准（断言 sale_up 回补语义）
-                var kc = await conn.ExecuteScalarAsync<decimal>(new CommandDefinition(
-                    "SELECT kcamount FROM tbisto WHERE id = @kcid", new { kcid },
-                    transaction: tx, cancellationToken: ct));
-                if (!beforeSnapshot.TryAdd(kcid, kc))
-                    beforeSnapshot[kcid] = Math.Min(beforeSnapshot[kcid], kc);
-                resolvedBatches.Add((kcid, line.Qty));
+                int kcid;
+                if (line.Scrap)
+                {
+                    kcid = 0;
+                    depotno = "废品仓";
+                }
+                else
+                {
+                    // 3) 批次重解析（旧 KCID('c_th') 链）：id 全匹配 → cp+nno+iprc+posi+depotno(+dpm) → 未命中新建批次
+                    kcid = await ResolveKcidAsync(conn, tx, src, depotno, posi, ct);
+                }
 
-                var remark = (src.remark.Trim() + (reason.Length > 0 ? $"[退货原因：{reason}]" : ""));
+                // 快照以解析后批次为准（断言 sale_up 回补语义；废品行 kcid=0 无批次，不参与断言/快照）
+                if (!line.Scrap)
+                {
+                    var kc = await conn.ExecuteScalarAsync<decimal>(new CommandDefinition(
+                        "SELECT kcamount FROM tbisto WHERE id = @kcid", new { kcid },
+                        transaction: tx, cancellationToken: ct));
+                    if (!beforeSnapshot.TryAdd(kcid, kc))
+                        beforeSnapshot[kcid] = Math.Min(beforeSnapshot[kcid], kc);
+                    resolvedBatches.Add((kcid, line.Qty));
+                }
 
                 // 4) INSERT 退货行：ckamount=0（避开 sale_in）
                 var newId = await conn.ExecuteScalarAsync<int>(new CommandDefinition(
@@ -193,8 +212,9 @@ public sealed class SaleReturnRepository(SqlConnectionFactory factory, IDocNoSer
                     new { qty = line.Qty, id = src.id },
                     transaction: tx, cancellationToken: ct));
 
-                // 7) 原行 kcid 同步解析结果（旧 KCID() 末尾 update tbsada set kcid where id=原行id）
-                if (kcid != src.kcid)
+                // 7) 原行 kcid 同步解析结果（旧 KCID() 末尾 update tbsada set kcid where id=原行id）；
+                //    废品行 kcid=0 不回写（原行批次关联必须保留，否则原行后续退货的批次解析被破坏）
+                if (!line.Scrap && kcid != src.kcid)
                     await conn.ExecuteAsync(new CommandDefinition(
                         "UPDATE tbsada SET kcid = @kcid WHERE id = @id",
                         new { kcid, id = src.id },
@@ -212,9 +232,11 @@ public sealed class SaleReturnRepository(SqlConnectionFactory factory, IDocNoSer
             }
             else
             {
+                // 跨原单合并（2026-10-29）：默认销售类型取第一行明细自己的原单头
+                var firstSourcePaper = sourceRows.First(r => r.id == command.Lines[0].RowId).paper.Trim();
                 var headerPapertype = await conn.ExecuteScalarAsync<string>(new CommandDefinition(
                     "SELECT RTRIM(papertype) FROM tbsada_header WITH (NOLOCK) WHERE paper = @paper AND dpm = @dpm",
-                    new { paper = Ansi(command.SourcePaper.Trim(), 10), dpm = Ansi(command.Dept, 10) },
+                    new { paper = Ansi(firstSourcePaper, 10), dpm = Ansi(command.Dept, 10) },
                     transaction: tx, cancellationToken: ct));
                 papertype = string.IsNullOrWhiteSpace(headerPapertype) ? "门店" : headerPapertype!.Trim();
             }
@@ -293,22 +315,19 @@ public sealed class SaleReturnRepository(SqlConnectionFactory factory, IDocNoSer
         return new SaleSourceResult(trimmed, head.gname, head.outdate, lines);
     }
 
-    public async Task<CustomerSourceResult> GetSourceByCustomerAsync(string gno, string dpm, CancellationToken ct = default)
+    /// <param name="from">出库日期下界（远程链路优化 2026-10-29：默认只拉近 3 个月，全量由调用方传 null）。</param>
+    public async Task<CustomerSourceResult> GetSourceByCustomerAsync(
+        string gno, string dpm, DateTime? from = null, CancellationToken ct = default)
     {
         var no = gno.Trim();
         await using var conn = await factory.OpenAsync(ct);
 
-        // 客户在库中的规范名称（以 tbgu 建档名称为准回显）
-        var gname = await conn.ExecuteScalarAsync<string>(new CommandDefinition(
-            "SELECT TOP 1 RTRIM(gname) FROM tbgu WITH (NOLOCK) WHERE gno = @gno",
-            new { gno = Ansi(no, 10) },
-            cancellationToken: ct));
-        if (string.IsNullOrEmpty(gname))
-            throw new AppException("RETURN_CUSTOMER_NOT_FOUND", $"客户 {no} 不存在", 422);
-
-        // 只取未退完的正数出库行（ro < ckamount），跨该客户全部销售单（列集对照旧 GrdSada 网格）
-        var lines = (await conn.QueryAsync<SaleSourceLine>(new CommandDefinition(
-            """
+        // 远程链路优化（2026-10-29）：gname/可退行/批次仓位/拼音表原为 4 次独立往返（frp 往返 35ms/次），合并为 1 次 QueryMultiple
+        var dateFilter = from is null ? "" : " AND outdate >= @from";
+        var swExec = System.Diagnostics.Stopwatch.StartNew();
+        var multi = await conn.QueryMultipleAsync(new CommandDefinition(
+            $"""
+            SELECT TOP 1 RTRIM(gname) FROM tbgu WITH (NOLOCK) WHERE gno = @gno;
             SELECT RTRIM(paper) AS Paper,
                    id AS RowId,
                    RTRIM(cp) AS Cp, RTRIM(nno) AS Nno, RTRIM(na1) AS Na1, RTRIM(posi) AS Posi, RTRIM(depotno) AS DepotNo,
@@ -318,16 +337,41 @@ public sealed class SaleReturnRepository(SqlConnectionFactory factory, IDocNoSer
                    ckamount AS Qty, ro AS Returned, oprc AS Oprc, oprct AS Oprct,
                    iprc AS Iprc, iprj AS Iprj, yhl AS Yhl, outdate AS OutDate
             FROM tbsada WITH (NOLOCK)
-            WHERE type IN @types AND ckamount > 0 AND ro < ckamount AND gno = @gno AND dpm = @dpm
-            ORDER BY paper, id
+            WHERE type IN @types AND ckamount > 0 AND ro < ckamount AND gno = @gno AND dpm = @dpm{dateFilter}
+            ORDER BY outdate DESC, id DESC;   -- 拿货时间倒序（2026-10-29 需求：最近拿货的排前面，方便选择）
+            SELECT DISTINCT RTRIM(cp) AS Cp, RTRIM(nno) AS Nno, RTRIM(depotno) AS DepotNo, RTRIM(posi) AS Posi
+            FROM tbisto WITH (NOLOCK)
+            WHERE dpm = @dpm
+            ORDER BY Cp, Nno, DepotNo, Posi;
+            SELECT RTRIM(code), RTRIM(name) FROM tbname0 WITH (NOLOCK);
             """,
-            new { types = SourceTypes, gno = Ansi(no, 10), dpm = Ansi(dpm, 10) },
-            cancellationToken: ct))).AsList();
+            new { gno = Ansi(no, 10), types = SourceTypes, dpm = Ansi(dpm.Trim(), 10), from },
+            cancellationToken: ct));
+        QPGL.Infrastructure.DebugLog.Log($"[RetSource] QueryMultiple(执行+首包)={swExec.ElapsedMilliseconds}ms");
 
-        // 货位修正（旧 row145 L41-52）：原行仓位在 tbisto 批次中已不存在时，修正为该配件/库号下实际批次仓位
-        await CorrectPosisAsync(conn, ct, lines, [dpm.Trim()]);
+        var swRead = System.Diagnostics.Stopwatch.StartNew();
+        var gname = await multi.ReadFirstOrDefaultAsync<string>();
+        if (string.IsNullOrEmpty(gname))
+            throw new AppException("RETURN_CUSTOMER_NOT_FOUND", $"客户 {no} 不存在", 422);
+        var lines = (await multi.ReadAsync<SaleSourceLine>()).AsList();
+        var tLines = swRead.ElapsedMilliseconds;
+        var batches = (await multi.ReadAsync<BatchPosiRow>()).AsList();
+        var tBatches = swRead.ElapsedMilliseconds - tLines;
+        var pinyinRows = (await multi.ReadAsync<(string Code, string Name)>()).AsList();
+        QPGL.Infrastructure.DebugLog.Log($"[RetSource] scope={(from?.ToString("yyyy-MM-dd") ?? "全部")} 执行+lines={tLines}ms({lines.Count}行) batches=+{tBatches}ms({batches.Count}) pinyin=+{swRead.ElapsedMilliseconds - tLines - tBatches}ms({pinyinRows.Count})");
 
-        return new CustomerSourceResult(no, gname, lines);
+        // 货位修正（旧 row145 L41-52，只读版）：原仓位在 tbisto 批次中不存在时修正为实际批次仓位（内存匹配）
+        var swFix = System.Diagnostics.Stopwatch.StartNew();
+        CorrectPosis(lines, batches);
+        QPGL.Infrastructure.DebugLog.Log($"[RetSource] CorrectPosis={swFix.ElapsedMilliseconds}ms");
+
+        var pyMap = new Dictionary<string, string>(pinyinRows.Count, StringComparer.Ordinal);
+        foreach (var (code, name) in pinyinRows)
+        {
+            if (name.Length > 0 && !pyMap.ContainsKey(name)) pyMap[name] = code;
+        }
+
+        return new CustomerSourceResult(no, gname, lines, pyMap);
     }
 
     private sealed class BatchPosiRow
@@ -339,26 +383,14 @@ public sealed class SaleReturnRepository(SqlConnectionFactory factory, IDocNoSer
     }
 
     /// <summary>
-    /// 货位修正（旧 fr_sata row145 L41-52 逐行语义的只读版）：
+    /// 货位修正（旧 fr_sata row145 L41-52 逐行语义的只读版，纯内存）：
     /// 原仓位+库号在 tbisto 有批次 → 保持；原仓位已不存在但库号下有其它批次 → 修正为实际批次仓位（旧码取游标第一条，此处按 posi 序稳定）。
     /// 只修显示/编辑窗默认值，不写库（保存时 KCID 链仍以最终值为准）。
-    /// 实现说明：tbisto 全量仅数万行，直接按部门整表拉回内存匹配——
-    /// 勿改回 keys IN @keys 分块：大 IN 参数列表每次执行计划编译 1-2 秒 × 20+ 分块曾致加载 30 秒。
+    /// 实现说明：批次行随主查询同批返回；勿改回 keys IN @keys 分块——大 IN 参数列表执行计划编译 1-2 秒曾致加载 30 秒。
     /// </summary>
-    private static async Task CorrectPosisAsync(
-        SqlConnection conn, CancellationToken ct, List<SaleSourceLine> lines, IReadOnlyCollection<string> dpms)
+    private static void CorrectPosis(List<SaleSourceLine> lines, IReadOnlyList<BatchPosiRow> batches)
     {
-        if (lines.Count == 0) return;
-        var batches = (await conn.QueryAsync<BatchPosiRow>(new CommandDefinition(
-            """
-            SELECT DISTINCT RTRIM(cp) AS Cp, RTRIM(nno) AS Nno, RTRIM(depotno) AS DepotNo, RTRIM(posi) AS Posi
-            FROM tbisto WITH (NOLOCK)
-            WHERE dpm IN @dpms
-            ORDER BY Cp, Nno, DepotNo, Posi
-            """,
-            new { dpms },
-            cancellationToken: ct))).AsList();
-        if (batches.Count == 0) return;
+        if (lines.Count == 0 || batches.Count == 0) return;
 
         // (cp,nno,depotno) → 该配件库号下的批次仓位列表（posi 序稳定）
         var batchMap = new Dictionary<string, List<string>>(batches.Count);

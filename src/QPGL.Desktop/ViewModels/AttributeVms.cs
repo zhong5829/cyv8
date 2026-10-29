@@ -67,7 +67,7 @@ public partial class PrnotyViewModel : ObservableObject
                 r.Na1.Contains(na1Kw, StringComparison.OrdinalIgnoreCase) ||
                 r.Nno.Contains(na1Kw, StringComparison.OrdinalIgnoreCase) ||
                 r.Ty.Contains(na1Kw, StringComparison.OrdinalIgnoreCase) ||
-                (_pyMap.TryGetValue(r.Na1, out var code) && code.StartsWith(na1Kw, StringComparison.OrdinalIgnoreCase)));
+                (_pyMap.TryGetValue(r.Na1, out var code) && code.Contains(na1Kw, StringComparison.OrdinalIgnoreCase)));
         if (tyKw.Length > 0)
             q = q.Where(r =>
                 r.Ty.Contains(tyKw, StringComparison.OrdinalIgnoreCase) ||

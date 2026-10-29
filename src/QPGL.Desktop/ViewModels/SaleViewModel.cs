@@ -8,6 +8,7 @@ using QPGL.Domain.Common;
 using QPGL.Domain.Parts;
 using QPGL.Domain.Partners;
 using QPGL.Domain.Sales;
+using QPGL.Infrastructure;
 
 namespace QPGL.Desktop.ViewModels;
 
@@ -57,6 +58,8 @@ public partial class SaleViewModel : ObservableObject, IDisposable
     [ObservableProperty] private decimal _totalAmount;
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private string _lastPaper = "";
+    /// <summary>查询条厂牌提示（2026-10-29 需求）：正常="厂牌：X"，跨厂牌回退后="临时查看：Y"，未选厂牌为空。</summary>
+    [ObservableProperty] private string _brandHint = "";
 
     /// <summary>改单来源单号（查询模式「修改」载入的原单；保存新单成功后作废它，改单=删旧开新）。</summary>
     private string? _editSourcePaper;
@@ -68,14 +71,20 @@ public partial class SaleViewModel : ObservableObject, IDisposable
 
     public string Title => DocType + "管理";
 
-    /// <summary>实时搜索防抖（500ms，三条件任一变化触发）。</summary>
+    /// <summary>实时搜索防抖（300ms，三条件任一变化触发；2026-10-29 远程链路由 500ms 调低缩短感知延迟）。</summary>
     private readonly System.Windows.Threading.DispatcherTimer _debounce = new()
     {
-        Interval = TimeSpan.FromMilliseconds(500),
+        Interval = TimeSpan.FromMilliseconds(300),
     };
+
+    /// <summary>「最近进价」列当前是否可见（远程优化：默认隐藏时搜索跳过进价回填，省一次 tbistoed 查询+往返；View 空格切换时同步）。</summary>
+    public bool IsLastIprjVisible { get; set; }
 
     /// <summary>配件搜索请求序号（竞态守卫：只接受最新一次请求的结果）。</summary>
     private int _searchSeq;
+
+    /// <summary>当前结果集实际生效的厂牌过滤（空=未过滤；跨厂牌回退后=门市等），LoadMore 翻页沿用同一口径。</summary>
+    private string _effectiveBrand = "";
 
     /// <summary>无限滚动分页状态。</summary>
     private const int PartPageSize = 100;
@@ -150,6 +159,21 @@ public partial class SaleViewModel : ObservableObject, IDisposable
         _debounce.Start();
     }
 
+    /// <summary>取消挂起的防抖搜索（回车立即搜时调用，避免防抖到期重复查询）。</summary>
+    public void CancelPendingSearch() => _debounce.Stop();
+
+    /// <summary>「最近进价」列切换为可见后：对当前页按需补取进价（远程优化：搜索时不预取）。</summary>
+    [RelayCommand]
+    public async System.Threading.Tasks.Task FillLastIprjAsync()
+    {
+        if (PartResults.Count == 0) return;
+        try
+        {
+            await Db.Parts.FillLastIprjAsync(PartResults, Dept);
+        }
+        catch { /* 进价回填失败不影响搜索结果 */ }
+    }
+
     /// <summary>客户名称带出编号（row298：查 tbgu by gname 取首行 gno）。</summary>
     public async System.Threading.Tasks.Task LookupCustomerAsync(CancellationToken ct = default)
     {
@@ -178,18 +202,62 @@ public partial class SaleViewModel : ObservableObject, IDisposable
     {
         // 竞态守卫：递增序号，慢的旧请求返回后直接丢弃（防止空条件查询晚到覆盖过滤结果）
         var seq = ++_searchSeq;
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        DebugLog.Log($"[SaleSearch] 触发 cp='{PartCp.Trim()}' na1='{PartNa1.Trim()}' ty='{PartTy.Trim()}'");
         Message = "";
+        // 厂牌过滤（2026-10-29 需求）：登录选择的厂牌初始只显示该厂牌编码；未选厂牌不过滤
+        var brand = AppSession.Brand.Trim();
+        BrandHint = brand.Length > 0 ? $"厂牌：{brand}" : "";
         try
         {
             var request = new PagedRequest { Page = 1, PageSize = PartPageSize };
-            var result = await Db.Parts.SearchAsync(Dept, PartCp.Trim(), PartNa1.Trim(), PartTy.Trim(), request, ct);
+            var result = await Db.Parts.SearchAsync(Dept, PartCp.Trim(), PartNa1.Trim(), PartTy.Trim(), request,
+                fillLastIprj: IsLastIprjVisible, brand, ct);
             if (seq != _searchSeq) return;
+            var tDb = sw.ElapsedMilliseconds;
             PartResults.Clear();
             foreach (var p in result.Items) PartResults.Add(p);
             _partPage = 1;
             _partTotal = result.Total;
             _loadingMore = false;
+            _effectiveBrand = brand;
+            DebugLog.Log($"[SaleSearch] 总耗时={sw.ElapsedMilliseconds}ms (DB={tDb}ms UI替换={sw.ElapsedMilliseconds - tDb}ms) rows={result.Items.Count}");
             var hasCondition = PartCp.Trim().Length > 0 || PartNa1.Trim().Length > 0 || PartTy.Trim().Length > 0;
+
+            // 跨厂牌回退（2026-10-29 需求）：当前厂牌无命中且带条件时，查其它厂牌命中数，弹窗确认后临时加载
+            if (result.Total == 0 && hasCondition && brand.Length > 0)
+            {
+                var others = await Db.Parts.CountOtherBrandsAsync(Dept, brand, PartCp.Trim(), PartNa1.Trim(), PartTy.Trim(), ct);
+                if (seq != _searchSeq) return;
+                // 厂牌白名单（角色 usemcp）：非空时仅提示白名单内的厂牌；空 = 无限制
+                var wl = AppSession.BrandWhitelist;
+                if (wl.Length > 0) others = [.. others.Where(o => wl.Contains(o.Cp))];
+                if (others.Count > 0)
+                {
+                    var detail = string.Join("，", others.Select(o => $"【{o.Cp}】{o.Count} 条"));
+                    var top = others.OrderByDescending(o => o.Count).First().Cp;
+                    var answer = System.Windows.MessageBox.Show(
+                        $"当前厂牌【{brand}】未检索到该配件，{detail}。\n\n是否加载{top}编码？",
+                        "跨厂牌检索", System.Windows.MessageBoxButton.YesNo,
+                        System.Windows.MessageBoxImage.Question,
+                        System.Windows.MessageBoxResult.No);
+                    if (answer == System.Windows.MessageBoxResult.Yes)
+                    {
+                        var alt = await Db.Parts.SearchAsync(Dept, PartCp.Trim(), PartNa1.Trim(), PartTy.Trim(), request,
+                            fillLastIprj: IsLastIprjVisible, top, ct);
+                        if (seq != _searchSeq) return;
+                        PartResults.Clear();
+                        foreach (var p in alt.Items) PartResults.Add(p);
+                        _partTotal = alt.Total;
+                        _effectiveBrand = top;
+                        BrandHint = $"临时查看：{top}";
+                        Message = alt.Total == 0 ? "无匹配配件" : "";
+                        DebugLog.Log($"[SaleSearch] 跨厂牌回退 brand='{top}' rows={alt.Items.Count} total={alt.Total}");
+                        return;
+                    }
+                }
+            }
+
             Message = result.Total == 0 && hasCondition ? "无匹配配件" : "";
         }
         catch (Exception ex)
@@ -207,7 +275,8 @@ public partial class SaleViewModel : ObservableObject, IDisposable
         try
         {
             var request = new PagedRequest { Page = _partPage + 1, PageSize = PartPageSize };
-            var result = await Db.Parts.SearchAsync(Dept, PartCp.Trim(), PartNa1.Trim(), PartTy.Trim(), request, ct);
+            var result = await Db.Parts.SearchAsync(Dept, PartCp.Trim(), PartNa1.Trim(), PartTy.Trim(), request,
+                fillLastIprj: IsLastIprjVisible, _effectiveBrand, ct);
             if (seq != _searchSeq) return;
             _partPage++;
             _partTotal = result.Total;

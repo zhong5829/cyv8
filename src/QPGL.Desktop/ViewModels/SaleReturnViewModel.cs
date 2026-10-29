@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using QPGL.Desktop.Services;
 using QPGL.Domain.Common;
 using QPGL.Domain.Sales;
+using QPGL.Infrastructure;
 
 namespace QPGL.Desktop.ViewModels;
 
@@ -65,6 +66,7 @@ public partial class ReturnLineRow : ObservableObject
     public decimal Iprj { get; init; }        // 进价（不含税）
     public decimal Yhl { get; init; }         // 优惠率
     public DateTime OutDate { get; init; }    // 出库日期
+    public bool IsScrap { get; set; }         // 废品仓（2026-10-29 需求：勾选=不回补库存，自动备注[已作废]）
 
     [ObservableProperty] private decimal _returnQty;
     public decimal Amount => ReturnQty * Oprc;
@@ -127,7 +129,7 @@ public partial class SaleReturnViewModel : ObservableObject
                 r.Na1.Contains(na1Kw, StringComparison.OrdinalIgnoreCase) ||
                 r.Nno.Contains(na1Kw, StringComparison.OrdinalIgnoreCase) ||
                 r.Ty.Contains(na1Kw, StringComparison.OrdinalIgnoreCase) ||
-                (_pyMap.TryGetValue(r.Na1, out var code) && code.StartsWith(na1Kw, StringComparison.OrdinalIgnoreCase)));
+                (_pyMap.TryGetValue(r.Na1, out var code) && code.Contains(na1Kw, StringComparison.OrdinalIgnoreCase)));
         if (tyKw.Length > 0)
             q = q.Where(r =>
                 r.Ty.Contains(tyKw, StringComparison.OrdinalIgnoreCase) ||
@@ -191,8 +193,14 @@ public partial class SaleReturnViewModel : ObservableObject
     }
 
     [RelayCommand]
-    public async System.Threading.Tasks.Task LoadSourceAsync(CancellationToken ct)
+    /// <summary>
+    /// 加载可退行。远程链路优化（2026-10-29）：默认只拉近 3 个月（大客户 5 万+全量行在 frp 链路传输约 7 秒），
+    /// 「加载全部」按钮传 mode="all" 取全量。
+    /// </summary>
+    public async System.Threading.Tasks.Task LoadSourceAsync(string? mode = null)
     {
+        var ct = System.Threading.CancellationToken.None;
+        var loadAll = mode == "all";
         Message = "";
         ReturnableRows = [];
         Lines = [];
@@ -208,8 +216,13 @@ public partial class SaleReturnViewModel : ObservableObject
         }
         try
         {
-            var result = await Db.SaleReturns.GetSourceByCustomerAsync(CustomerNo, AppSession.DeptNo, ct);
-            SourceInfo = $"客户：{result.Gname}    原单数：{result.Lines.Select(l => l.Paper).Distinct().Count():0}    双击可退行加入退货明细";
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            DateTime? from = loadAll ? null : DateTime.Today.AddMonths(-3);
+            var scope = loadAll ? "全部" : "近 3 个月";
+            var result = await Db.SaleReturns.GetSourceByCustomerAsync(CustomerNo, AppSession.DeptNo, from, ct);
+            var tDb = sw.ElapsedMilliseconds;
+            SourceInfo = $"客户：{result.Gname}    范围：{scope}    原单数：{result.Lines.Select(l => l.Paper).Distinct().Count():0}    双击可退行加入退货明细"
+                         + (loadAll ? "" : "    （更早的可退行请点【加载全部】）");
             // 批量构建后整体替换：数千行逐条 Add + CollectionChanged 会拖垮 UI
             var rows = new List<ReturnableRow>(result.Lines.Count);
             foreach (var l in result.Lines)
@@ -223,16 +236,15 @@ public partial class SaleReturnViewModel : ObservableObject
                     Iprc = l.Iprc, Iprj = l.Iprj, Yhl = l.Yhl, OutDate = l.OutDate,
                 });
             }
+            DebugLog.Log($"[RetLoad] 总耗时={sw.ElapsedMilliseconds}ms (DB={tDb}ms 行构建={sw.ElapsedMilliseconds - tDb}ms) rows={rows.Count}");
             _allRows = rows;
-            // 拼音码映射整表一次取回（tbname0 数千行；名称框拼音过滤）
-            try
-            {
-                _pyMap = new Dictionary<string, string>(
-                    await Db.SaleReturns.GetPinyinMapAsync(ct), StringComparer.Ordinal);
-            }
-            catch { _pyMap = []; }
+            // 拼音码映射随加载同批返回（2026-10-29 远程优化：不再单独往返 tbname0）
+            _pyMap = new Dictionary<string, string>(result.PinyinMap, StringComparer.Ordinal);
             ApplyFilter();   // 无过滤条件时=全部；有条件时按当前关键字过滤新数据
-            if (ReturnableRows.Count == 0) Message = _allRows.Count == 0 ? "该客户无可退行" : "无匹配当前过滤条件的可退行";
+            if (ReturnableRows.Count == 0)
+                Message = _allRows.Count == 0
+                    ? (loadAll ? "该客户无可退行" : "近 3 个月无可退行，更早的历史可退行请点【加载全部】")
+                    : "无匹配当前过滤条件的可退行";
         }
         catch (AppException ex)
         {
@@ -251,7 +263,7 @@ public partial class SaleReturnViewModel : ObservableObject
     /// <summary>
     /// 退货编辑窗确认：新增或更新该原单行的明细（同一原行只保留一条明细，再次编辑覆盖）。
     /// </summary>
-    public void ApplyDetail(ReturnableRow src, decimal returnQty, decimal oprc, decimal oprct, string depotNo, string posi)
+    public void ApplyDetail(ReturnableRow src, decimal returnQty, decimal oprc, decimal oprct, string depotNo, string posi, bool scrap = false)
     {
         var exist = Lines.FirstOrDefault(l => l.RowId == src.RowId);
         if (exist is not null)
@@ -259,8 +271,9 @@ public partial class SaleReturnViewModel : ObservableObject
             exist.ReturnQty = returnQty;
             exist.Oprc = oprc;
             exist.Oprct = oprct;
-            exist.DepotNo = depotNo;
+            exist.DepotNo = scrap ? "废品仓" : depotNo;
             exist.Posi = posi;
+            exist.IsScrap = scrap;
             exist.RefreshAmount();
         }
         else
@@ -268,11 +281,12 @@ public partial class SaleReturnViewModel : ObservableObject
             var row = new ReturnLineRow
             {
                 RowId = src.RowId, Paper = src.Paper, Cp = src.Cp, Nno = src.Nno, Na1 = src.Na1,
-                DepotNo = depotNo, Posi = posi, Ty = src.Ty, Fa = src.Fa, Cxnno = src.Cxnno,
+                DepotNo = scrap ? "废品仓" : depotNo, Posi = posi, Ty = src.Ty, Fa = src.Fa, Cxnno = src.Cxnno,
                 Guno = src.Guno, Gname = src.Gname, Per = src.Per, Note = src.Note, Pno = src.Pno, TMode = src.TMode,
                 Qty = src.Qty, Returned = src.Returned, Remain = src.Remain,
                 Oprc = oprc, Oprct = oprct, ReturnQty = returnQty,
                 Iprc = src.Iprc, Iprj = src.Iprj, Yhl = src.Yhl, OutDate = src.OutDate,
+                IsScrap = scrap,
             };
             row.PropertyChanged += (_, e) => { if (e.PropertyName is nameof(ReturnLineRow.Amount)) Recalc(); };
             Lines.Add(row);
@@ -341,42 +355,33 @@ public partial class SaleReturnViewModel : ObservableObject
         Reason = dialog.Reason;
         IsBusy = true;
         Message = "";
-        // 按原单分组逐单保存：每张退货单只能对应一个原单号（发票号/发货方式/销售类型整批同值，旧 Frmok 单值语义）
-        var groups = lines.GroupBy(l => l.Paper).ToList();
-        var createdPapers = new List<string>();
+        // 一次保存合并为一张退货单（旧 fr_sata row145 语义：GETNEWDH 只取一次号，SCAN 全部明细行，
+        // 每行 ypaper=各自原单号——跨原单的行（含废品行）同单保存，单事务全成全败）
+        var command = new CreateSaleReturnCommand
+        {
+            Dept = AppSession.DeptNo,
+            SourcePaper = lines[0].Paper,      // 仅作 header 默认销售类型回查与校验锚点；行级 ypaper 各写各的原单号
+            Reason = Reason.Trim(),
+            RefundMethod = dialog.RefundMethod,
+            InvoiceNo = dialog.InvoiceNo,
+            ShipMode = dialog.ShipMode,
+            PaperType = dialog.PaperType,
+            Lines = lines.Select(l => new SaleReturnLineInput
+            {
+                RowId = l.RowId,
+                Qty = l.ReturnQty,
+                Oprc = l.Oprc,
+                Oprct = l.Oprct,
+                DepotNo = l.DepotNo,
+                Posi = l.Posi,
+                Scrap = l.IsScrap,
+            }).ToList(),
+        };
         try
         {
-            var lineCount = 0;
-            var totalAmount = 0m;
-            foreach (var g in groups)
-            {
-                var command = new CreateSaleReturnCommand
-                {
-                    Dept = AppSession.DeptNo,
-                    SourcePaper = g.Key,
-                    Reason = Reason.Trim(),
-                    RefundMethod = dialog.RefundMethod,
-                    InvoiceNo = dialog.InvoiceNo,
-                    ShipMode = dialog.ShipMode,
-                    PaperType = dialog.PaperType,
-                    Lines = g.Select(l => new SaleReturnLineInput
-                    {
-                        RowId = l.RowId,
-                        Qty = l.ReturnQty,
-                        Oprc = l.Oprc,
-                        Oprct = l.Oprct,
-                        DepotNo = l.DepotNo,
-                        Posi = l.Posi,
-                    }).ToList(),
-                };
-                var result = await Db.SaleReturns.CreateAsync(command, AppSession.Operator, ct);
-                createdPapers.Add(result.Paper);
-                lineCount += result.LineCount;
-                totalAmount += result.TotalAmount;
-            }
-            LastPaper = createdPapers[^1];
-            var papersText = createdPapers.Count == 1 ? createdPapers[0] : string.Join("、", createdPapers);
-            Message = $"退货成功，退货单号 {papersText}（{lineCount} 行，退款 {totalAmount:N2} 元）";
+            var result = await Db.SaleReturns.CreateAsync(command, AppSession.Operator, ct);
+            LastPaper = result.Paper;
+            Message = $"退货成功，退货单号 {result.Paper}（{result.LineCount} 行，退款 {result.TotalAmount:N2} 元）";
             // 上区已退数/未退量回写，退完的行移除（全集与显示集合同步）
             foreach (var l in lines)
             {
@@ -394,10 +399,7 @@ public partial class SaleReturnViewModel : ObservableObject
         }
         catch (AppException ex)
         {
-            // 部分原单已保存成功：提示已生成单号，网格保留未保存行，请重新加载后重试
-            Message = createdPapers.Count > 0
-                ? $"已生成退货单 {string.Join("、", createdPapers)}；其余原单保存失败：{ex.Message}，请重新加载后重试"
-                : ex.Message;
+            Message = ex.Message;
         }
         catch (Exception ex)
         {

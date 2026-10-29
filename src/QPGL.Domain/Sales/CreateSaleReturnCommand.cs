@@ -9,6 +9,7 @@ public sealed class SaleReturnLineInput
     public decimal? Oprct { get; set; }        // 实售价改为（空=原行 oprct；旧编辑窗「实售价改为」）
     public string? DepotNo { get; set; }       // 库号（空=原行；旧编辑窗「库号」下拉）
     public string? Posi { get; set; }          // 仓位（空=原行；旧编辑窗「仓位」下拉）
+    public bool Scrap { get; set; }            // 废品仓（2026-10-29 需求：勾选=不回补库存 kcid=0，自动备注[已作废]）
 }
 
 /// <summary>

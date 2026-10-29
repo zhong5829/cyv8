@@ -188,7 +188,9 @@ public sealed class DocQueryRepository(SqlConnectionFactory factory) : IDocQuery
                    SUM(CAST(c.oprct * (100 - c.yhl) / 100 AS numeric(12,2))) AS totalamount,
                    SUM(CAST(c.oprct * c.ckamount AS numeric(12,2))) AS totalOprct,
                    MAX(c.oprct) AS unitPrice,
-                   MAX(c.guno) AS guno, MAX(c.mark) AS mark, MAX(c.qrdate) AS qrdate, MAX(c.remark) AS remark,
+                   MAX(c.guno) AS guno, MAX(c.mark) AS mark, MAX(c.qrdate) AS qrdate,
+                   -- 单据备注排除废品行标记（2026-10-29：[已作废]只进配件行备注，单据区不显示，LIKE 中 [ 需转义）
+                   MAX(CASE WHEN c.remark LIKE '%\[已作废]' ESCAPE '\' THEN '' ELSE c.remark END) AS remark,
                    CASE WHEN MAX(c.mark) = 'Y' THEN N'已确认'
                         WHEN MAX(c.mark) = 'T' THEN N'已提货'
                         WHEN MAX(c.mark) = 'R' THEN N'已入库'
@@ -251,10 +253,13 @@ public sealed class DocQueryRepository(SqlConnectionFactory factory) : IDocQuery
             SELECT TOP (1)
                    c.paper, c.type, c.dpm, MAX(c.gname) AS gname, MAX(c.gno) AS gno, MAX(c.pno) AS pno,
                    MAX(c.per) AS per,
-                   MAX(c.t_mode) AS t_mode, MAX(c.remark) AS remark, MAX(c.mark) AS mark, MAX(c.guno) AS guno,
+                   MAX(c.t_mode) AS t_mode,
+                   MAX(CASE WHEN c.remark LIKE '%\[已作废]' ESCAPE '\' THEN '' ELSE c.remark END) AS remark,
+                   MAX(c.mark) AS mark, MAX(c.guno) AS guno,
                    MAX(c.outdate) AS outdate,
-                   SUM(c.oprct) AS total_oprct, SUM(c.oprc) AS total_oprc,
-                   SUM(CAST(c.oprct * (100 - c.yhl) / 100 AS numeric(12,2))) AS total_discounted,
+                   SUM(CAST(c.oprct * c.ckamount AS numeric(12,2))) AS total_oprct,
+                   SUM(CAST(c.oprc * c.ckamount AS numeric(12,2))) AS total_oprc,
+                   SUM(CAST(c.oprct * c.ckamount * (100 - c.yhl) / 100 AS numeric(12,2))) AS total_discounted,
                    ISNULL(MAX(h.spname), '') AS spname
             FROM tbsada c WITH (NOLOCK)
             LEFT JOIN (SELECT paper, spname FROM tbsada_header WITH (NOLOCK)) h ON h.paper = c.paper

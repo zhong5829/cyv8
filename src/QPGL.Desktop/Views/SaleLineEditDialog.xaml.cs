@@ -1,14 +1,26 @@
+using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using QPGL.Desktop.Services;
 using QPGL.Domain.Parts;
 
 namespace QPGL.Desktop.Views;
 
+/// <summary>数量为负（退货行）→ True，用于历史网格整行红字触发器。</summary>
+public sealed class NegativeQtyConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        => value is decimal d && d < 0;
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
 /// <summary>
 /// 销售行编辑对话框（复刻 qp11 SellEditDialog 布局）：
 /// 双击配件搜索行弹出，设置数量/零售批发/单价/备注，右侧显示该配件历史售价供定价参考。
-/// 确认后经 Owner（SaleViewModel.AddLine）写入明细；超批次库存仅提示不拦截（旧系统允许负库存）。
+/// 确认后经 Owner（SaleViewModel.AddLine）写入明细。
+/// 2026-10-28 需求：拦截负库存——库存 0 确认按钮禁用；数量超实际库存禁用确认并提示。
 /// </summary>
 public partial class SaleLineEditDialog : Window
 {
@@ -57,8 +69,8 @@ public partial class SaleLineEditDialog : Window
         _ = LoadHistoryAsync();
         _ = LoadPurchaseHistoryAsync();
         UpdateAmount();
-        // 打开即聚焦车型输入框并全选（回车/上下键流转：车型 → 数量 → 单价 → 确定）
-        Loaded += (_, _) => { TxtTy.Focus(); TxtTy.SelectAll(); };
+        // 打开即聚焦数量输入框并全选（2026-10-28 需求：不再定位车型；回车/上下键流转：车型 → 数量 → 单价 → 确定）
+        Loaded += (_, _) => { TxtQty.Focus(); TxtQty.SelectAll(); };
     }
 
     /// <summary>回车/上下方向键在 车型→数量→单价→确定 间流转并全选（qp11 开单键盘流）。</summary>
@@ -149,13 +161,22 @@ public partial class SaleLineEditDialog : Window
         var price = ParseDecimal(TxtPrice.Text);
         TxtAmount.Text = (qty * price).ToString("N2");
 
-        if (qty > _part.Kcamount)
+        // 拦截负库存（2026-10-28 需求）：库存 0 或数量超库存 → 确认按钮禁用 + 红字提示
+        if (_part.Kcamount <= 0)
         {
-            TxtOverStock.Text = $"⚠ 数量超过批次库存 {_part.Kcamount:0.##}，超出部分将拆批/可能产生负库存（旧系统语义，保存时仍会写入）";
+            BtnOk.IsEnabled = false;
+            TxtOverStock.Text = "⚠ 该配件实际库存为 0，不允许销售（负库存拦截）";
+            TxtOverStock.Visibility = Visibility.Visible;
+        }
+        else if (qty > _part.Kcamount)
+        {
+            BtnOk.IsEnabled = false;
+            TxtOverStock.Text = $"⚠ 销售数量 {qty:0.##} 超过实际库存 {_part.Kcamount:0.##}，不允许负库存出库";
             TxtOverStock.Visibility = Visibility.Visible;
         }
         else
         {
+            BtnOk.IsEnabled = true;
             TxtOverStock.Visibility = Visibility.Collapsed;
         }
     }
@@ -179,6 +200,13 @@ public partial class SaleLineEditDialog : Window
         if (qty <= 0)
         {
             MessageBox.Show("数量必须大于 0", "销售编辑", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        // 双保险：回车流转直接调本方法会绕过按钮 IsEnabled，负库存此处再拦一道
+        if (qty > _part.Kcamount)
+        {
+            MessageBox.Show($"销售数量 {qty:0.##} 超过实际库存 {_part.Kcamount:0.##}，不允许负库存出库", "销售编辑",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
         var price = ParseDecimal(TxtPrice.Text);

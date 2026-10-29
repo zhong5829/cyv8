@@ -131,7 +131,7 @@ public partial class PartPickWindow : Window
             var ty = TyBox.Text.Trim();
             _hasCondition = cp.Length > 0 || na1.Length > 0 || ty.Length > 0;
             var request = new PagedRequest { Page = 1, PageSize = PageSize };
-            var result = await Db.Parts.SearchAsync(_dept, cp, na1, ty, request);
+            var result = await Db.Parts.SearchAsync(_dept, cp, na1, ty, request, fillLastIprj: false, AppSession.Brand.Trim());
             if (seq != _searchSeq) return;
             Parts.Clear();
             foreach (var p in result.Items) Parts.Add(p);
@@ -155,7 +155,7 @@ public partial class PartPickWindow : Window
         try
         {
             var request = new PagedRequest { Page = _page + 1, PageSize = PageSize };
-            var result = await Db.Parts.SearchAsync(_dept, CpBox.Text.Trim(), Na1Box.Text.Trim(), TyBox.Text.Trim(), request);
+            var result = await Db.Parts.SearchAsync(_dept, CpBox.Text.Trim(), Na1Box.Text.Trim(), TyBox.Text.Trim(), request, fillLastIprj: false, AppSession.Brand.Trim());
             if (seq != _searchSeq) return;
             _page++;
             _total = result.Total;

@@ -8,8 +8,32 @@
                 BorderThickness="1" CornerRadius="3" Padding="10,8" Margin="0,0,0,6">
             <StackPanel Orientation="Horizontal">
                 <TextBlock Text="客户" VerticalAlignment="Center"/>
-                <TextBox Width="150" Text="{Binding GnameFilter, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"
-                         ToolTip="支持 / 模糊（名称包含）" Margin="4,0,12,0"/>
+                <!-- 客户输入：可编辑联想下拉（旧 cmm_class FRDM 机制：拼音码 code/数字码 code1/名称/编号前缀匹配） -->
+                <Grid Margin="4,0,12,0">
+                    <TextBox x:Name="GnameBox" Width="150" Text="{Binding GnameFilter, UpdateSourceTrigger=PropertyChanged}"
+                             VerticalAlignment="Center" TextChanged="GnameBox_TextChanged" PreviewKeyDown="GnameBox_PreviewKeyDown"
+                             ToolTip="支持拼音码/数字码/名称/编号联想，↓选择，回车确认"/>
+                    <Popup x:Name="CustPopup" PlacementTarget="{Binding ElementName=GnameBox}" Placement="Bottom"
+                           StaysOpen="False" AllowsTransparency="True" MinWidth="320">
+                        <Border Background="White" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1"
+                                CornerRadius="3" Margin="0,2,8,8" SnapsToDevicePixels="True">
+                            <ListBox x:Name="CustList" ItemsSource="{Binding CustomerSuggestions}"
+                                     MaxHeight="500" BorderThickness="0"
+                                     MouseLeftButtonUp="CustList_MouseLeftButtonUp">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal" Margin="2">
+                                            <TextBlock Text="{Binding PartNo}" Width="70" Foreground="#666"/>
+                                            <TextBlock Text="{Binding PartName}" Width="170"/>
+                                            <TextBlock Text="{Binding LinkMan}" Width="70" Foreground="#888"/>
+                                            <TextBlock Text="{Binding Mobile}" Foreground="#888"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </Border>
+                    </Popup>
+                </Grid>
                 <TextBlock Text="选项" VerticalAlignment="Center"/>
                 <ComboBox Width="110" ItemsSource="{Binding Options}" SelectedItem="{Binding Option}" VerticalAlignment="Center" Margin="4,0,12,0"/>
                 <TextBlock Text="发生日期" VerticalAlignment="Center"/>

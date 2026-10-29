@@ -24,6 +24,7 @@
                 <RowDefinition Height="34"/>
                 <RowDefinition Height="34"/>
                 <RowDefinition Height="34"/>
+                <RowDefinition Height="30"/>
             </Grid.RowDefinitions>
 
             <TextBlock Grid.Row="0" Text="售　　价:" VerticalAlignment="Center"/>
@@ -62,6 +63,10 @@
             <TextBlock Grid.Row="8" Text="仓　　位:" VerticalAlignment="Center"/>
             <ComboBox x:Name="CmbPosi" Grid.Row="8" Grid.Column="1" IsEditable="True"
                       VerticalContentAlignment="Center" Margin="8,2,0,2"/>
+
+            <!-- 2026-10-29 需求：勾选废品仓 → 该行不回补库存（kcid=0 不关联批次，sale_up 空转），自动备注[已作废] -->
+            <CheckBox x:Name="ChkScrap" Grid.Row="9" Grid.Column="1" Content="废品仓（不回补库存）"
+                      VerticalAlignment="Center" Margin="8,2,0,2"/>
         </Grid>
 
         <TextBlock x:Name="TxtError" Foreground="{StaticResource WarnBrush}" FontWeight="Bold"

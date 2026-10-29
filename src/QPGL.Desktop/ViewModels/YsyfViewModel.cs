@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using QPGL.Desktop.Services;
 using QPGL.Domain.Common;
+using QPGL.Domain.Partners;
 using QPGL.Infrastructure.Finance;
 
 namespace QPGL.Desktop.ViewModels;
@@ -33,6 +34,61 @@ public partial class YsyfViewModel : ObservableObject
     [ObservableProperty] private decimal _totalLj;
     [ObservableProperty] private string _message = "";
     [ObservableProperty] private bool _isBusy;
+
+    /// <summary>客户名称/拼音码联想防抖（300ms，同 SaleControl cmm_class FRDM 机制）。</summary>
+    private readonly System.Windows.Threading.DispatcherTimer _custDebounce = new()
+    {
+        Interval = TimeSpan.FromMilliseconds(300),
+    };
+
+    public ObservableCollection<Partner> CustomerSuggestions { get; } = [];
+
+    public YsyfViewModel()
+    {
+        _custDebounce.Tick += async (_, _) =>
+        {
+            _custDebounce.Stop();
+            await SearchCustomerSuggestionsAsync(System.Threading.CancellationToken.None);
+        };
+    }
+
+    /// <summary>输入变化时调用：重置客户联想防抖计时（View 的 TextChanged 转发）。</summary>
+    public void DebounceCustomerSearch()
+    {
+        _custDebounce.Stop();
+        _custDebounce.Start();
+    }
+
+    /// <summary>
+    /// 客户联想搜索（旧 cmm_class row326 FRDM 下拉机制 WPF 化）：
+    /// tbgu 按 gname/gno/code（拼音码）/code1（数字码）/tel/mobile 前缀匹配，取全量匹配（PageSize=200）。
+    /// </summary>
+    public async Task SearchCustomerSuggestionsAsync(CancellationToken ct = default)
+    {
+        var kw = GnameFilter?.Trim();
+        if (string.IsNullOrEmpty(kw))
+        {
+            CustomerSuggestions.Clear();
+            return;
+        }
+        try
+        {
+            var request = new PagedRequest { Page = 1, PageSize = 200, Sort = "partName", Order = "asc", Keyword = kw };
+            var result = await Db.Partners.SearchAsync(request, ct);
+            CustomerSuggestions.Clear();
+            foreach (var p in result.Items) CustomerSuggestions.Add(p);
+        }
+        catch { /* 联想失败不阻断输入 */ }
+    }
+
+    /// <summary>选中联想项：回填客户名称并执行查询（等价旧 cmm_class 选中带出）。</summary>
+    public async Task ApplyCustomerAsync(Partner p)
+    {
+        GnameFilter = p.PartName.Trim();
+        CustomerSuggestions.Clear();
+        Message = "";
+        await SearchAsync(System.Threading.CancellationToken.None);
+    }
 
     partial void OnSelectedSummaryChanged(YsyfSummaryRow? value)
     {

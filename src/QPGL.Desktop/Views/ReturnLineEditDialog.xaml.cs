@@ -18,15 +18,18 @@ public partial class ReturnLineEditDialog : Window
     public decimal Oprct { get; private set; }
     public string DepotNo { get; private set; } = "";
     public string Posi { get; private set; } = "";
+    /// <summary>勾选废品仓：该行不回补库存（kcid=0），落库自动备注[已作废]。</summary>
+    public bool ScrapWarehouse => ChkScrap.IsChecked == true;
 
     public ReturnLineEditDialog(string caption, string partContext,
         decimal oprc, decimal oprct, decimal qty, decimal returned, decimal remain,
-        string depotNo, string posi, IReadOnlyList<ReturnBatchOption> batches)
+        string depotNo, string posi, IReadOnlyList<ReturnBatchOption> batches, bool scrap = false)
     {
         InitializeComponent();
         Title = caption;
         _batches = [.. batches];
         TxtPartContext.Text = partContext;
+        ChkScrap.IsChecked = scrap;
 
         TxtOprc.Text = oprc.ToString("N2");
         TxtOprct.Text = oprct.ToString("N2");

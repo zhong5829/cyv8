@@ -78,6 +78,8 @@
                              GotKeyboardFocus="SearchBox_GotKeyboardFocus" PreviewMouseLeftButtonDown="SearchBox_PreviewMouseLeftButtonDown"
                              PreviewKeyDown="SearchBox_PreviewKeyDown"/>
                     <TextBlock Text="输入即搜（0.5 秒），双击结果行加入明细；空格=开单，双击空格=显示/隐藏最近进价" Foreground="#888" VerticalAlignment="Center"/>
+                    <!-- 厂牌提示（2026-10-29 需求）：登录厂牌过滤 / 跨厂牌回退后显示临时查看 -->
+                    <TextBlock Text="{Binding BrandHint}" Foreground="#C70" FontWeight="Bold" Margin="16,0,0,0" VerticalAlignment="Center"/>
                 </StackPanel>
             </Border>
 
@@ -91,13 +93,24 @@
                 <Border Background="White" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" CornerRadius="3" Margin="0,0,0,8">
                     <DataGrid x:Name="PartGrid" ItemsSource="{Binding PartResults}"
                               MouseDoubleClick="PartGrid_MouseDoubleClick" PreviewKeyDown="PartGrid_PreviewKeyDown" Margin="1">
+                        <DataGrid.RowStyle>
+                            <!-- 2026-10-28 需求：库存为 0 的配件整行红色字体 -->
+                            <Style TargetType="DataGridRow">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Kcamount}" Value="0">
+                                        <Setter Property="Foreground" Value="Red"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </DataGrid.RowStyle>
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="配件编号" Binding="{Binding Cp}" Width="100"/>
                             <DataGridTextColumn Header="内部编号" Binding="{Binding Nno}" Width="110"/>
                             <DataGridTextColumn Header="名称" Binding="{Binding Na1}" Width="*"/>
                             <DataGridTextColumn Header="车型" Binding="{Binding Ty}" Width="90"/>
                             <DataGridTextColumn Header="货位" Binding="{Binding Posi}" Width="70"/>
-                            <DataGridTextColumn Header="库存" Binding="{Binding Kcamount}" Width="70"
+                            <!-- 库存整数显示（0.##：整数不带 .00，真实小数库存仍保留），与价格列区分 -->
+                            <DataGridTextColumn Header="库存" Binding="{Binding Kcamount, StringFormat={}{0:0.##}}" Width="70"
                                                 ElementStyle="{StaticResource NumCellRight}"/>
                             <!-- 2026-10-28 需求：最近一次进价默认隐藏，双击空格切换显示（PartGrid_PreviewKeyDown） -->
                             <DataGridTextColumn x:Name="LastIprcColumn" Header="最近进价" Binding="{Binding LastIprj, StringFormat=N2}"

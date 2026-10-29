@@ -6,6 +6,7 @@ public sealed class PartSaleHistory
     public string Paper { get; init; } = "";      // 单号
     public DateTime OutDate { get; init; }        // 出库日期
     public string Gname { get; init; } = "";      // 客户
+    public string Depotno { get; init; } = "";    // 库号
     public decimal Qty { get; init; }             // 数量
     public decimal Price { get; init; }           // 单价（oprc）
 }

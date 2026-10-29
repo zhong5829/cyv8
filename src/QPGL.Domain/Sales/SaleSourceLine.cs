@@ -36,4 +36,6 @@ public sealed record ReturnBatchOption(string DepotNo, string Posi);
 public sealed record SaleSourceResult(string Paper, string Gname, DateTime OutDate, IReadOnlyList<SaleSourceLine> Lines);
 
 /// <summary>按客户加载的可退行集合（跨多张原销售单，退货页）。</summary>
-public sealed record CustomerSourceResult(string Gno, string Gname, IReadOnlyList<SaleSourceLine> Lines);
+public sealed record CustomerSourceResult(
+    string Gno, string Gname, IReadOnlyList<SaleSourceLine> Lines,
+    IReadOnlyDictionary<string, string> PinyinMap);

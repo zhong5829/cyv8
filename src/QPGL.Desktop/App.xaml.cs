@@ -1,4 +1,5 @@
 using System.Windows;
+using Microsoft.Extensions.Configuration;
 using QPGL.Desktop.Services;
 
 namespace QPGL.Desktop;
@@ -36,5 +37,27 @@ public partial class App : Application
             Shutdown(1);
             return;
         }
+
+        // VIN 查询组装（qp11 迁移）：appsettings.json 的 VinQuery/Pinxiu 配置段；
+        // 失败静默不阻断主流程（菜单入口处有兜底提示）。
+        try
+        {
+            var vinConfig = new ConfigurationBuilder()
+                .SetBasePath(AppDomain.CurrentDomain.BaseDirectory)
+                .AddJsonFile("appsettings.json", optional: true)
+                .Build();
+            Db.InitVin(vinConfig);
+
+            // 启动时主动续期已登录数据源 Token（fire-and-forget，静默失败）
+            if (Db.VinQuery.IsLoggedIn)
+            {
+                _ = System.Threading.Tasks.Task.Run(async () =>
+                {
+                    try { await Db.VinQuery.StartupRefreshAsync(); }
+                    catch { /* 静默 */ }
+                });
+            }
+        }
+        catch { /* VIN 初始化失败不阻断主流程 */ }
     }
 }

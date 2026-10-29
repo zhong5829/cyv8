@@ -271,8 +271,10 @@ public sealed class PrnotyRepository(SqlConnectionFactory factory, IDmService dm
         p.Add("suttle", c.Suttle);
         p.Add("note", new DbString { Value = c.Note ?? "", IsAnsi = true, Length = 50 });
         p.Add("note1", new DbString { Value = c.Note1 ?? "", IsAnsi = true, Length = 50 });
-        p.Add("oprc_cp", c.Oprc_cp ?? (object)DBNull.Value);
-        p.Add("oprc_min", c.Oprc_min ?? (object)DBNull.Value);
+        // oprc_min 列 NOT NULL（副本库实测）：新增时编辑窗无最低售价输入（null）须落 0（旧 VFP frmAdd Value=0 同款）；
+        // oprc_cp 库内无 NULL 行，null 一并落 0
+        p.Add("oprc_cp", c.Oprc_cp ?? 0m);
+        p.Add("oprc_min", c.Oprc_min ?? 0m);
         p.Add("cxnno", new DbString { Value = c.Cxnno ?? "", IsAnsi = true, Length = 18 });
         long id;
         if (c.IsAdd)
