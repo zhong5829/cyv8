@@ -1,7 +1,7 @@
 name: Release
 
 # 推送 v 开头 tag 触发自动打包并发布 Release
-# 例：git tag v0.0.4 && git push origin v0.0.4
+# 例：git tag v0.0.5 && git push origin v0.0.5
 on:
   push:
     tags:
