@@ -657,6 +657,7 @@ public sealed class OrderInRepository(SqlConnectionFactory factory, IDocNoServic
                         },
                         transaction: tx, cancellationToken: ct));
                     await Name0Sync.SyncAsync(conn, tx, dm, r.Na1, ct);
+                    await Name0Sync.SyncTyAsync(conn, tx, dm, r.Ty, ct);   // 车型拼音码（2026-10-30 需求）
                 }
 
                 // 3a) 直发（gname 非空且数量≠0）：销售单 + tbsada（kcid 缺省 0 → sale_in 不扣库存）

@@ -33,7 +33,8 @@ public partial class SaleLineEditDialog : Window
     public decimal Price { get; private set; }
     public string LineMemo { get; private set; } = "";
 
-    public SaleLineEditDialog(PartItem part, string dept, decimal? initQty = null, decimal? initPrice = null, string? initMemo = null)
+    public SaleLineEditDialog(PartItem part, string dept, decimal? initQty = null, decimal? initPrice = null, string? initMemo = null,
+        string? customerName = null)
     {
         InitializeComponent();
         Owner = Application.Current.MainWindow;
@@ -55,6 +56,10 @@ public partial class SaleLineEditDialog : Window
         TxtPrice.Text = (initPrice ?? part.Oprc).ToString("N2");
         TxtMemo.Text = initMemo ?? "";
 
+        // 销售历史筛选默认匹配开单客户名称（2026-10-30 需求）：客户为空则筛选框为空；
+        // 构造期设 Text 会触发 TextChanged，用 _filterReady 拦住防抖，初始加载直接按关键字查
+        TxtSellFilter.Text = customerName ?? "";
+
         _sellFilterDebounce.Tick += async (_, _) =>
         {
             _sellFilterDebounce.Stop();
@@ -66,8 +71,9 @@ public partial class SaleLineEditDialog : Window
             await LoadPurchaseHistoryAsync(TxtPurchaseFilter.Text.Trim());
         };
 
-        _ = LoadHistoryAsync();
+        _ = LoadHistoryAsync(TxtSellFilter.Text.Trim());
         _ = LoadPurchaseHistoryAsync();
+        _filterReady = true;
         UpdateAmount();
         // 打开即聚焦数量输入框并全选（2026-10-28 需求：不再定位车型；回车/上下键流转：车型 → 数量 → 单价 → 确定）
         Loaded += (_, _) => { TxtQty.Focus(); TxtQty.SelectAll(); };
@@ -101,10 +107,12 @@ public partial class SaleLineEditDialog : Window
     // 历史筛选防抖（300ms，与客户联想一致）：输入即按名称/拼音码筛
     private readonly System.Windows.Threading.DispatcherTimer _sellFilterDebounce = new() { Interval = TimeSpan.FromMilliseconds(300) };
     private readonly System.Windows.Threading.DispatcherTimer _purchaseFilterDebounce = new() { Interval = TimeSpan.FromMilliseconds(300) };
+    /// <summary>构造期默认筛选文本赋值不启动防抖（初始加载已带关键字查询）</summary>
+    private bool _filterReady;
 
     private void SellFilter_TextChanged(object sender, TextChangedEventArgs e)
     {
-        if (TxtSellFilter is null) return;   // InitializeComponent 初始化期触发
+        if (!_filterReady || TxtSellFilter is null) return;   // InitializeComponent 初始化期触发
         _sellFilterDebounce.Stop();
         _sellFilterDebounce.Start();
     }

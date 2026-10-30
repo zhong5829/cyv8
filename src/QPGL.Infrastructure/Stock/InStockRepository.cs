@@ -173,6 +173,7 @@ public sealed class InStockRepository(SqlConnectionFactory factory, Parts.IDmSer
                         },
                         transaction: tx, cancellationToken: ct));
                     await Name0Sync.SyncAsync(conn, tx, dm, r.Na1, ct);
+                    await Name0Sync.SyncTyAsync(conn, tx, dm, r.Ty, ct);   // 车型拼音码（2026-10-30 需求）
                 }
 
                 // 入库台账（旧 L205 列清单原样 + PASSTH 补 dpm）

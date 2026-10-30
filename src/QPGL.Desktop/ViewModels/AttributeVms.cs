@@ -35,6 +35,7 @@ public partial class PrnotyViewModel : ObservableObject
     [ObservableProperty] private string _filterTy = "";
     private List<PrnotyRow> _allRows = [];                                  // 未过滤全集
     private Dictionary<string, string> _pyMap = new(StringComparer.Ordinal); // 零件名称→拼音码（tbname0）
+    private Dictionary<string, string> _tyMap = new(StringComparer.Ordinal); // 车型→拼音码（tbty0，2026-10-30 需求）
     private readonly System.Windows.Threading.DispatcherTimer _filterDebounce = new()
     {
         Interval = TimeSpan.FromMilliseconds(500),
@@ -71,7 +72,8 @@ public partial class PrnotyViewModel : ObservableObject
         if (tyKw.Length > 0)
             q = q.Where(r =>
                 r.Ty.Contains(tyKw, StringComparison.OrdinalIgnoreCase) ||
-                r.Na1.Contains(tyKw, StringComparison.OrdinalIgnoreCase));
+                r.Na1.Contains(tyKw, StringComparison.OrdinalIgnoreCase) ||
+                (_tyMap.TryGetValue(r.Ty, out var tyCode) && tyCode.Contains(tyKw, StringComparison.OrdinalIgnoreCase)));
         Rows = new ObservableCollection<PrnotyRow>(q.ToList());
     }
 
@@ -85,6 +87,9 @@ public partial class PrnotyViewModel : ObservableObject
             // 拼音码映射整表一次取回（tbname0 数千行；名称框拼音过滤，销售页同源）
             try { _pyMap = new Dictionary<string, string>(await Db.SaleReturns.GetPinyinMapAsync(), StringComparer.Ordinal); }
             catch { _pyMap = []; }
+            // 车型拼音码映射整表一次取回（tbty0，2026-10-30 需求；失败不阻断——车型框退化为纯中文包含）
+            try { _tyMap = new Dictionary<string, string>(await Db.SaleReturns.GetTyPinyinMapAsync(), StringComparer.Ordinal); }
+            catch { _tyMap = []; }
             ApplyFilter();   // 无过滤条件时=全部；有条件时按当前关键字过滤新数据
             Message = _allRows.Count == 0 ? "没有符合条件的记录！" : $"共 {_allRows.Count} 行";
         }
@@ -277,6 +282,83 @@ public partial class PrnameViewModel : ObservableObject
                 MessageBoxButton.OKCancel, MessageBoxImage.Question) != MessageBoxResult.OK) return;
         var n = await Db.NameCode.ExtractAsync();
         Message = $"提取完毕（tbname0 新增 {n} 行 + getpywb 客户/供应商/维修代码）";
+    }
+}
+
+/// <summary>车型拼音码维护（2026-10-30 方案 B · tbty0）：查询/新增/保存/删除/存量提取，
+/// 与 A2 零件代码（PrnameViewModel）同构；码恒由 DM 重算，手改无效。</summary>
+public partial class TyCodeViewModel : ObservableObject
+{
+    [ObservableProperty]
+    private ObservableCollection<Ty0Row> rows = new();
+
+    [ObservableProperty]
+    private Ty0Row? selected;
+
+    [ObservableProperty]
+    private string findWhere = "1=1";
+
+    [ObservableProperty]
+    private string message = "";
+
+    [ObservableProperty]
+    private bool isBusy;   // 一键初始化执行中（按钮禁用防重复点击）
+
+    [RelayCommand]
+    public async Task SearchAsync()
+    {
+        var rows = await Db.TyCode.SearchAsync(FindWhere);
+        Rows = new ObservableCollection<Ty0Row>(rows);
+        Message = rows.Count == 0 ? "没有符合条件的记录！" : $"共 {rows.Count} 行";
+    }
+
+    [RelayCommand]
+    private void NewRow() { Rows.Insert(0, new Ty0Row()); Selected = Rows[0]; }
+
+    [RelayCommand]
+    private async Task SaveAsync()
+    {
+        if (Selected is null || string.IsNullOrWhiteSpace(Selected.Ty)) { Message = "请输入车型！"; return; }
+        try
+        {
+            var r = Selected;
+            var (id, code, code1) = await Db.TyCode.SaveAsync(r.Id == 0, r.Id, r.Ty.Trim());
+            r.Id = id; r.Code = code; r.Code1 = code1;
+            Message = $"已保存 id={id}（code={code} code1={code1}）";
+        }
+        catch (QPGL.Domain.Common.AppException ex) { Message = ex.Message; }
+    }
+
+    [RelayCommand]
+    private async Task DeleteAsync()
+    {
+        if (Selected is null) return;
+        await Db.TyCode.DeleteAsync(Selected.Ty);
+        Rows.Remove(Selected);
+        Message = "已删除";
+    }
+
+    /// <summary>一键初始化（2026-10-30 需求，生产部署按钮）：幂等建表 tbty0 → 存量提取灌数（幂等跳过已存在/空码车型）。
+    /// 升级客户端后点一次即完成全部数据库准备，无需手动执行任何 SQL。</summary>
+    [RelayCommand]
+    private async Task ExtractAsync()
+    {
+        if (MessageBox.Show("一键初始化：自动建表 tbty0 并从属性库提取全部车型拼音码（幂等，重复点击无副作用）。确认执行吗？",
+                "车型拼音码初始化", MessageBoxButton.OKCancel, MessageBoxImage.Question) != MessageBoxResult.OK) return;
+        IsBusy = true;
+        Message = "正在初始化（建表 + 提取）...";
+        try
+        {
+            await Db.TyCode.EnsureTableAsync();
+            var n = await Db.TyCode.ExtractAsync();
+            Message = $"初始化完成（tbty0 新增 {n} 行）";
+            await SearchAsync();
+        }
+        catch (Exception ex)
+        {
+            Message = "初始化失败：" + ex.Message + "（请确认连接账号具备建表权限）";
+        }
+        finally { IsBusy = false; }
     }
 }
 

@@ -48,9 +48,14 @@ public sealed class PartProfileRepository(SqlConnectionFactory factory) : IPartP
             where += " AND na1 LIKE @na1";
             p.Add("na1", $"%{request.Na1.Trim()}%");
         }
+        // 车型框：车型包含 + tbty0 车型拼音码（2026-10-30 需求，全页面对齐开单页）。
+        // 必须 LEFT JOIN 派生表 + HASH JOIN 提示（实测）：无提示 IN 半连接优化器误选嵌套循环 30s+/超时，
+        // JOIN 派生表后 40ms；列带 t. 前缀避免与派生表 tb2.ty 歧义（SQL 2515）
+        var tyJoin = "";
         if (!string.IsNullOrWhiteSpace(request.Ty))
         {
-            where += " AND ty LIKE @ty";
+            tyJoin = "\nLEFT JOIN (SELECT DISTINCT rtrim(ty) AS ty FROM tbty0 WITH (NOLOCK) WHERE code LIKE '%' + @ty + '%') tb2 ON rtrim(t.ty) = tb2.ty";
+            where += " AND (t.ty LIKE @ty OR tb2.ty IS NOT NULL)";
             p.Add("ty", $"%{request.Ty.Trim()}%");
         }
         var orderBy = PartProfileSortFields.TryResolve(request.Sort, out var col)
@@ -59,13 +64,13 @@ public sealed class PartProfileRepository(SqlConnectionFactory factory) : IPartP
 
         await using var conn = await factory.OpenAsync(ct);
         var sql = $"""
-            SELECT {Columns}
-            FROM tbprnoty WITH (NOLOCK)
+            SELECT t.cp AS cp, t.nno AS nno, t.na1 AS na1, t.ty AS ty, t.fa AS fa, t.dc AS dc, t.unit AS unit, t.iprj AS iprj, t.uqty AS uqty, t.oprc_min AS oprc_min, t.note AS note
+            FROM tbprnoty t WITH (NOLOCK){tyJoin}
             WHERE {where}
             ORDER BY {orderBy}
             OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY;
-            SELECT COUNT(1) FROM tbprnoty WITH (NOLOCK) WHERE {where};
-            """;
+            SELECT COUNT(1) FROM tbprnoty t WITH (NOLOCK){tyJoin} WHERE {where};
+            """ + (tyJoin.Length > 0 ? "\nOPTION (HASH JOIN);" : "");
         p.Add("skip", (request.Page - 1) * request.PageSize);
         p.Add("take", request.PageSize);
 

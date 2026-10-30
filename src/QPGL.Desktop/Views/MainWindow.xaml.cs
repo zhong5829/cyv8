@@ -8,6 +8,8 @@ namespace QPGL.Desktop.Views;
 public partial class MainWindow : Window
 {
     private readonly MainViewModel _vm = new();
+    /// <summary>VIN 查询窗单例（qp11 _vinQueryWindow 同构）：已打开时再次点菜单仅激活，避免多开</summary>
+    private VinQueryWindow? _vinQueryWindow;
 
     public MainWindow()
     {
@@ -96,7 +98,16 @@ public partial class MainWindow : Window
                 "VIN 查询", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
-        new VinQueryWindow { Owner = this }.Show();
+        // qp11 OpenVinQueryWindow 语义：非模态单例；不设置Owner，使VIN窗口与主窗口平级，可自由切换焦点
+        // （设Owner会使被拥有窗口永远压在主窗口上方，表现为"置顶覆盖主程序"）
+        if (_vinQueryWindow != null && _vinQueryWindow.IsLoaded)
+        {
+            _vinQueryWindow.Activate();
+            return;
+        }
+        _vinQueryWindow = new VinQueryWindow();
+        _vinQueryWindow.Closed += (_, _) => _vinQueryWindow = null;
+        _vinQueryWindow.Show();
     }
 
     /// <summary>VIN 查询窗添加配件入口：优先取激活 Tab 的销售开单页，其次任意已打开的销售开单 Tab

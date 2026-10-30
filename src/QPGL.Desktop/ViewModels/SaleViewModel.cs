@@ -303,7 +303,7 @@ public partial class SaleViewModel : ObservableObject, IDisposable
             return;
         }
 
-        var dialog = new Views.SaleLineEditDialog(part, Dept);
+        var dialog = new Views.SaleLineEditDialog(part, Dept, customerName: Gname?.Trim());
         if (dialog.ShowDialog() != true) return;
 
         var row = new SaleLineRow
@@ -345,7 +345,7 @@ public partial class SaleViewModel : ObservableObject, IDisposable
             Oprb = row.Oprb,
             Posi = row.Posi,
         };
-        var dialog = new Views.SaleLineEditDialog(part, Dept, row.Qty, row.Price, row.Memo)
+        var dialog = new Views.SaleLineEditDialog(part, Dept, row.Qty, row.Price, row.Memo, customerName: Gname?.Trim())
         {
             Title = "销售编辑 - 修改明细行",
         };

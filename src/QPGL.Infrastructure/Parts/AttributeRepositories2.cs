@@ -251,6 +251,8 @@ public sealed class KitRepository(SqlConnectionFactory factory, IDmService dm) :
                     code = new DbString { Value = code, IsAnsi = true, Length = 10 },
                     code1 = new DbString { Value = code1, IsAnsi = true, Length = 10 },
                 }, cancellationToken: ct));
+            // 车型拼音码同步（2026-10-30 需求：tbty0 无行则插入；只增不删）
+            await Name0Sync.SyncTyAsync(conn, null, dm, c.Ty, ct);
         }
         else
         {

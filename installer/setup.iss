@@ -1,10 +1,10 @@
 ﻿; QP12 配件管理系统 安装包脚本（Inno Setup 6，CI/本地共用）
 ; 更新原则：appsettings.json（数据库连接）/ print.ini（打印配置）为用户配置，
 ;          onlyifdoesntexist = 首次安装复制，之后升级永不覆盖
-; 版本注入：CI 按发布 tag 传 /DAppVersion=0.0.5；本地编译缺省 0.0.5
+; 版本注入：CI 按发布 tag 传 /DAppVersion=0.0.6；本地编译缺省 0.0.6
 ; AppId 固定不变（旧版"长远测试预览版"可覆盖升级为 QP12）
 #ifndef AppVersion
-#define AppVersion "0.0.5"
+#define AppVersion "0.0.6"
 #endif
 
 [Setup]

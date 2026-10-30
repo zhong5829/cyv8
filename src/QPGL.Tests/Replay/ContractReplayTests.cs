@@ -302,7 +302,8 @@ public class ContractReplayTests
         }, cnoWindow: cno);
 
         var provider = new StaticCs(ReplayConfig.ConnectionString);
-        var inStock = new InStockRepository(new SqlConnectionFactory(provider), new DmService());
+        var inStockFactory = new SqlConnectionFactory(provider);
+        var inStock = new InStockRepository(inStockFactory, new DmService(), new DocNoService(inStockFactory));
         var modern = Run(() =>
         {
             inStock.CreateAsync(new CreateInStockCommand

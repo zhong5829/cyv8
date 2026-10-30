@@ -46,6 +46,10 @@ public sealed class PartRepository(SqlConnectionFactory factory) : IPartReposito
     private const string SelectColumns =
         "id, dpm, cp, nno, na1, ty, fa, dc, unit, kcamount, iprj, iprc, oprc, oprb, posi, depotno, note";
 
+    /// <summary>t. 前缀版列清单：拼音码 LEFT JOIN 派生表（nb.name/tb2.ty）在场时消除裸列名歧义（SQL 2515）</summary>
+    private const string SelectColumnsT =
+        "t.id, t.dpm, t.cp, t.nno, t.na1, t.ty, t.fa, t.dc, t.unit, t.kcamount, t.iprj, t.iprc, t.oprc, t.oprb, t.posi, t.depotno, t.note";
+
     /// <summary>搜索行 DTO（列名与 tbisto 对齐由 Dapper 大小写不敏感映射；_total=窗口函数 COUNT(1) OVER() 总行数）。</summary>
     private sealed class PartSearchRow
     {
@@ -94,25 +98,48 @@ public sealed class PartRepository(SqlConnectionFactory factory) : IPartReposito
             // 编码框：查内部编号（包含匹配）
             conditions.Add("nno LIKE '%' + @cp + '%'");
         }
+
+        // 拼音码匹配统一用 LEFT JOIN 派生表（2026-10-30 bug 修复：名称 IN + 车型 IN 两组半连接经 OR 组合后
+        // OPTION (HASH JOIN) 提示无法生成计划（SQL 8622，用户实测"同时查名称和车型报查询失败"）；
+        // 改为显式 JOIN 派生表后 HASH JOIN 总能套用——实测双拼音条件 117ms（无提示嵌套循环 18.2s）。
+        // 等价性：rtrim(t.na1)=nb.name 相等连接 + DISTINCT 去重不膨胀行数，OR nb.name IS NOT NULL 与 IN 语义一致）
+        var na1Join = na1Kw.Length > 0
+            ? "\nLEFT JOIN (SELECT DISTINCT rtrim(name) AS name FROM tbname0 WITH (NOLOCK) WHERE code LIKE '%' + @na1 + '%') nb ON rtrim(t.na1) = nb.name"
+            : "";
+        var tyJoin = tyKw.Length > 0
+            ? "\nLEFT JOIN (SELECT DISTINCT rtrim(ty) AS ty FROM tbty0 WITH (NOLOCK) WHERE code LIKE '%' + @ty + '%') tb2 ON rtrim(t.ty) = tb2.ty"
+            : "";
+        // 属性库补集分支（p 别名）侧的同款派生表（UNION 两分支为独立子查询，别名不冲突）
+        var na1JoinP = na1Kw.Length > 0
+            ? "\nLEFT JOIN (SELECT DISTINCT rtrim(name) AS name FROM tbname0 WITH (NOLOCK) WHERE code LIKE '%' + @na1 + '%') nb ON rtrim(p.na1) = nb.name"
+            : "";
+        var tyJoinP = tyKw.Length > 0
+            ? "\nLEFT JOIN (SELECT DISTINCT rtrim(ty) AS ty FROM tbty0 WITH (NOLOCK) WHERE code LIKE '%' + @ty + '%') tb2 ON rtrim(p.ty) = tb2.ty"
+            : "";
         if (na1Kw.Length > 0)
         {
             // 名称框：名称/编码/车型包含 + tbname0 拼音码（code→name）带出（旧系统 DM() 取码机制，fr_sale row211 建码）
-            // 拼音码包含匹配（2026-10-29 需求：中文可部分检索，拼音同样部分检索）；tbname0 数千行全扫代价可忽略
-            conditions.Add($"""
+            // 拼音码包含匹配（2026-10-29 需求：中文可部分检索，拼音同样部分检索）
+            conditions.Add("""
                 (t.na1 LIKE '%' + @na1 + '%'
                  OR t.nno LIKE '%' + @na1 + '%'
                  OR t.ty LIKE '%' + @na1 + '%'
-                 OR t.na1 IN (SELECT RTRIM(name) FROM tbname0 WITH (NOLOCK) WHERE code LIKE '%' + @na1 + '%'))
+                 OR nb.name IS NOT NULL)
                 """);
         }
         if (tyKw.Length > 0)
         {
-            conditions.Add("(ty LIKE '%' + @ty + '%' OR na1 LIKE '%' + @ty + '%')");
+            // 车型框：车型/名称包含 + tbty0 车型拼音码（2026-10-30 需求：旧系统车型不支持拼音码检索）
+            conditions.Add("""
+                (t.ty LIKE '%' + @ty + '%'
+                 OR t.na1 LIKE '%' + @ty + '%'
+                 OR tb2.ty IS NOT NULL)
+                """);
         }
         var where = "WHERE " + string.Join(" AND ", conditions);
 
-        // 名称条件带拼音码 IN 子查询，优化器可能误选嵌套循环导致逐行重扫 tbname0（实测 10s+），强制 HASH JOIN 后 85ms
-        var hint = na1Kw.Length > 0 ? " OPTION (HASH JOIN)" : "";
+        // 名称/车型条件带拼音码 JOIN 派生表，优化器可能误选嵌套循环导致逐行重扫（实测 10s+），强制 HASH JOIN 后 ~100ms
+        var hint = (na1Kw.Length > 0 || tyKw.Length > 0) ? " OPTION (HASH JOIN)" : "";
 
         // 属性库补集条件（includeAttrOnly）：与 tbisto 侧同构（p. 别名），另带厂牌过滤 + 本部门无库存行排除；
         // tbprnoty 无 dpm 列（本地库实测），旧散件入库选件也仅 cp=?P_cp（fr_isto __.row2 L23）
@@ -126,15 +153,19 @@ public sealed class PartRepository(SqlConnectionFactory factory) : IPartReposito
                 attrConditions.Add("rtrim(p.nno) LIKE '%' + @cp + '%'");
             if (na1Kw.Length > 0)
             {
-                attrConditions.Add($"""
+                attrConditions.Add("""
                     (rtrim(p.na1) LIKE '%' + @na1 + '%'
                      OR rtrim(p.nno) LIKE '%' + @na1 + '%'
                      OR rtrim(p.ty) LIKE '%' + @na1 + '%'
-                     OR rtrim(p.na1) IN (SELECT RTRIM(name) FROM tbname0 WITH (NOLOCK) WHERE code LIKE '%' + @na1 + '%'))
+                     OR nb.name IS NOT NULL)
                     """);
             }
             if (tyKw.Length > 0)
-                attrConditions.Add("(rtrim(p.ty) LIKE '%' + @ty + '%' OR rtrim(p.na1) LIKE '%' + @ty + '%')");
+                attrConditions.Add("""
+                    (rtrim(p.ty) LIKE '%' + @ty + '%'
+                     OR rtrim(p.na1) LIKE '%' + @ty + '%'
+                     OR tb2.ty IS NOT NULL)
+                    """);
             attrConditions.Add("""
                 NOT EXISTS (SELECT 1 FROM tbisto x WITH (NOLOCK)
                             WHERE x.dpm = @dpm AND rtrim(x.cp) = rtrim(p.cp) AND rtrim(x.nno) = rtrim(p.nno))
@@ -146,7 +177,7 @@ public sealed class PartRepository(SqlConnectionFactory factory) : IPartReposito
                        rtrim(p.ty) AS ty, rtrim(p.fa) AS fa, rtrim(p.dc) AS dc, rtrim(p.unit) AS unit,
                        0 AS kcamount, ISNULL(p.iprj,0) AS iprj, 0 AS iprc, ISNULL(p.oprc_cp,0) AS oprc, 0 AS oprb,
                        '' AS posi, '' AS depotno, rtrim(p.note) AS note
-                FROM tbprnoty p WITH (NOLOCK)
+                FROM tbprnoty p WITH (NOLOCK){na1JoinP}{tyJoinP}
                 WHERE {string.Join(" AND ", attrConditions)}
                 """;
         }
@@ -185,8 +216,8 @@ public sealed class PartRepository(SqlConnectionFactory factory) : IPartReposito
         var pageSql = attrBranch.Length > 0
             ? $"""
                SELECT u.*, COUNT(1) OVER() AS _total
-               FROM (SELECT {SelectColumns}
-                     FROM tbisto t WITH (NOLOCK)
+               FROM (SELECT {SelectColumnsT}
+                     FROM tbisto t WITH (NOLOCK){na1Join}{tyJoin}
                      {where}{attrBranch}
                     ) u
                ORDER BY {orderU}
@@ -196,7 +227,7 @@ public sealed class PartRepository(SqlConnectionFactory factory) : IPartReposito
             ? $"""
                SELECT x.id, x.dpm, x.cp, x.nno, x.na1, x.ty, x.fa, x.dc, x.unit, x.kcamount, x.iprj, x.iprc, x.oprc, x.oprb, x.posi, x.depotno, x.note, t._total
                FROM (SELECT t.id, COUNT(1) OVER() AS _total
-                     FROM tbisto t WITH (NOLOCK)
+                     FROM tbisto t WITH (NOLOCK){na1Join}{tyJoin}
                      {where}
                      ORDER BY {order}, t.id
                      OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY) t
@@ -205,7 +236,7 @@ public sealed class PartRepository(SqlConnectionFactory factory) : IPartReposito
                """
             : $"""
                SELECT {SelectColumns}, COUNT(1) OVER() AS _total
-               FROM tbisto t WITH (NOLOCK)
+               FROM tbisto t WITH (NOLOCK){na1Join}{tyJoin}
                {where}
                ORDER BY {order}
                OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY{hint}
@@ -245,37 +276,58 @@ public sealed class PartRepository(SqlConnectionFactory factory) : IPartReposito
         var brandKw = (brand ?? "").Trim();
         if (brandKw.Length == 0) return [];
 
-        // 条件与 SearchAsync 完全同构，仅厂牌条件换为 cp <> @brand
-        var conditions = new List<string> { "dpm = @dpm", "t.cp <> @brand" };
+        // 条件与 SearchAsync 完全同构，仅厂牌条件换为 cp <> @brand；
+        // 拼音码用 LEFT JOIN 派生表（同 SearchAsync 8622 修复：双 IN 半连接 + HASH JOIN 提示无法生成计划）
+        var na1Join = na1Kw.Length > 0
+            ? "\nLEFT JOIN (SELECT DISTINCT rtrim(name) AS name FROM tbname0 WITH (NOLOCK) WHERE code LIKE '%' + @na1 + '%') nb ON rtrim(t.na1) = nb.name"
+            : "";
+        var tyJoin = tyKw.Length > 0
+            ? "\nLEFT JOIN (SELECT DISTINCT rtrim(ty) AS ty FROM tbty0 WITH (NOLOCK) WHERE code LIKE '%' + @ty + '%') tb2 ON rtrim(t.ty) = tb2.ty"
+            : "";
+        var conditions = new List<string> { "t.dpm = @dpm", "t.cp <> @brand" };
         if (cpKw.Length > 0)
-            conditions.Add("nno LIKE '%' + @cp + '%'");
+            conditions.Add("t.nno LIKE '%' + @cp + '%'");
         if (na1Kw.Length > 0)
-            conditions.Add($"""
+            conditions.Add("""
                 (t.na1 LIKE '%' + @na1 + '%'
                  OR t.nno LIKE '%' + @na1 + '%'
                  OR t.ty LIKE '%' + @na1 + '%'
-                 OR t.na1 IN (SELECT RTRIM(name) FROM tbname0 WITH (NOLOCK) WHERE code LIKE '%' + @na1 + '%'))
+                 OR nb.name IS NOT NULL)
                 """);
         if (tyKw.Length > 0)
-            conditions.Add("(ty LIKE '%' + @ty + '%' OR na1 LIKE '%' + @ty + '%')");
-        var hint = na1Kw.Length > 0 ? " OPTION (HASH JOIN)" : "";
+            conditions.Add("""
+                (t.ty LIKE '%' + @ty + '%'
+                 OR t.na1 LIKE '%' + @ty + '%'
+                 OR tb2.ty IS NOT NULL)
+                """);
+        var hint = (na1Kw.Length > 0 || tyKw.Length > 0) ? " OPTION (HASH JOIN)" : "";
 
         // 属性库补集同计入跨厂牌命中（2026-10-29：属性定义新增配件无任何库存行，仅统计 tbisto 会漏报），
         // 条件与 SearchAsync 的 attrBranch 同构，厂牌条件换为 rtrim(p.cp) <> @brand
+        var na1JoinP = na1Kw.Length > 0
+            ? "\nLEFT JOIN (SELECT DISTINCT rtrim(name) AS name FROM tbname0 WITH (NOLOCK) WHERE code LIKE '%' + @na1 + '%') nb ON rtrim(p.na1) = nb.name"
+            : "";
+        var tyJoinP = tyKw.Length > 0
+            ? "\nLEFT JOIN (SELECT DISTINCT rtrim(ty) AS ty FROM tbty0 WITH (NOLOCK) WHERE code LIKE '%' + @ty + '%') tb2 ON rtrim(p.ty) = tb2.ty"
+            : "";
         var attrConditions = new List<string> { "rtrim(p.cp) <> @brand" };
         if (cpKw.Length > 0)
             attrConditions.Add("rtrim(p.nno) LIKE '%' + @cp + '%'");
         if (na1Kw.Length > 0)
         {
-            attrConditions.Add($"""
+            attrConditions.Add("""
                 (rtrim(p.na1) LIKE '%' + @na1 + '%'
                  OR rtrim(p.nno) LIKE '%' + @na1 + '%'
                  OR rtrim(p.ty) LIKE '%' + @na1 + '%'
-                 OR rtrim(p.na1) IN (SELECT RTRIM(name) FROM tbname0 WITH (NOLOCK) WHERE code LIKE '%' + @na1 + '%'))
+                 OR nb.name IS NOT NULL)
                 """);
         }
         if (tyKw.Length > 0)
-            attrConditions.Add("(rtrim(p.ty) LIKE '%' + @ty + '%' OR rtrim(p.na1) LIKE '%' + @ty + '%')");
+            attrConditions.Add("""
+                (rtrim(p.ty) LIKE '%' + @ty + '%'
+                 OR rtrim(p.na1) LIKE '%' + @ty + '%'
+                 OR tb2.ty IS NOT NULL)
+                """);
         attrConditions.Add("""
             NOT EXISTS (SELECT 1 FROM tbisto x WITH (NOLOCK)
                         WHERE x.dpm = @dpm AND rtrim(x.cp) = rtrim(p.cp) AND rtrim(x.nno) = rtrim(p.nno))
@@ -287,12 +339,12 @@ public sealed class PartRepository(SqlConnectionFactory factory) : IPartReposito
             SELECT z.cp, SUM(z.n) AS n
             FROM (
                 SELECT RTRIM(t.cp) AS cp, COUNT(1) AS n
-                FROM tbisto t WITH (NOLOCK)
+                FROM tbisto t WITH (NOLOCK){na1Join}{tyJoin}
                 WHERE {string.Join(" AND ", conditions)}
                 GROUP BY RTRIM(t.cp)
                 UNION ALL
                 SELECT rtrim(p.cp) AS cp, COUNT(1) AS n
-                FROM tbprnoty p WITH (NOLOCK)
+                FROM tbprnoty p WITH (NOLOCK){na1JoinP}{tyJoinP}
                 WHERE {string.Join(" AND ", attrConditions)}
                 GROUP BY rtrim(p.cp)
             ) z

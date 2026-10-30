@@ -185,6 +185,88 @@ public static class Name0Sync
                 code1 = new DbString { Value = code1, IsAnsi = true, Length = 10 },
             }, transaction: tx, cancellationToken: ct));
     }
+
+    /// <summary>
+    /// tbprnoty 写入车型后调用：tbty0 无 ty 行且可产出拼音码时插入（2026-10-30 车型拼音码需求，方案 B）。
+    /// 车型码为混合码（汉字→tbcode 首字母 + 字母数字原样小写，符号跳过）：如 宝骏510→bj510、天籁J31→tlj31。
+    /// 纯符号/无有效字符车型码为空跳过（原 LIKE 可搜）。只增不删：车型修改后旧行保留（与 tbname0 语义一致）。
+    /// </summary>
+    public static async Task SyncTyAsync(SqlConnection conn, SqlTransaction? tx, IDmService dm,
+        string? ty, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(ty)) return;
+        var tyTrimmed = ty.Trim();
+        try
+        {
+            var built = await BuildTyCodeAsync(conn, tx, tyTrimmed, ct);
+            if (built is null) return;
+            var (code, code1) = built.Value;
+            await conn.ExecuteAsync(new CommandDefinition(
+                """
+                IF NOT EXISTS (SELECT 1 FROM tbty0 WITH (NOLOCK) WHERE rtrim(ty) = @ty)
+                    INSERT tbty0 (ty, code, code1) VALUES (@ty, @code, @code1)
+                """,
+                new
+                {
+                    ty = new DbString { Value = tyTrimmed, IsAnsi = true, Length = 14 },
+                    code = new DbString { Value = code, IsAnsi = true, Length = 10 },
+                    code1 = new DbString { Value = code1, IsAnsi = true, Length = 10 },
+                }, transaction: tx, cancellationToken: ct));
+        }
+        catch (SqlException ex) when (ex.Number is 2601 or 2627)
+        {
+            // 并发窗口：另一连接抢先插入同车型（ty 唯一索引拦截）。目标已达成，静默跳过，
+            // 避免中断外层入库/保存事务（语句级错误不回滚事务，后续语句可继续）
+        }
+    }
+
+    /// <summary>车型混合码（带连接版）：收集 ty 中汉字一次查 tbcode 取首字母后按位拼装。</summary>
+    public static async Task<(string Code, string Code1)?> BuildTyCodeAsync(SqlConnection conn, SqlTransaction? tx,
+        string ty, CancellationToken ct = default)
+    {
+        var chns = ty.Where(c => c > 127).Select(c => c.ToString()).Distinct().ToList();
+        var map = new Dictionary<string, (string Qp, string Wb)>();
+        if (chns.Count > 0)
+        {
+            var rows = await conn.QueryAsync<(string Chn, string Qp, string Wbh)>(
+                new CommandDefinition(
+                    "SELECT rtrim(chn), rtrim(qp), rtrim(wbh) FROM tbcode WITH (NOLOCK) WHERE rtrim(chn) IN @chns",
+                    new { chns }, transaction: tx, cancellationToken: ct));
+            foreach (var r in rows) map[r.Chn] = (r.Qp.Length > 0 ? r.Qp[..1] : "", r.Wbh.Length > 0 ? r.Wbh[..1] : "");
+        }
+        return BuildTyCode(ty, map);
+    }
+
+    /// <summary>
+    /// 车型混合码（纯内存版，ExtractAsync 批量用）：汉字→tbcode 首字母、字母/数字→原样小写、其余符号跳过；
+    /// 拼装结果为空（纯符号/无有效字符）返回 null。超 10 字符截断（tbty0.code char(10)）。
+    /// 注意：与 DmService（纯汉字首字母，tbname0 用）口径不同——车型需携带数字/字母才能支撑如 BJ510 检索。
+    /// </summary>
+    public static (string Code, string Code1)? BuildTyCode(string ty, IReadOnlyDictionary<string, (string Qp, string Wb)> pyMap)
+    {
+        var code = new System.Text.StringBuilder();
+        var code1 = new System.Text.StringBuilder();
+        foreach (var ch in ty)
+        {
+            if (ch > 127)
+            {
+                if (pyMap.TryGetValue(ch.ToString(), out var v))
+                {
+                    code.Append(v.Qp);
+                    code1.Append(v.Wb);
+                }
+            }
+            else if (char.IsLetterOrDigit(ch))
+            {
+                var low = char.ToLowerInvariant(ch).ToString();
+                code.Append(low);
+                code1.Append(low);
+            }
+            // 其余符号（/ 空格 - . 等）跳过
+        }
+        if (code.Length == 0) return null;
+        return (code.ToString()[..Math.Min(code.Length, 10)], code1.ToString()[..Math.Min(code1.Length, 10)]);
+    }
 }
 
 /// <summary>A3 属性传递（fr_sxcd）。</summary>
@@ -362,6 +444,9 @@ public sealed class PrnotyRepository(SqlConnectionFactory factory, IDmService dm
         {
             name0Id = exists.Value;
         }
+
+        // 车型拼音码同步（2026-10-30 需求：A1 新增/修改车型后 tbty0 无行则插入；只增不删）
+        await Name0Sync.SyncTyAsync(conn, null, dm, cur.Ty, ct);
 
         // 触发器 insert_cxnno 已回填 cxnno/xno/tno（INSERT 后读回）
         var after = await conn.QuerySingleAsync<(string Cxnno, int Xno, int Tno)>(
@@ -632,5 +717,178 @@ public sealed class NameCodeRepository(SqlConnectionFactory factory, IDmService 
                 new { tbl = new DbString { Value = tbl, IsAnsi = true, Length = 20 }, col = new DbString { Value = col, IsAnsi = true, Length = 20 } },
                 cancellationToken: ct));
         return n;
+    }
+}
+
+/// <summary>tbty0 车型拼音码行（2026-10-30 方案 B：车型拼音码独立维护表，结构对齐 tbname0）。</summary>
+public sealed class Ty0Row
+{
+    public int Id { get; set; }
+    public string Ty { get; set; } = "";
+    public string Code { get; set; } = "";
+    public string Code1 { get; set; } = "";
+}
+
+/// <summary>tbty0 车型拼音码仓储（A2 维护页签 + 存量提取；查询侧 PartRepository 车型条件消费）。</summary>
+public interface ITyCodeRepository
+{
+    /// <summary>一键初始化第一步：幂等建表（表/索引已存在时跳过；生产部署点一次按钮即完成建表+灌数）。</summary>
+    Task EnsureTableAsync(CancellationToken ct = default);
+
+    Task<IReadOnlyList<Ty0Row>> SearchAsync(string where, CancellationToken ct = default);
+
+    /// <summary>新增/修改（防重 ty；code=DM(1,ty)/code1=DM(2,ty) 恒重算，与 tbname0 DM 语义一致）。</summary>
+    Task<(int Id, string Code, string Code1)> SaveAsync(bool isAdd, int id, string ty, CancellationToken ct = default);
+
+    Task DeleteAsync(string ty, CancellationToken ct = default);
+
+    /// <summary>存量提取：tbprnoty distinct 车型逐条 DM 算码（应用层拼码——本库 SQL 2012 无 STRING_AGG，
+    /// 且排序规则非 Chinese_PRC，SQL 端汉字判定不可靠），幂等跳过已存在 ty。</summary>
+    Task<int> ExtractAsync(CancellationToken ct = default);
+}
+
+public sealed class TyCodeRepository(SqlConnectionFactory factory) : ITyCodeRepository
+{
+    /// <summary>幂等建表（2026-10-30 一键初始化）：tbty0 结构对齐 tbname0（无主键、id identity、NOT NULL 默认 ''），
+    /// 表已存在时整块跳过——重复点击/多客户端并发点击均安全。需连接账号具备建表权限（现有部署多为管理员直连）。
+    /// ty 唯一索引（2026-10-30 并发加固）：彻底杜绝多客户端同时点初始化按钮的重复行边界；
+    /// 各写入点（SyncTyAsync/SaveAsync/ExtractAsync）均对唯一键冲突（SQL 2601/2627）做了容错。</summary>
+    public async Task EnsureTableAsync(CancellationToken ct = default)
+    {
+        await using var conn = await factory.OpenAsync(ct);
+        await conn.ExecuteAsync(new CommandDefinition("""
+            IF OBJECT_ID('tbty0') IS NULL
+            BEGIN
+                CREATE TABLE tbty0 (
+                    id    int IDENTITY NOT NULL,
+                    ty    char(14) NOT NULL CONSTRAINT df_tbty0_ty    DEFAULT (''),
+                    code  char(10) NOT NULL CONSTRAINT df_tbty0_code  DEFAULT (''),
+                    code1 char(10) NOT NULL CONSTRAINT df_tbty0_code1 DEFAULT ('')
+                );
+                CREATE UNIQUE INDEX ux_tbty0_ty ON tbty0 (ty);
+                CREATE INDEX ix_tbty0_code  ON tbty0 (code);
+                CREATE INDEX ix_tbty0_code1 ON tbty0 (code1);
+            END
+            """, null, cancellationToken: ct));
+    }
+
+    public async Task<IReadOnlyList<Ty0Row>> SearchAsync(string where, CancellationToken ct = default)
+    {
+        await using var conn = await factory.OpenAsync(ct);
+        return (await conn.QueryAsync<Ty0Row>(new CommandDefinition(
+            $"SELECT id, rtrim(ty) ty, rtrim(code) code, rtrim(code1) code1 FROM tbty0 WITH (NOLOCK) WHERE {(string.IsNullOrWhiteSpace(where) ? "1=1" : $"({where})")} ORDER BY ty",
+            null, cancellationToken: ct))).AsList();
+    }
+
+    public async Task<(int Id, string Code, string Code1)> SaveAsync(bool isAdd, int id, string ty, CancellationToken ct = default)
+    {
+        await using var conn = await factory.OpenAsync(ct);
+        var dup = await conn.ExecuteScalarAsync<int>(new CommandDefinition(
+            "SELECT CASE WHEN EXISTS (SELECT 1 FROM tbty0 WITH (NOLOCK) WHERE rtrim(ty)=@t AND id<>@id) THEN 1 ELSE 0 END",
+            new { t = new DbString { Value = ty, IsAnsi = true, Length = 14 }, id }, cancellationToken: ct));
+        if (dup == 1) throw new QPGL.Domain.Common.AppException("TY_DUPLICATE", "该车型已存在！", 409);
+        var built = await Name0Sync.BuildTyCodeAsync(conn, null, ty, ct);
+        var c = built?.Code ?? "";
+        var c1 = built?.Code1 ?? "";
+        int newId;
+        try
+        {
+            if (isAdd)
+            {
+                newId = await conn.ExecuteScalarAsync<int>(new CommandDefinition(
+                    "INSERT INTO tbty0 (ty, code, code1) VALUES (@t, @c, @c1); SELECT CAST(SCOPE_IDENTITY() AS int);",
+                    new { t = new DbString { Value = ty, IsAnsi = true, Length = 14 }, c = new DbString { Value = c, IsAnsi = true, Length = 10 }, c1 = new DbString { Value = c1, IsAnsi = true, Length = 10 } },
+                    cancellationToken: ct));
+            }
+            else
+            {
+                newId = id;
+                await conn.ExecuteAsync(new CommandDefinition(
+                    "UPDATE tbty0 SET ty=@t, code=@c, code1=@c1 WHERE id=@id",
+                    new { t = new DbString { Value = ty, IsAnsi = true, Length = 14 }, c = new DbString { Value = c, IsAnsi = true, Length = 10 }, c1 = new DbString { Value = c1, IsAnsi = true, Length = 10 }, id },
+                    cancellationToken: ct));
+            }
+        }
+        catch (SqlException ex) when (ex.Number is 2601 or 2627)
+        {
+            // 并发窗口：dup 预检与插入之间另一连接抢先插入了同车型（ty 唯一索引拦截）
+            throw new QPGL.Domain.Common.AppException("TY_DUPLICATE", "该车型已存在！", 409);
+        }
+        return (newId, c, c1);
+    }
+
+    public async Task DeleteAsync(string ty, CancellationToken ct = default)
+    {
+        await using var conn = await factory.OpenAsync(ct);
+        await conn.ExecuteAsync(new CommandDefinition(
+            "DELETE FROM tbty0 WHERE rtrim(ty)=@t", new { t = new DbString { Value = ty, IsAnsi = true, Length = 14 } }, cancellationToken: ct));
+    }
+
+    public async Task<int> ExtractAsync(CancellationToken ct = default)
+    {
+        await using var conn = await factory.OpenAsync(ct);
+
+        // tbcode 全量入内存（混合码源：汉字→首字母 + 字母数字原样，与 Name0Sync.BuildTyCode 同口径）
+        var pyMap = new Dictionary<string, (string Qp, string Wb)>();
+        foreach (var (chn, qp, wbh) in await conn.QueryAsync<(string Chn, string Qp, string Wbh)>(
+            new CommandDefinition("SELECT rtrim(chn), rtrim(qp), rtrim(wbh) FROM tbcode WITH (NOLOCK)", null, cancellationToken: ct)))
+        {
+            pyMap[chn] = (qp.Length > 0 ? qp[..1] : "", wbh.Length > 0 ? wbh[..1] : "");
+        }
+
+        var existing = (await conn.QueryAsync<string>(
+            new CommandDefinition("SELECT rtrim(ty) FROM tbty0 WITH (NOLOCK)", null, cancellationToken: ct))).ToHashSet();
+
+        var toInsert = new List<(string Ty, string Code, string Code1)>();
+        foreach (var ty in await conn.QueryAsync<string>(
+            new CommandDefinition("SELECT DISTINCT rtrim(ty) FROM tbprnoty WITH (NOLOCK) WHERE rtrim(ty)<>''", null, cancellationToken: ct)))
+        {
+            if (existing.Contains(ty)) continue;
+            var built = Name0Sync.BuildTyCode(ty, pyMap);
+            if (built is null) continue;   // 纯符号/无有效字符车型（原 LIKE 可搜，空码无检索意义）
+            toInsert.Add((ty, built.Value.Code, built.Value.Code1));
+        }
+
+        // 批量多值 INSERT（每批 100 行×3 参数，远低于 2100 参数上限）
+        var inserted = 0;
+        foreach (var batch in toInsert.Chunk(100))
+        {
+            var values = new List<string>();
+            var p = new DynamicParameters();
+            for (var i = 0; i < batch.Length; i++)
+            {
+                values.Add($"(@ty{i}, @c{i}, @c1_{i})");
+                p.Add($"ty{i}", new DbString { Value = batch[i].Ty, IsAnsi = true, Length = 14 });
+                p.Add($"c{i}", new DbString { Value = batch[i].Code, IsAnsi = true, Length = 10 });
+                p.Add($"c1_{i}", new DbString { Value = batch[i].Code1, IsAnsi = true, Length = 10 });
+            }
+            try
+            {
+                inserted += await conn.ExecuteAsync(new CommandDefinition(
+                    $"INSERT INTO tbty0 (ty, code, code1) VALUES {string.Join(", ", values)}", p, cancellationToken: ct));
+            }
+            catch (SqlException ex) when (ex.Number is 2601 or 2627)
+            {
+                // 并发窗口兜底（ty 唯一索引拦截）：另一客户端在本次 existing 快照之后插入了本批部分车型 →
+                // 本批降级为逐行防重插入（INSERT..SELECT..WHERE NOT EXISTS，返回 0/1 计数准确），
+                // 保证不重不漏、初始化永不因并发失败
+                foreach (var (ty, code, code1) in batch)
+                {
+                    inserted += await conn.ExecuteAsync(new CommandDefinition(
+                        """
+                        INSERT INTO tbty0 (ty, code, code1)
+                        SELECT @t, @c, @c1
+                        WHERE NOT EXISTS (SELECT 1 FROM tbty0 WITH (NOLOCK) WHERE rtrim(ty) = @t)
+                        """,
+                        new
+                        {
+                            t = new DbString { Value = ty, IsAnsi = true, Length = 14 },
+                            c = new DbString { Value = code, IsAnsi = true, Length = 10 },
+                            c1 = new DbString { Value = code1, IsAnsi = true, Length = 10 },
+                        }, cancellationToken: ct));
+                }
+            }
+        }
+        return inserted;
     }
 }

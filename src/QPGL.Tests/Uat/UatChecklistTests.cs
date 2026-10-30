@@ -58,7 +58,7 @@ public class UatChecklistTests
     {
         ReplayEnv.EnsureSnapshot();
         ReplayEnv.ResetToSnapshot();
-        var inStock = new InStockRepository(Factory, new DmService());
+        var inStock = new InStockRepository(Factory, new DmService(), new DocNoService(Factory));
 
         decimal qty = 5m, newIprc, newIprj;
         using (var conn = ReplayEnv.Open())
@@ -118,7 +118,7 @@ public class UatChecklistTests
     {
         ReplayEnv.EnsureSnapshot();
         ReplayEnv.ResetToSnapshot();
-        var inStock = new InStockRepository(Factory, new DmService());
+        var inStock = new InStockRepository(Factory, new DmService(), new DocNoService(Factory));
 
         using (var conn = ReplayEnv.Open())
         {

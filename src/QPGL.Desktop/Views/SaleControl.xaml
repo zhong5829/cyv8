@@ -129,6 +129,7 @@
                               PreviewKeyDown="LineGrid_PreviewKeyDown">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="配件编号" Binding="{Binding Cp}" IsReadOnly="True" Width="90"/>
+                            <DataGridTextColumn Header="内部编号" Binding="{Binding Nno}" IsReadOnly="True" Width="110"/>
                             <DataGridTextColumn Header="名称" Binding="{Binding Na1}" IsReadOnly="True" Width="*"/>
                             <DataGridTextColumn Header="车型" Binding="{Binding Ty}" IsReadOnly="True" Width="100"/>
                             <DataGridTextColumn Header="货位" Binding="{Binding Posi}" IsReadOnly="True" Width="60"/>

@@ -23,8 +23,10 @@
                 <TextBox x:Name="Na1Box" Width="220" Margin="4,0,16,0" TextChanged="Box_TextChanged" PreviewKeyDown="SearchBox_PreviewKeyDown"
                          ToolTip="支持拼音码/编码/名称/车型；←/→ 切换条件框"/>
                 <TextBlock Text="车型" VerticalAlignment="Center"/>
-                <TextBox x:Name="TyBox" Width="180" Margin="4,0,16,0" TextChanged="Box_TextChanged" PreviewKeyDown="SearchBox_PreviewKeyDown"
+                <TextBox x:Name="TyBox" Width="180" Margin="4,0,8,0" TextChanged="Box_TextChanged" PreviewKeyDown="SearchBox_PreviewKeyDown"
                          ToolTip="←/→ 切换条件框"/>
+                <Button Content="新增编码" Margin="0,0,16,0" Padding="10,0" MinWidth="72" Height="26" Click="BtnNewPart_Click"
+                        ToolTip="新增零件属性编码（确定后直接选定该配件继续入库）"/>
                 <TextBlock Text="输入即搜（0.5 秒），←/→ 切换条件框，双击结果行选定配件" Foreground="#888" VerticalAlignment="Center"/>
             </StackPanel>
         </Border>

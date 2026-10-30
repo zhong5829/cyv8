@@ -64,10 +64,11 @@ public partial class PrnotyControl : UserControl
     }
 }
 
-/// <summary>A2 零件代码 / A7 税则号 / AA 分类码（三页签）。</summary>
+/// <summary>A2 零件代码 / 车型拼音码 / A7 税则号 / AA 分类码（四页签）。</summary>
 public partial class BasicAttrControls : UserControl
 {
     private readonly PrnameViewModel _nameVm = new();
+    private readonly TyCodeViewModel _tyVm = new();
     private readonly ComplexViewModel _complexVm = new();
     private readonly DcCoefViewModel _dcVm = new();
 
@@ -76,6 +77,7 @@ public partial class BasicAttrControls : UserControl
         InitializeComponent();
         DataContext = this;
         NameTab.DataContext = _nameVm;
+        TyTab.DataContext = _tyVm;
         ComplexTab.DataContext = _complexVm;
         DcTab.DataContext = _dcVm;
     }

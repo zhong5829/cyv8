@@ -61,13 +61,68 @@ public partial class XlskViewModel : ObservableObject
     [ObservableProperty] private bool _finVouchEnabled;   // P_FINANCE && P_FININVOU：联动启用时去向列表切换为会计科目
     [ObservableProperty] private string _message = "";
     [ObservableProperty] private bool _isBusy;
+    [ObservableProperty] private decimal _sumJe;      // 合计：金额
+    [ObservableProperty] private decimal _sumYsje;    // 合计：已收/付
+    [ObservableProperty] private decimal _sumWsje;    // 合计：未收/付
+    [ObservableProperty] private decimal _sumBcje;    // 合计：本次
+    [ObservableProperty] private decimal _yueAfter;   // 收款/付款后余额
+    [ObservableProperty] private decimal _yueAbs;     // 可用总金额（旧界面 = |TXTYUE|）
 
     public string Title { get; }
+
+    // ==== 客户联想（旧 cmm_class row326 FRDM 下拉机制 WPF 化，与销售开单页 GnameBox 同款）====
+    /// <summary>客户名称/拼音码联想防抖（300ms）。</summary>
+    private readonly System.Windows.Threading.DispatcherTimer _custDebounce = new()
+    {
+        Interval = TimeSpan.FromMilliseconds(300),
+    };
+
+    public ObservableCollection<Domain.Partners.Partner> CustomerSuggestions { get; } = [];
+
+    /// <summary>客户输入变化时调用：重置联想防抖（View 的 TextChanged 转发）。</summary>
+    public void DebounceCustomerSearch()
+    {
+        _custDebounce.Stop();
+        _custDebounce.Start();
+    }
+
+    /// <summary>客户联想搜索：tbgu 按 gname/gno/code（拼音码）/code1（数字码）/tel/mobile 前缀匹配。</summary>
+    public async Task SearchCustomerSuggestionsAsync(CancellationToken ct = default)
+    {
+        var kw = Gname?.Trim();
+        if (string.IsNullOrEmpty(kw)) { CustomerSuggestions.Clear(); return; }
+        try
+        {
+            var request = new PagedRequest { Page = 1, PageSize = 200, Sort = "partName", Order = "asc", Keyword = kw };
+            var result = await Db.Partners.SearchAsync(request, ct);
+            CustomerSuggestions.Clear();
+            foreach (var p in result.Items) CustomerSuggestions.Add(p);
+        }
+        catch { /* 联想失败不阻断输入 */ }
+    }
+
+    /// <summary>选中联想项：回填客户名称（拉单仍按 Gname 执行）。</summary>
+    public void ApplyCustomer(Domain.Partners.Partner p)
+    {
+        Gname = p.PartName.Trim();
+        CustomerSuggestions.Clear();
+    }
+
+    /// <summary>列头文案随收款/付款切换（旧界面：已收金额/未收金额/本次收款 ↔ 已付金额/未付金额/本次付款）。</summary>
+    public string ColYs => _type == "收款" ? "已收金额" : "已付金额";
+    public string ColWs => _type == "收款" ? "未收金额" : "未付金额";
+    public string ColBc => _type == "收款" ? "本次收款" : "本次付款";
+    public string ColMark => _type == "收款" ? "收款" : "付款";
 
     public XlskViewModel(string type)
     {
         _type = type;
         Title = type + "管理";
+        _custDebounce.Tick += async (_, _) =>
+        {
+            _custDebounce.Stop();
+            await SearchCustomerSuggestionsAsync(System.Threading.CancellationToken.None);
+        };
     }
 
     /// <summary>流水日期可编辑性（Init L311-323）：配置「可修改收付款日期」valuel=0 → 锁定；G22/@ 放开。
@@ -77,7 +132,7 @@ public partial class XlskViewModel : ObservableObject
         var (luse, finInvou) = await Db.FinOp.GetFinSwitchAsync(ct);
         FinVouchEnabled = luse >= 1 && finInvou == 2;
         IEnumerable<string> sources = FinVouchEnabled
-            ? await Db.FinOp.GetSkqxNamesAsync(ct)
+            ? await Db.FinOp.GetSkqxNamesAsync(AppSession.DeptNo, ct)
             : await Db.Xlsk.GetBankNamesAsync(ct);
         BankNames.Clear();
         foreach (var b in sources) BankNames.Add(b);
@@ -97,7 +152,21 @@ public partial class XlskViewModel : ObservableObject
     private void RecalcPaySum()
     {
         PaySum = Lines.Where(l => l.IsChecked).Sum(l => l.Bcje);
+        SumJe = Lines.Sum(l => l.Je);
+        SumYsje = Lines.Sum(l => l.Ysje);
+        SumWsje = Lines.Sum(l => l.Wsje);
+        SumBcje = Lines.Sum(l => l.Bcje);
+        UpdateYueDerived();
     }
+
+    /// <summary>收款/付款后余额（旧界面 TXT 显示：收款=YUE-PAYSUM，付款=YUE+PAYSUM，与 LJ 落库口径同源）。</summary>
+    private void UpdateYueDerived()
+    {
+        YueAfter = _type == "收款" ? Yue - PaySum : Yue + PaySum;
+        YueAbs = Math.Abs(Yue);
+    }
+
+    partial void OnYueChanged(decimal value) => UpdateYueDerived();
 
     private void HookLine(XlskLineVm line)
     {

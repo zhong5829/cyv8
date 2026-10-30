@@ -4,7 +4,7 @@
     <DockPanel Margin="8">
         <Border DockPanel.Dock="Top" Background="White" BorderBrush="{StaticResource PanelBorderBrush}"
                 BorderThickness="1" CornerRadius="3" Padding="10,6" Margin="0,0,0,6">
-            <TextBlock Text="基础资料（A2 零件代码 / A7 税则号 / AA 分类码）" FontWeight="Bold"/>
+            <TextBlock Text="基础资料（A2 零件代码 / 车型拼音码 / A7 税则号 / AA 分类码）" FontWeight="Bold"/>
         </Border>
         <TabControl>
             <TabItem x:Name="NameTab" Header="零件代码定义（A2 · tbname0）">
@@ -26,6 +26,29 @@
                             <DataGridTextColumn Header="零件名" Binding="{Binding Name}" Width="180"/>
                             <DataGridTextColumn Header="全拼码" Binding="{Binding Code}" Width="110"/>
                             <DataGridTextColumn Header="别名" Binding="{Binding Name1}" Width="180"/>
+                            <DataGridTextColumn Header="五笔码" Binding="{Binding Code1}" Width="110"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </TabItem>
+            <TabItem x:Name="TyTab" Header="车型拼音码（tbty0）">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,4,0,6">
+                        <TextBox Width="160" Text="{Binding FindWhere}" ToolTip="WHERE 片段（ty/code/code1）"/>
+                        <Button Content="查询" Command="{Binding SearchCommand}" Margin="6,0,8,0"/>
+                        <Button Content="新增" Command="{Binding NewRowCommand}" Margin="0,0,8,0"/>
+                        <Button Content="保存（code=DM 全拼首字母 / code1=五笔首字母）" Command="{Binding SaveCommand}" Margin="0,0,8,0"/>
+                        <Button Content="删除" Command="{Binding DeleteCommand}" Margin="0,0,8,0"/>
+                        <Button Content="一键初始化（建表+提取车型码）" Command="{Binding ExtractCommand}"/>
+                    </StackPanel>
+                    <DockPanel DockPanel.Dock="Bottom" Margin="0,6,0,0">
+                        <TextBlock Text="{Binding Message}" Foreground="{StaticResource BrandBrush}"/>
+                    </DockPanel>
+                    <DataGrid ItemsSource="{Binding Rows}" SelectedItem="{Binding Selected}" AutoGenerateColumns="False" CanUserAddRows="False"
+                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="车型" Binding="{Binding Ty}" Width="180"/>
+                            <DataGridTextColumn Header="全拼码" Binding="{Binding Code}" Width="110"/>
                             <DataGridTextColumn Header="五笔码" Binding="{Binding Code1}" Width="110"/>
                         </DataGrid.Columns>
                     </DataGrid>

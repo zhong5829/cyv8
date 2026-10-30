@@ -255,8 +255,8 @@ public interface IFinOpVouchRepository
 {
     Task<int> GetFinOpVouOptionAsync(CancellationToken ct = default);
     Task<(decimal Luse, int FinInvou)> GetFinSwitchAsync(CancellationToken ct = default);
-    Task<IReadOnlyList<string>> GetSkqxNamesAsync(CancellationToken ct = default);
-    Task<(string Subcode, string Subname, string Type, bool Fcash)?> GetSkqxByNameAsync(string subname, CancellationToken ct = default);
+    Task<IReadOnlyList<string>> GetSkqxNamesAsync(string dpm, CancellationToken ct = default);
+    Task<(string Subcode, string Subname, string Type, bool Fcash)?> GetSkqxByNameAsync(string subname, string dpm, CancellationToken ct = default);
     Task<IReadOnlyList<FinOpVouchGroup>> GenerateAsync(FinOpGenerateQuery query, string dpm, CancellationToken ct = default);
     Task<(int VouchId, int Vcode)> AuditAsync(FinOpVouchGroup group, string dpm, string per, CancellationToken ct = default);
     Task UnauditAsync(int vouchid, string opty, string opercode, string dpm, CancellationToken ct = default);
@@ -340,26 +340,27 @@ public sealed class FinOpVouchRepository(SqlConnectionFactory factory) : IFinOpV
         return (luse, fininvou);
     }
 
-    /// <summary>收付去向（fr_xlsk Init L293-303）：finsub detacode=1 AND type IN ('C','B')，子码序。</summary>
-    public async Task<IReadOnlyList<string>> GetSkqxNamesAsync(CancellationToken ct = default)
+    /// <summary>收付去向（fr_xlsk Init L293-303）：finsub detacode=1 AND type IN ('C','B')，子码序。
+    /// 2026-10-29 修正：库为多套账合并（finsub 按 dpm 分部门），须按当前部门过滤（A 部门实测 8 行，旧系统一致）。</summary>
+    public async Task<IReadOnlyList<string>> GetSkqxNamesAsync(string dpm, CancellationToken ct = default)
     {
         await using var conn = await factory.OpenAsync(ct);
         var rows = await conn.QueryAsync<string>(new CommandDefinition(
-            "SELECT rtrim(subname) FROM finsub WITH (NOLOCK) WHERE detacode = 1 AND (type = 'C' OR type = 'B') ORDER BY rtrim(subcode) COLLATE Latin1_General_BIN2, id",
-            cancellationToken: ct));
+            "SELECT rtrim(subname) FROM finsub WITH (NOLOCK) WHERE dpm = @dpm AND detacode = 1 AND (type = 'C' OR type = 'B') ORDER BY rtrim(subcode) COLLATE Latin1_General_BIN2, id",
+            new { dpm = Ansi(dpm, 10) }, cancellationToken: ct));
         return rows.AsList();
     }
 
-    public async Task<(string Subcode, string Subname, string Type, bool Fcash)?> GetSkqxByNameAsync(string subname, CancellationToken ct = default)
+    public async Task<(string Subcode, string Subname, string Type, bool Fcash)?> GetSkqxByNameAsync(string subname, string dpm, CancellationToken ct = default)
     {
         await using var conn = await factory.OpenAsync(ct);
         var row = (await conn.QueryAsync<(string, string, string, bool)>(new CommandDefinition(
             """
             SELECT TOP (1) rtrim(subcode), rtrim(subname), rtrim(ISNULL(type,'')), ISNULL(fcash,0)
             FROM finsub WITH (NOLOCK)
-            WHERE rtrim(subname) = @n AND detacode = 1 AND (type = 'C' OR type = 'B')
+            WHERE dpm = @dpm AND rtrim(subname) = @n AND detacode = 1 AND (type = 'C' OR type = 'B')
             ORDER BY id
-            """, new { n = Ansi(subname.Trim(), 40) }, cancellationToken: ct))).FirstOrDefault();
+            """, new { n = Ansi(subname.Trim(), 40), dpm = Ansi(dpm, 10) }, cancellationToken: ct))).FirstOrDefault();
         return row.Item1 is null ? null : (row.Item1, row.Item2, row.Item3, row.Item4);
     }
 

@@ -79,6 +79,7 @@ public static class Db
     public static IUniversalQueryRepository UniversalQuery { get; private set; } = null!;
     public static IPrnotyRepository Prnoty { get; private set; } = null!;
     public static INameCodeRepository NameCode { get; private set; } = null!;
+    public static ITyCodeRepository TyCode { get; private set; } = null!;
     public static IAttrTransferRepository AttrTransfer { get; private set; } = null!;
     public static IKitRepository Kit { get; private set; } = null!;
     public static IComplexRepository Complex { get; private set; } = null!;
@@ -156,6 +157,7 @@ public static class Db
         UniversalQuery = new UniversalQueryRepository(Factory);
         Prnoty = new PrnotyRepository(Factory, Dm);
         NameCode = new NameCodeRepository(Factory, Dm);
+        TyCode = new TyCodeRepository(Factory);
         AttrTransfer = new AttrTransferRepository(Factory);
         Kit = new KitRepository(Factory, Dm);
         Complex = new ComplexRepository(Factory);

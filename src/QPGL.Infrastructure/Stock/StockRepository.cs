@@ -40,7 +40,8 @@ public sealed class StockRepository(SqlConnectionFactory factory) : IStockReposi
 
     public async Task<PagedResult<StockRow>> SearchAsync(StockQueryRequest request, string dept, CancellationToken ct = default)
     {
-        var (where, p) = BuildWhere(request, dept);
+        var (where, tyJoin, p) = BuildWhere(request, dept);
+        var hint = tyJoin.Length > 0 ? "\nOPTION (HASH JOIN)" : "";
         var orderBy = StockSortFields.TryResolve(request.Sort, out var col)
             ? $"{col} {(request.IsDescending ? "DESC" : "ASC")}, id ASC"
             : "depotno ASC, nno ASC, id ASC";
@@ -48,11 +49,11 @@ public sealed class StockRepository(SqlConnectionFactory factory) : IStockReposi
         await using var conn = await factory.OpenAsync(ct);
         var sql = $"""
             SELECT {Columns}
-            FROM tbisto WITH (NOLOCK)
+            FROM tbisto WITH (NOLOCK){tyJoin}
             WHERE {where}
             ORDER BY {orderBy}
-            OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY;
-            SELECT COUNT(1) FROM tbisto WITH (NOLOCK) WHERE {where};
+            OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY{hint};
+            SELECT COUNT(1) FROM tbisto WITH (NOLOCK){tyJoin} WHERE {where}{hint};
             """;
         p.Add("skip", (request.Page - 1) * request.PageSize);
         p.Add("take", request.PageSize);
@@ -65,13 +66,14 @@ public sealed class StockRepository(SqlConnectionFactory factory) : IStockReposi
 
     public async Task<StockSummary> GetSummaryAsync(StockQueryRequest request, string dept, CancellationToken ct = default)
     {
-        var (where, p) = BuildWhere(request, dept);
+        var (where, tyJoin, p) = BuildWhere(request, dept);
+        var hint = tyJoin.Length > 0 ? "\nOPTION (HASH JOIN)" : "";
         await using var conn = await factory.OpenAsync(ct);
         var row = await conn.QueryFirstOrDefaultAsync<(decimal kc, decimal iprj, decimal iprc, decimal oprc)>(
             new CommandDefinition(
                 $"""
                 SELECT SUM(kcamount), SUM(iprj * kcamount), SUM(iprc * kcamount), SUM(oprc * kcamount)
-                FROM tbisto WITH (NOLOCK) WHERE {where}
+                FROM tbisto WITH (NOLOCK){tyJoin} WHERE {where}{hint}
                 """,
                 p, cancellationToken: ct));
         return new StockSummary
@@ -112,9 +114,14 @@ public sealed class StockRepository(SqlConnectionFactory factory) : IStockReposi
         return (await conn.QueryAsync<string>(cmd)).AsList();
     }
 
-    private static (string Where, DynamicParameters P) BuildWhere(StockQueryRequest request, string dept)
+    /// <summary>查询条件拼装（2026-10-30 车型拼音码：ty 条件扩展 tbty0 拼音匹配）。
+    /// 返回 (where, tyJoin, p)：tyJoin 为车型拼音 LEFT JOIN 派生表（仅 ty 条件在场时非空），
+    /// 调用方须把它拼进 FROM——必须配 OPTION (HASH JOIN)（实测无提示 IN/JOIN 优化器误选嵌套循环 30s+/超时）。
+    /// 派生表列别名 pymatch（非 ty），避免与 tbisto.ty 在 SELECT/ORDER BY 中歧义（SQL 2515）。</summary>
+    private static (string Where, string TyJoin, DynamicParameters P) BuildWhere(StockQueryRequest request, string dept)
     {
         var where = "dpm = @dpm";
+        var tyJoin = "";
         var p = new DynamicParameters();
         p.Add("dpm", new DbString { Value = dept.Trim(), IsAnsi = true, Length = 10 });
         if (!string.IsNullOrWhiteSpace(request.Cp))
@@ -134,7 +141,8 @@ public sealed class StockRepository(SqlConnectionFactory factory) : IStockReposi
         }
         if (!string.IsNullOrWhiteSpace(request.Ty))
         {
-            where += " AND ty LIKE @ty";
+            tyJoin = "\nLEFT JOIN (SELECT DISTINCT rtrim(ty) AS pymatch FROM tbty0 WITH (NOLOCK) WHERE code LIKE '%' + @ty + '%') tb2 ON ty = tb2.pymatch";
+            where += " AND (ty LIKE @ty OR tb2.pymatch IS NOT NULL)";
             p.Add("ty", $"%{request.Ty.Trim()}%");
         }
         if (!string.IsNullOrWhiteSpace(request.Posi))
@@ -149,6 +157,6 @@ public sealed class StockRepository(SqlConnectionFactory factory) : IStockReposi
         }
         if (request.OnlyInStock)
             where += " AND kcamount <> 0";
-        return (where, p);
+        return (where, tyJoin, p);
     }
 }

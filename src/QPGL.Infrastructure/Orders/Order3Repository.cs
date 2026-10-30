@@ -326,6 +326,7 @@ public sealed class Order3Repository(SqlConnectionFactory factory, Parts.IDmServ
                         iprj = input.Iprj, dc = Ansi(input.Dc, 8), note = Ansi(input.Note, 254),
                     }, transaction: tx, cancellationToken: ct));
                 await Name0Sync.SyncAsync(conn, tx, dm, input.Na1, ct);
+                await Name0Sync.SyncTyAsync(conn, tx, dm, input.Ty, ct);   // 车型拼音码（2026-10-30 需求）
             }
 
             await tx.CommitAsync(ct);

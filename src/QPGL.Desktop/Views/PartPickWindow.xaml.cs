@@ -229,4 +229,52 @@ public partial class PartPickWindow : Window
             e.Handled = true;
         }
     }
+
+    /// <summary>
+    /// 新增编码（2026-10-30 需求）：弹零件属性编辑窗（PartAttributeEditWindow，新增模式）录入新配件，
+    /// 确定后保存属性库（Db.Prnoty.SaveAsync，与 A1 属性定义页 AttributeVms.SaveRowAsync 同构），
+    /// 保存成功直接选定该配件返回——调用方（散件入库）随即弹入库明细编辑窗继续入库。
+    /// </summary>
+    private async void BtnNewPart_Click(object sender, RoutedEventArgs e)
+    {
+        var cp = AppSession.Brand.Trim();
+        if (cp.Length == 0)
+        {
+            MessageBox.Show("请先选择厂牌（F11）再新增编码", "新增编码", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        var dlg = new PartAttributeEditWindow(null, cp) { Owner = this };
+        if (dlg.ShowDialog() != true) return;
+        var r = dlg.Row;
+        try
+        {
+            await Db.Prnoty.SaveAsync(new QPGL.Infrastructure.Parts.PrnotySaveCommand
+            {
+                IsAdd = true,
+                Id = 0,
+                Cp = r.Cp,
+                Nno = r.Nno,
+                OldNno = "",
+                Na1 = r.Na1, Ty = r.Ty, Fa = r.Fa, Dc = r.Dc, Unit = r.Unit, Iprj = r.Iprj,
+                Code_ts = r.Code_ts, Eng = r.Eng, Nnp = r.Nnp, Nnq = r.Nnq, Uqty = r.Uqty,
+                Xno = r.Xno, Tno = r.Tno, Amjj = r.Amjj, Bmjj = r.Bmjj,
+                Nvol = decimal.TryParse(r.Nvol, out var nv) ? nv : 0,
+                Suttle = r.Suttle, Note = r.Note, Note1 = r.Note1, Oprc_cp = r.Oprc_cp, Oprc_min = r.Oprc_min,
+            }, r.Cp, "A");
+
+            // 直接选定新配件返回（属性库新行尚无库存行：id=0、无货位，与列表 includeAttrOnly 属性行同构；
+            // 零售价取属性库统一售价 oprc_cp，进价取录入 iprj）
+            SelectedPart = new PartItem
+            {
+                Id = 0, Dpm = _dept, Cp = r.Cp, Nno = r.Nno, Na1 = r.Na1, Ty = r.Ty,
+                Fa = r.Fa, Dc = r.Dc, Unit = r.Unit, Kcamount = 0,
+                Iprj = r.Iprj, Oprc = r.Oprc_cp ?? 0, Note = r.Note,
+            };
+            DialogResult = true;
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show("新增编码保存失败：" + ex.Message, "新增编码", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
 }

@@ -102,6 +102,7 @@ public partial class SaleReturnViewModel : ObservableObject
     [ObservableProperty] private string _partTy = "";
     private List<ReturnableRow> _allRows = [];                                  // 未过滤全集
     private Dictionary<string, string> _pyMap = new(StringComparer.Ordinal);    // 零件名称→拼音码（tbname0）
+    private Dictionary<string, string> _tyMap = new(StringComparer.Ordinal);    // 车型→拼音码（tbty0，2026-10-30 需求）
     private readonly System.Windows.Threading.DispatcherTimer _filterDebounce = new()
     {
         Interval = TimeSpan.FromMilliseconds(500),
@@ -133,7 +134,8 @@ public partial class SaleReturnViewModel : ObservableObject
         if (tyKw.Length > 0)
             q = q.Where(r =>
                 r.Ty.Contains(tyKw, StringComparison.OrdinalIgnoreCase) ||
-                r.Na1.Contains(tyKw, StringComparison.OrdinalIgnoreCase));
+                r.Na1.Contains(tyKw, StringComparison.OrdinalIgnoreCase) ||
+                (_tyMap.TryGetValue(r.Ty, out var tyCode) && tyCode.Contains(tyKw, StringComparison.OrdinalIgnoreCase)));
         ReturnableRows = new ObservableCollection<ReturnableRow>(q.ToList());
         OnPropertyChanged(nameof(ReturnableRows));
     }
@@ -240,6 +242,13 @@ public partial class SaleReturnViewModel : ObservableObject
             _allRows = rows;
             // 拼音码映射随加载同批返回（2026-10-29 远程优化：不再单独往返 tbname0）
             _pyMap = new Dictionary<string, string>(result.PinyinMap, StringComparer.Ordinal);
+            // 车型拼音码映射（tbty0 整表，2026-10-30 需求；加载失败不阻断——车型框退化为纯中文包含）
+            try
+            {
+                var tyMap = await Db.SaleReturns.GetTyPinyinMapAsync(ct);
+                _tyMap = new Dictionary<string, string>(tyMap, StringComparer.Ordinal);
+            }
+            catch { _tyMap = []; }
             ApplyFilter();   // 无过滤条件时=全部；有条件时按当前关键字过滤新数据
             if (ReturnableRows.Count == 0)
                 Message = _allRows.Count == 0

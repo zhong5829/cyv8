@@ -694,25 +694,48 @@ public partial class VinQueryWindow : Window, INotifyPropertyChanged
         AddSelectedPartToSale(saleControl, selected);
     }
 
-    /// <summary>把选中的本地匹配候选加入新系统销售开单明细（VinLocalMatch → PartItem 字段映射）</summary>
+    /// <summary>把选中的本地匹配候选加入新系统销售开单明细。
+    /// 修复（2026-10-30 bug）：原直接以 VinLocalMatch 手拼 PartItem 缺 Cp/Posi/Unit/Oprb，导致明细区编码、货位列空白；
+    /// 现按零件号回查 tbisto 真实批次行（与正常开单搜索 Db.Parts.SearchAsync 同链路），取库存最多的批次带入完整字段。</summary>
     private async void AddSelectedPartToSale(SaleControl saleControl, VinLocalMatch selected)
     {
         try
         {
-            var part = new Domain.Parts.PartItem
-            {
-                Id = (int)selected.PartId,
-                Nno = selected.PartNo ?? "",
-                Na1 = selected.Name ?? "",
-                Ty = selected.CarType ?? "",
-                Kcamount = selected.StockAmount,
-            };
+            var part = await LoadStockBatchAsync(selected);
             await saleControl.AddExternalPartAsync(part);
         }
         catch (Exception ex)
         {
             MessageBox.Show($"添加配件失败: {ex.Message}", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
+    }
+
+    /// <summary>按零件号查 tbisto 批次行取完整 PartItem（cp/posi/unit/oprb）；同号多批次取库存最大；查不到回退手拼行</summary>
+    private static async Task<Domain.Parts.PartItem> LoadStockBatchAsync(VinLocalMatch selected)
+    {
+        var nno = (selected.PartNo ?? "").Trim();
+        if (nno.Length > 0)
+        {
+            var result = await Db.Parts.SearchAsync(
+                AppSession.DeptNo, cp: nno, na1: null, ty: null,
+                new Domain.Common.PagedRequest { Page = 1, PageSize = Domain.Common.PagedRequest.MaxPageSize },
+                fillLastIprj: false);
+            var batch = result.Items
+                .Where(p => string.Equals(p.Nno?.Trim(), nno, StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(p => p.Kcamount)
+                .FirstOrDefault();
+            if (batch != null) return batch;
+        }
+
+        // 回退：库存行查不到（如其他部门）时保留原字段
+        return new Domain.Parts.PartItem
+        {
+            Id = (int)selected.PartId,
+            Nno = selected.PartNo ?? "",
+            Na1 = selected.Name ?? "",
+            Ty = selected.CarType ?? "",
+            Kcamount = selected.StockAmount,
+        };
     }
 
     private void BtnAddPart_Click(object sender, RoutedEventArgs e)

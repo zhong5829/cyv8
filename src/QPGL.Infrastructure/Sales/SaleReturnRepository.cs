@@ -32,6 +32,9 @@ public interface ISaleReturnRepository
     /// <summary>零件名称→拼音码映射（tbname0 整表；名称框拼音过滤，内存过滤用）。</summary>
     Task<IReadOnlyDictionary<string, string>> GetPinyinMapAsync(CancellationToken ct = default);
 
+    /// <summary>车型→拼音码映射（tbty0 整表；车型框拼音过滤，内存过滤用。2026-10-30 需求）。</summary>
+    Task<IReadOnlyDictionary<string, string>> GetTyPinyinMapAsync(CancellationToken ct = default);
+
     /// <summary>配件实际批次列表（退货编辑窗「库号/仓位」下拉选项）。</summary>
     Task<IReadOnlyList<ReturnBatchOption>> GetBatchesAsync(string cp, string nno, string dpm, CancellationToken ct = default);
 }
@@ -494,6 +497,23 @@ public sealed class SaleReturnRepository(SqlConnectionFactory factory, IDocNoSer
         foreach (var (code, name) in rows)
         {
             if (name.Length > 0 && !map.ContainsKey(name)) map[name] = code;
+        }
+        return map;
+    }
+
+    /// <summary>
+    /// 车型→拼音码映射（tbty0 整表，车型框拼音过滤；2026-10-30 需求，与 GetPinyinMapAsync 同构）。
+    /// </summary>
+    public async Task<IReadOnlyDictionary<string, string>> GetTyPinyinMapAsync(CancellationToken ct = default)
+    {
+        await using var conn = await factory.OpenAsync(ct);
+        var rows = (await conn.QueryAsync<(string Code, string Ty)>(new CommandDefinition(
+            "SELECT RTRIM(code), RTRIM(ty) FROM tbty0 WITH (NOLOCK)",
+            cancellationToken: ct))).AsList();
+        var map = new Dictionary<string, string>(rows.Count, StringComparer.Ordinal);
+        foreach (var (code, ty) in rows)
+        {
+            if (ty.Length > 0 && !map.ContainsKey(ty)) map[ty] = code;
         }
         return map;
     }
