@@ -24,8 +24,8 @@ public static class SaleValidator
 
 /// <summary>
 /// 凑批出库分配算法（旧系统 fr_sale row548 语义的纯函数复刻）：
-/// 按批次库存量降序逐批分配；总量不足时剩余量挂到已分配的末位批次
-/// （旧系统允许负库存，sale_in 触发器照扣，不做硬拦截）。
+/// 按批次库存量降序逐批分配；总量不足时硬拦截报错
+/// （2026-10-30 用户确认：不允许负库存产生，覆盖旧系统"剩余量挂末位批次"语义）。
 /// </summary>
 public static class StockAllocator
 {
@@ -58,17 +58,10 @@ public static class StockAllocator
             }
         }
 
-        // 库存不足：剩余量挂到末位批次（与旧系统 DO WHILE 语义一致，允许负库存）
+        // 库存不足（2026-10-30 用户确认：不允许负库存产生）——含两场景：
+        // a) 批次行存在但全部 kcamount<=0（已被先出清）；b) 多批凑批后仍有缺口（挂末位会产生负库存）
         if (remaining > 0)
-        {
-            if (result.Count == 0)
-            {
-                // 无任何批次：需要 tbisto 有一行可挂——由仓储层处理（报错或建行），此处抛错
-                throw new AppException("STOCK_NOT_ENOUGH", "无可用库存批次", 422);
-            }
-            var last = result[^1];
-            result[^1] = last with { Qty = last.Qty + remaining };
-        }
+            throw new AppException("STOCK_NOT_ENOUGH", "库存不足，不允许负库存出库", 422);
 
         return result;
     }

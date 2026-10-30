@@ -292,6 +292,11 @@ public partial class SaleControl : UserControl
             }
             QueryControl.RefreshToToday();
         }
+        else
+        {
+            // 切回开单模式（2026-10-30 需求）：配件列表库存可能已被其它单据扣减，轻量刷新库存列
+            _ = _vm.RefreshStockAsync();
+        }
     }
 
     private void BtnSwitchMode_Click(object sender, System.Windows.RoutedEventArgs e) => ToggleMode();
@@ -338,7 +343,12 @@ public partial class SaleControl : UserControl
     /// 否则清屏后自动切换到查询模式（并刷新单据列表到当天）。</summary>
     private void Vm_ConfirmSucceeded(object? sender, EventArgs e)
     {
-        if (_vm.SkipQuerySwitchAfterConfirm) return;   // 留在开单模式，继续开下一单
+        if (_vm.SkipQuerySwitchAfterConfirm)
+        {
+            // 留在开单模式继续开下一单：确认已扣库存，轻量刷新配件列表库存列（不重查整表）
+            _ = _vm.RefreshStockAsync();
+            return;
+        }
         if (!_isQueryMode) ToggleMode();
         else QueryControl.RefreshToToday();
     }

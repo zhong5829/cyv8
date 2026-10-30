@@ -127,6 +127,7 @@ public partial class ConfirmSaleDialog : Window
             Remark = TxtRemark.Text.Trim(),
             Fphs = TxtFphs.Text.Trim(),
             Wlgs = TxtWlgs.Text.Trim(),
+            Papertype = CboXslx.Text.Trim(),   // 销售类型 → tbsada_header.papertype（门店/仓库），此前漏传致落库空白
             AmountBefore = _amountBefore,
             AmountAfter = ParseDecimal(TxtAmountAfter.Text),
         };

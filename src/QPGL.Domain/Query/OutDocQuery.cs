@@ -147,4 +147,6 @@ public sealed class OutDocBillRow
     public string Sk { get; set; } = "";
     public DateTime Qrdate { get; set; }
     public string Remark { get; set; } = "";
+    /// <summary>单据类型（tbsada_header.papertype，本库值域：门店/仓库；查询模式「门店/仓库」列）。</summary>
+    public string Papertype { get; set; } = "";
 }

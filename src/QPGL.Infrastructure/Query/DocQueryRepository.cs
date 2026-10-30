@@ -179,7 +179,8 @@ public sealed class DocQueryRepository(SqlConnectionFactory factory) : IDocQuery
 
         var orderBy = OutDocSortFields.TryResolve(request.Sort, out var col)
             ? $"{col} {(request.IsDescending ? "DESC" : "ASC")}"
-            : "MAX(c.outdate) DESC";
+            // 退单沉底（2026-10-30 需求）：AH 号段（退货）排最后，XS 正常销售在前，组内仍按日期倒序
+            : "CASE WHEN MAX(c.paper) LIKE 'AH%' THEN 1 ELSE 0 END, MAX(c.outdate) DESC";
         // 聚合查询排序列必须包聚合：非白名单日期列统一用 MAX(col)（组内单值，MAX 语义无损）
         if (orderBy.StartsWith("c.", StringComparison.Ordinal)) orderBy = $"MAX({orderBy})";
         orderBy += ", MIN(c.id) DESC";
@@ -195,6 +196,7 @@ public sealed class DocQueryRepository(SqlConnectionFactory factory) : IDocQuery
                    MAX(c.guno) AS guno, MAX(c.mark) AS mark, MAX(c.qrdate) AS qrdate,
                    -- 单据备注排除废品行标记（2026-10-29：[已作废]只进配件行备注，单据区不显示，LIKE 中 [ 需转义）
                    MAX(CASE WHEN c.remark LIKE '%\[已作废]' ESCAPE '\' THEN '' ELSE c.remark END) AS remark,
+                   MAX(ISNULL(h.papertype, N'')) AS papertype,
                    CASE WHEN MAX(c.mark) = 'Y' THEN N'已确认'
                         WHEN MAX(c.mark) = 'T' THEN N'已提货'
                         WHEN MAX(c.mark) = 'R' THEN N'已入库'

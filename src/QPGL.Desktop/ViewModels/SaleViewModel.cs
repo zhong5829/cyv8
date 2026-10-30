@@ -267,6 +267,25 @@ public partial class SaleViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>轻量库存刷新（2026-10-30 需求）：按已加载批次 id 点查最新 kcamount，仅替换库存变化的行，
+    /// 不重查整表、不打乱列表顺序（确认扣库后/从查询模式切回时刷新快照，避免拿过期库存开单）。</summary>
+    public async System.Threading.Tasks.Task RefreshStockAsync(CancellationToken ct = default)
+    {
+        var ids = PartResults.Select(p => p.Id).Where(id => id > 0).Distinct().ToList();
+        if (ids.Count == 0) return;
+        try
+        {
+            var map = await Db.Parts.GetStockByIdsAsync(ids, Dept, ct);
+            for (var i = 0; i < PartResults.Count; i++)
+            {
+                var p = PartResults[i];
+                if (p.Id > 0 && map.TryGetValue(p.Id, out var kc) && kc != p.Kcamount)
+                    PartResults[i] = p.WithStock(kc);
+            }
+        }
+        catch { /* 刷新失败保持现值，不阻断开单 */ }
+    }
+
     /// <summary>无限滚动：滚动到底自动加载下一页（竞态与防重入由 _loadingMore + seq 守卫）。</summary>
     public async System.Threading.Tasks.Task LoadMorePartsAsync(CancellationToken ct = default)
     {

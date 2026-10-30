@@ -31,6 +31,9 @@ public interface IPartRepository
 
     /// <summary>配件历史进价（进货历史：tbistoed type IN 入库/历史 正数行，按入库日期倒序；top&lt;=0 全部；keyword 按供应商名称/拼音码筛选）。</summary>
     Task<IReadOnlyList<PartPurchaseHistory>> GetPurchaseHistoryAsync(string nno, string dpm, int top, string? keyword = null, CancellationToken ct = default);
+
+    /// <summary>按批次 id 批量点查当前库存（开单页轻量库存刷新：只刷库存列，不重查整表；2026-10-30 需求）。</summary>
+    Task<IReadOnlyDictionary<int, decimal>> GetStockByIdsAsync(IReadOnlyCollection<int> ids, string dpm, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -504,5 +507,20 @@ public sealed class PartRepository(SqlConnectionFactory factory) : IPartReposito
             },
             cancellationToken: ct));
         return rows.AsList();
+    }
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyDictionary<int, decimal>> GetStockByIdsAsync(IReadOnlyCollection<int> ids, string dpm, CancellationToken ct = default)
+    {
+        if (ids.Count == 0) return new Dictionary<int, decimal>();
+        await using var conn = await factory.OpenAsync(ct);
+        var rows = await conn.QueryAsync<(int Id, decimal Kcamount)>(new CommandDefinition(
+            """
+            SELECT id, kcamount FROM tbisto WITH (NOLOCK)
+            WHERE dpm = @dpm AND id IN @ids
+            """,
+            new { dpm = new DbString { Value = dpm, IsAnsi = true, Length = 10 }, ids },
+            cancellationToken: ct));
+        return rows.ToDictionary(r => r.Id, r => r.Kcamount);
     }
 }

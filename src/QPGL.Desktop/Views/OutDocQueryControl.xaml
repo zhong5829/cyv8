@@ -80,6 +80,8 @@
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="单号" Binding="{Binding Paper}" Width="90"/>
                     <DataGridTextColumn Header="类型" Binding="{Binding Type}" Width="50"/>
+                    <!-- 门店/仓库列（2026-10-30 需求）：tbsada_header.papertype 单据类型 -->
+                    <DataGridTextColumn Header="门店/仓库" Binding="{Binding Papertype}" Width="70"/>
                     <DataGridTextColumn Header="出库日期" Binding="{Binding Outdate, StringFormat=yyyy-MM-dd}" Width="85"/>
                     <DataGridTextColumn Header="客户" Binding="{Binding Gname}" Width="150"/>
                     <DataGridTextColumn Header="行数" Binding="{Binding LineCount}" Width="45"/>
