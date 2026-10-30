@@ -138,6 +138,9 @@
 
         <!-- 底部按钮 -->
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,10,0,0">
+            <!-- 立即打印（2026-10-30 需求）：默认勾选——确认后留在开单模式直接发送打印机；取消勾选则确认后切查询模式 -->
+            <CheckBox x:Name="ChkPrintAfter" Content="确认后立即打印" IsChecked="True"
+                      VerticalAlignment="Center" VerticalContentAlignment="Center" Margin="0,0,24,0"/>
             <Button Content="确 定" Width="90" Height="28" Margin="0,0,20,0" IsDefault="True"
                     Style="{StaticResource PrimaryButtonStyle}" Click="BtnOk_Click"/>
             <Button Content="取 消" Width="90" Height="28" IsCancel="True"/>

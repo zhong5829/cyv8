@@ -133,7 +133,7 @@ public partial class PartPickWindow : Window
             var brand = AppSession.Brand.Trim();
             _hasCondition = cp.Length > 0 || na1.Length > 0 || ty.Length > 0;
             var request = new PagedRequest { Page = 1, PageSize = PageSize };
-            var result = await Db.Parts.SearchAsync(_dept, cp, na1, ty, request, fillLastIprj: false, brand, includeAttrOnly: true);
+            var result = await Db.Parts.SearchAsync(_dept, cp, na1, ty, request, note: null, fillLastIprj: false, brand, includeAttrOnly: true);
             if (seq != _searchSeq) return;
 
             // 跨厂牌回退（2026-10-29，与 SaleViewModel 同构）：当前厂牌无命中且带条件时，
@@ -154,7 +154,7 @@ public partial class PartPickWindow : Window
                         "跨厂牌检索", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No);
                     if (answer == MessageBoxResult.Yes)
                     {
-                        var alt = await Db.Parts.SearchAsync(_dept, cp, na1, ty, request, fillLastIprj: false, top, includeAttrOnly: true);
+                        var alt = await Db.Parts.SearchAsync(_dept, cp, na1, ty, request, note: null, fillLastIprj: false, top, includeAttrOnly: true);
                         if (seq != _searchSeq) return;
                         Parts.Clear();
                         foreach (var p in alt.Items) Parts.Add(p);
@@ -192,7 +192,7 @@ public partial class PartPickWindow : Window
         try
         {
             var request = new PagedRequest { Page = _page + 1, PageSize = PageSize };
-            var result = await Db.Parts.SearchAsync(_dept, CpBox.Text.Trim(), Na1Box.Text.Trim(), TyBox.Text.Trim(), request, fillLastIprj: false, _effectiveBrand, includeAttrOnly: true);
+            var result = await Db.Parts.SearchAsync(_dept, CpBox.Text.Trim(), Na1Box.Text.Trim(), TyBox.Text.Trim(), request, note: null, fillLastIprj: false, _effectiveBrand, includeAttrOnly: true);
             if (seq != _searchSeq) return;
             _page++;
             _total = result.Total;

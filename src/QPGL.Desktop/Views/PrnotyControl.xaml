@@ -33,7 +33,7 @@
                 <TextBox x:Name="CpBox" Width="150" Margin="4,0,16,0"
                          Text="{Binding FilterNno, UpdateSourceTrigger=PropertyChanged}" TextChanged="FilterBox_TextChanged"
                          GotKeyboardFocus="FilterBox_GotKeyboardFocus" PreviewMouseLeftButtonDown="FilterBox_PreviewMouseLeftButtonDown"
-                         PreviewKeyDown="FilterBox_PreviewKeyDown" ToolTip="查零件编码（包含匹配）"/>
+                         PreviewKeyDown="FilterBox_PreviewKeyDown" ToolTip="查零件编码：缺省前缀匹配（输 pt 只查 PT 开头）；输 /pt 转包含匹配"/>
                 <TextBlock Text="名称" VerticalAlignment="Center"/>
                 <TextBox x:Name="Na1Box" Width="200" Margin="4,0,16,0"
                          Text="{Binding FilterNa1, UpdateSourceTrigger=PropertyChanged}" TextChanged="FilterBox_TextChanged"

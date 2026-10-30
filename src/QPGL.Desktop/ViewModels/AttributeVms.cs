@@ -53,16 +53,21 @@ public partial class PrnotyViewModel : ObservableObject
         _filterDebounce.Start();
     }
 
-    /// <summary>三条件内存过滤（语义同销售开单页）：编码=Nno 包含；名称=Na1/Nno/Ty 包含或拼音码前缀；车型=Ty/Na1 包含。</summary>
+    /// <summary>三条件内存过滤（语义同销售开单页）：编码=前缀（首字符 / 转包含，2026-10-30 编码双模式对齐）；
+    /// 名称=Na1/Nno/Ty 包含或拼音码前缀；车型=Ty/Na1 包含或 tbty0 车型拼音码。</summary>
     public void ApplyFilter()
     {
         _filterDebounce.Stop();
         var nnoKw = FilterNno.Trim();
+        var nnoContains = nnoKw.StartsWith("/");
+        var nnoWord = nnoContains ? nnoKw[1..].Trim() : nnoKw;
         var na1Kw = FilterNa1.Trim();
         var tyKw = FilterTy.Trim();
         IEnumerable<PrnotyRow> q = _allRows;
-        if (nnoKw.Length > 0)
-            q = q.Where(r => r.Nno.Contains(nnoKw, StringComparison.OrdinalIgnoreCase));
+        if (nnoWord.Length > 0)
+            q = nnoContains
+                ? q.Where(r => r.Nno.Contains(nnoWord, StringComparison.OrdinalIgnoreCase))
+                : q.Where(r => r.Nno.StartsWith(nnoWord, StringComparison.OrdinalIgnoreCase));
         if (na1Kw.Length > 0)
             q = q.Where(r =>
                 r.Na1.Contains(na1Kw, StringComparison.OrdinalIgnoreCase) ||

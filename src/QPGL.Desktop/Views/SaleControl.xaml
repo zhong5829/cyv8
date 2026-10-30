@@ -65,7 +65,7 @@
                              Text="{Binding PartCp, UpdateSourceTrigger=PropertyChanged}" TextChanged="CpBox_TextChanged"
                              GotKeyboardFocus="SearchBox_GotKeyboardFocus" PreviewMouseLeftButtonDown="SearchBox_PreviewMouseLeftButtonDown"
                              PreviewKeyDown="SearchBox_PreviewKeyDown"
-                             ToolTip="查内部编号（包含匹配）"/>
+                             ToolTip="查内部编号：缺省前缀匹配（输 pt 只查 PT 开头）；输 /pt 转包含匹配（PT/OPT 等含 pt 的都命中）"/>
                     <TextBlock Text="名称" VerticalAlignment="Center"/>
                     <TextBox x:Name="Na1Box" Width="200" Margin="4,0,16,0"
                              Text="{Binding PartNa1, UpdateSourceTrigger=PropertyChanged}" TextChanged="Na1Box_TextChanged"
@@ -73,10 +73,16 @@
                              PreviewKeyDown="SearchBox_PreviewKeyDown"
                              ToolTip="支持拼音码/编码/名称/车型"/>
                     <TextBlock Text="车型" VerticalAlignment="Center"/>
-                    <TextBox x:Name="TyBox" Width="180" Margin="4,0,16,0"
+                    <TextBox x:Name="TyBox" Width="150" Margin="4,0,16,0"
                              Text="{Binding PartTy, UpdateSourceTrigger=PropertyChanged}" TextChanged="TyBox_TextChanged"
                              GotKeyboardFocus="SearchBox_GotKeyboardFocus" PreviewMouseLeftButtonDown="SearchBox_PreviewMouseLeftButtonDown"
                              PreviewKeyDown="SearchBox_PreviewKeyDown"/>
+                    <TextBlock Text="备注" VerticalAlignment="Center"/>
+                    <TextBox x:Name="NoteBox" Width="130" Margin="4,0,16,0"
+                             Text="{Binding PartNote, UpdateSourceTrigger=PropertyChanged}" TextChanged="NoteBox_TextChanged"
+                             GotKeyboardFocus="SearchBox_GotKeyboardFocus" PreviewMouseLeftButtonDown="SearchBox_PreviewMouseLeftButtonDown"
+                             PreviewKeyDown="SearchBox_PreviewKeyDown"
+                             ToolTip="按配件备注包含匹配（2026-10-30 需求）"/>
                     <TextBlock Text="输入即搜（0.5 秒），双击结果行加入明细；空格=开单，双击空格=显示/隐藏最近进价" Foreground="#888" VerticalAlignment="Center"/>
                     <!-- 厂牌提示（2026-10-29 需求）：登录厂牌过滤 / 跨厂牌回退后显示临时查看 -->
                     <TextBlock Text="{Binding BrandHint}" Foreground="#C70" FontWeight="Bold" Margin="16,0,0,0" VerticalAlignment="Center"/>

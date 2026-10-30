@@ -17,6 +17,10 @@ public interface IDocQueryRepository
     /// <summary>出库单明细行（明细窗，WHERE paper+type+dpm）。</summary>
     Task<IReadOnlyList<OutDocLine>> GetOutDocLinesAsync(string paper, string type, string dept, CancellationToken ct = default);
 
+    /// <summary>整单备注编辑（2026-10-30 需求：查询模式双击单据备注就地编辑）。
+    /// 更新该单全部非作废标记行的 remark（与列表 MAX 非作废备注显示口径一致）；[已作废] 标记行不动。</summary>
+    Task<int> UpdateOutDocRemarkAsync(string paper, string type, string dept, string remark, CancellationToken ct = default);
+
     /// <summary>单据金额汇总（收款窗：Σoprct 折前实收 / Σoprc 原价 / Σ折后）。</summary>
     Task<OutDocSummary> GetOutDocSummaryAsync(string paper, string type, string dept, CancellationToken ct = default);
 }
@@ -243,6 +247,26 @@ public sealed class DocQueryRepository(SqlConnectionFactory factory) : IDocQuery
             },
             cancellationToken: ct);
         return (await conn.QueryAsync<OutDocLine>(cmd)).AsList();
+    }
+
+    /// <inheritdoc/>
+    public async Task<int> UpdateOutDocRemarkAsync(string paper, string type, string dept, string remark, CancellationToken ct = default)
+    {
+        await using var conn = await factory.OpenAsync(ct);
+        return await conn.ExecuteAsync(new CommandDefinition(
+            """
+            UPDATE tbsada SET remark = @remark
+            WHERE paper = @paper AND type = @type AND dpm = @dpm AND trigger_mark = 0
+              AND (remark IS NULL OR remark NOT LIKE '%\[已作废]' ESCAPE '\')
+            """,
+            new
+            {
+                paper = new DbString { Value = paper, IsAnsi = true, Length = 10 },
+                type = new DbString { Value = type, IsAnsi = false, Length = 10 },
+                dpm = new DbString { Value = dept, IsAnsi = true, Length = 10 },
+                remark = new DbString { Value = remark, IsAnsi = true, Length = 250 },
+            },
+            cancellationToken: ct));
     }
 
     public async Task<OutDocSummary> GetOutDocSummaryAsync(string paper, string type, string dept, CancellationToken ct = default)

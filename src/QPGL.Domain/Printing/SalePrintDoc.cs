@@ -45,6 +45,7 @@ public sealed class SalePrintDoc
 
     // ---- 票尾（tbsysset RPSET1+RPSET2）----
     public string Footer { get; init; } = "";
+    public string Remark { get; init; } = "";         // 单据备注（tbsada.remark，票尾"备注："内容）
 }
 
 public sealed class SalePrintLine

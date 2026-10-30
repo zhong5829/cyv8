@@ -26,6 +26,8 @@ public partial class LoginViewModel : ObservableObject, IDisposable
 
     public LoginViewModel()
     {
+        // 记住上次登录账号：先预填（可编辑 ComboBox，名单未加载也能显示），名单加载后再校正
+        _selectedOperator = LocalSettingsService.LoadLastOperator();
         _ = LoadOperatorsAsync();
     }
 
@@ -38,6 +40,7 @@ public partial class LoginViewModel : ObservableObject, IDisposable
             OnPropertyChanged(nameof(Operators));
             if (Operators.Count > 0 && string.IsNullOrEmpty(SelectedOperator))
                 SelectedOperator = Operators[0];
+            // 记住的账号不在名单（离职/改名）时保留预填文本，可编辑框仍可手输登录，不改写
         }
         catch
         {
@@ -97,6 +100,7 @@ public partial class LoginViewModel : ObservableObject, IDisposable
                 permission,
                 dpmusem,
                 brandWhitelist);
+            LocalSettingsService.SaveLastOperator(row.per.Trim()); // 记住上次成功登录的账号
 
             Message = "";
             LoginSucceeded?.Invoke();

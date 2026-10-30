@@ -95,7 +95,7 @@ public partial class QuoteQueryViewModel : ObservableObject
     {
         if (SelectedRow is null) { Message = "请先选择单据行"; return; }
         var row = SelectedRow;
-        var dialog = new Views.ConfirmSaleDialog(row.Paper.Trim(), "报价", row.Gno.Trim(), row.Gname.Trim(), row.Yhloprct);
+        var dialog = new Views.ConfirmSaleDialog(row.Paper.Trim(), "报价", row.Gno.Trim(), row.Gname.Trim(), row.Yhloprct, row.Remark?.Trim() ?? "");
         if (dialog.ShowDialog() != true) return;
 
         Message = "";

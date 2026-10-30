@@ -234,6 +234,15 @@ public partial class OutDocQueryViewModel : ObservableObject
         _ = SearchAsync(CancellationToken.None);
     }
 
+    /// <summary>整单备注编辑保存（2026-10-30 需求：查询模式双击单据备注就地编辑，回车确定）。
+    /// 更新该单全部非作废行的 remark；成功后回写行对象（TextBox UpdateSource 已同步显示）。</summary>
+    public async Task UpdateBillRemarkAsync(OutDocBillRow row, string remark)
+    {
+        var n = await Db.DocQuery.UpdateOutDocRemarkAsync(row.Paper.Trim(), row.Type.Trim(), row.Dpm.Trim(), remark);
+        row.Remark = remark;
+        Message = $"单据 {row.Paper.Trim()} 备注已更新（{n} 行）";
+    }
+
     private OutDocQueryRequest BuildRequest() => new()
     {
         Type = DocType,

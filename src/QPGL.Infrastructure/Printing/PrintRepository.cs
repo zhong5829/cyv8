@@ -47,7 +47,10 @@ public sealed class PrintRepository(SqlConnectionFactory factory) : IPrintReposi
                    RTRIM(s.gname) AS gname, s.outdate, s.yhl, RTRIM(s.guno) AS guno,
                    RTRIM(s.per) AS per, RTRIM(s.pno) AS pno,
                    ISNULL(h.spname, '') AS spname,
-                   g.checkno, g.adr, g.bank, g.tel, g.type1
+                   g.checkno, g.adr, g.bank, g.tel, g.type1,
+                   ISNULL((SELECT MAX(CASE WHEN s2.remark LIKE '%\[已作废]' ESCAPE '\' THEN '' ELSE RTRIM(s2.remark) END)
+                           FROM tbsada s2 WITH (NOLOCK)
+                           WHERE s2.paper = s.paper AND s2.type = s.type), '') AS remark
             FROM tbsada s WITH (NOLOCK)
             LEFT JOIN tbsada_header h WITH (NOLOCK) ON h.paper = s.paper AND h.dpm = s.dpm
             LEFT JOIN tbgu g WITH (NOLOCK) ON RTRIM(g.gname) = RTRIM(s.gname)
@@ -123,6 +126,7 @@ public sealed class PrintRepository(SqlConnectionFactory factory) : IPrintReposi
             FinalAmount = finalAmount,
             AmountUpper = MoneyUpper.ToUpper(finalAmount),
             Footer = footer,
+            Remark = head.remark.Trim(),
         };
     }
 
@@ -166,5 +170,6 @@ public sealed class PrintRepository(SqlConnectionFactory factory) : IPrintReposi
         public string? bank { get; set; }
         public string? tel { get; set; }
         public string? type1 { get; set; }
+        public string remark { get; set; } = "";
     }
 }

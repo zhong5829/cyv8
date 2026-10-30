@@ -117,4 +117,74 @@ public partial class OutDocQueryControl : UserControl
         }
         EditBillRequested?.Invoke(this, (bill.Paper.Trim(), bill.Type.Trim(), bill.Dpm.Trim()));
     }
+
+    // ==== 单据备注就地编辑（2026-10-30 需求）：双击进入编辑 → 回车确定保存 → Esc/失焦取消还原 ====
+
+    private void RemarkBox_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not TextBox tb) return;
+        tb.IsReadOnly = false;
+        tb.Background = System.Windows.Media.Brushes.White;
+        tb.BorderThickness = new System.Windows.Thickness(1);
+        tb.Focus();
+        tb.SelectAll();
+    }
+
+    private void RemarkBox_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (sender is not TextBox tb || tb.IsReadOnly) return;
+        if (e.Key == Key.Enter)
+        {
+            e.Handled = true;
+            _ = CommitBillRemarkAsync(tb);
+        }
+        else if (e.Key == Key.Escape)
+        {
+            e.Handled = true;
+            CancelBillRemarkEdit(tb);
+        }
+    }
+
+    private void RemarkBox_LostFocus(object sender, RoutedEventArgs e)
+    {
+        if (sender is TextBox tb && !tb.IsReadOnly)
+            CancelBillRemarkEdit(tb);   // 编辑态失焦（未回车）= 取消，还原显示原值
+    }
+
+    private void CancelBillRemarkEdit(TextBox tb)
+    {
+        // 还原显示并退出编辑态（未 UpdateSource，行数据未变）
+        tb.GetBindingExpression(TextBox.TextProperty)?.UpdateTarget();
+        tb.IsReadOnly = true;
+        tb.Background = System.Windows.Media.Brushes.Transparent;
+        tb.BorderThickness = new System.Windows.Thickness(0);
+    }
+
+    private async System.Threading.Tasks.Task CommitBillRemarkAsync(TextBox tb)
+    {
+        if (tb.DataContext is not Domain.Query.OutDocBillRow row) { CancelBillRemarkEdit(tb); return; }
+        var newText = tb.Text.Trim();
+        var oldText = row.Remark?.Trim() ?? "";
+        if (newText == oldText) { CancelBillRemarkEdit(tb); return; }
+
+        tb.IsEnabled = false;   // 保存期间禁输入防重复提交
+        try
+        {
+            await _vm.UpdateBillRemarkAsync(row, newText);
+            // 行对象已更新为规范值，回读显示
+            tb.GetBindingExpression(TextBox.TextProperty)?.UpdateTarget();
+        }
+        catch (Exception ex)
+        {
+            System.Windows.MessageBox.Show("备注保存失败：" + ex.Message, "备注", MessageBoxButton.OK, MessageBoxImage.Warning);
+            CancelBillRemarkEdit(tb);
+        }
+        finally
+        {
+            tb.IsEnabled = true;
+            tb.IsReadOnly = true;
+            tb.Background = System.Windows.Media.Brushes.Transparent;
+            tb.BorderThickness = new System.Windows.Thickness(0);
+        }
+    }
 }

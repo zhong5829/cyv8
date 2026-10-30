@@ -90,7 +90,19 @@
                     <DataGridTextColumn Header="状态" Binding="{Binding Sk}" Width="60"/>
                     <DataGridTextColumn Header="确认日期" Binding="{Binding Qrdate, StringFormat=yyyy-MM-dd}" Width="85"/>
                     <DataGridTextColumn Header="操作员" Binding="{Binding Per}" Width="70"/>
-                    <DataGridTextColumn Header="备注" Binding="{Binding Remark}" Width="*"/>
+                    <!-- 备注列（2026-10-30 需求）：双击就地编辑，回车确定保存到该单全部配件行，Esc 取消 -->
+                    <DataGridTemplateColumn Header="备注" Width="*">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBox Text="{Binding Remark, UpdateSourceTrigger=Explicit}"
+                                         Background="Transparent" BorderThickness="0" IsReadOnly="True"
+                                         VerticalContentAlignment="Center" Cursor="IBeam"
+                                         MouseDoubleClick="RemarkBox_MouseDoubleClick"
+                                         KeyDown="RemarkBox_KeyDown" LostFocus="RemarkBox_LostFocus"
+                                         ToolTip="双击编辑备注，回车确定保存，Esc 取消"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
                 </DataGrid.Columns>
             </DataGrid>
         </Border>

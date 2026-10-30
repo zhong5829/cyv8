@@ -16,9 +16,12 @@ public partial class ConfirmSaleDialog : Window
     /// <summary>确认后的命令（SaleViewModel 读取后补 Dept 调仓储）。</summary>
     public ConfirmSaleCommand Command { get; private set; } = new() { Dept = "", Paper = "" };
 
+    /// <summary>确认后是否立即打印（勾选框，默认勾选；2026-10-30 需求：勾选时留在开单模式直接发送打印机）。</summary>
+    public bool PrintAfterConfirm => ChkPrintAfter.IsChecked == true;
+
     private decimal _amountBefore;
 
-    public ConfirmSaleDialog(string paper, string docType, string gno, string gname, decimal amountBefore)
+    public ConfirmSaleDialog(string paper, string docType, string gno, string gname, decimal amountBefore, string remark = "")
     {
         _paper = paper.Trim();
         _docType = docType;
@@ -30,6 +33,8 @@ public partial class ConfirmSaleDialog : Window
         TxtGname.Text = gname;
         DpOutdate.SelectedDate = DateTime.Today;
         TxtAmountBefore.Text = amountBefore.ToString("N2");
+        // 单据备注自动带入开单页已填备注（2026-10-30 需求），弹窗内可继续修改
+        TxtRemark.Text = remark;
         RecalcAfter();
         TxtYhl.TextChanged += (_, _) => RecalcAfter();
         CboYhlType.SelectionChanged += (_, _) => RecalcAfter();

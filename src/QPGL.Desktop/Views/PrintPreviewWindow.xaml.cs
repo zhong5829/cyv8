@@ -15,6 +15,8 @@ public partial class PrintPreviewWindow : Window
 {
     private readonly FixedDocument _document;
     private readonly string _docName;
+    /// <summary>枚举结果缓存（名→队列）：共享打印机连接复用枚举成功的对象，打印时不再按名重建。</summary>
+    private readonly Dictionary<string, PrintQueue> _queues = new(StringComparer.OrdinalIgnoreCase);
 
     public PrintPreviewWindow(FixedDocument document, string title)
     {
@@ -36,7 +38,10 @@ public partial class PrintPreviewWindow : Window
                      EnumeratedPrintQueueTypes.Local,
                      EnumeratedPrintQueueTypes.Connections,
                  }))
+        {
+            _queues[queue.Name] = queue;
             CmbPrinter.Items.Add(queue.Name);
+        }
 
         var saved = ReadLastPrinter();
         if (!string.IsNullOrEmpty(saved))
@@ -67,22 +72,50 @@ public partial class PrintPreviewWindow : Window
 
         try
         {
-            var server = new LocalPrintServer();
-            // 共享打印机（\\主机\共享名）不走 GetPrintQueue 按名查找（其只解析本地队列），直接构造队列
-            var queue = new PrintQueue(server, printerName);
-
-            // 独立 PrintTicket 设份数（qp11 同款：避免默认票 Commit 需管理员权限）
-            var ticket = queue.DefaultPrintTicket.Clone();
-            ticket.CopyCount = copies;
-
-            var writer = PrintQueue.CreateXpsDocumentWriter(queue);
-            writer.Write(_document.DocumentPaginator, ticket);
-
+            WriteToPrinter(printerName, copies);
             SaveLastPrinter(printerName);
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"打印失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(
+                $"打印失败: {ex.Message}\n\n" +
+                "共享打印机排查：1) 在本机【设置→打印机和扫描仪】删除该共享打印机后重新添加连接；" +
+                "2) 确认本机已安装该型号驱动（位数与主机一致）；3) 重启本机 Print Spooler 服务后重试。",
+                "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    /// <summary>输出到所选打印机：优先复用枚举成功的队列对象（共享连接按名重建会报 Win32"打印机无效"）；
+    /// 读默认票失败（共享驱动 DevMode 异常）兜底用空票；队列对象取 writer 失败再按名重试一次。</summary>
+    private void WriteToPrinter(string printerName, int copies)
+    {
+        var server = new LocalPrintServer();
+        var queue = _queues.TryGetValue(printerName, out var cached)
+            ? cached
+            : new PrintQueue(server, printerName);   // 共享打印机（\\主机\共享名）不走 GetPrintQueue 按名查找（其只解析本地队列）
+
+        PrintTicket ticket;
+        try
+        {
+            ticket = queue.DefaultPrintTicket?.Clone() ?? new PrintTicket();
+        }
+        catch
+        {
+            ticket = new PrintTicket();   // 默认票读取失败 → 按驱动默认设置打印
+        }
+        ticket.CopyCount = copies;
+
+        try
+        {
+            var writer = PrintQueue.CreateXpsDocumentWriter(queue);
+            writer.Write(_document.DocumentPaginator, ticket);
+        }
+        catch
+        {
+            // 队列对象输出失败 → 重建队列 + 空票重试一次
+            var fresh = new PrintQueue(server, printerName);
+            var writer = PrintQueue.CreateXpsDocumentWriter(fresh);
+            writer.Write(_document.DocumentPaginator, new PrintTicket { CopyCount = copies });
         }
     }
 

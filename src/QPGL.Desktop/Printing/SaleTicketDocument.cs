@@ -26,15 +26,15 @@ public static class SaleTicketDocument
             Background = Brushes.White,
         };
 
-        double y = 8;
+        double y = 5;
         var title = doc.Discount < 0 || HasNegativeLine(doc) ? "退货清单" : "销货清单";
         page.Children.Add(Title(doc.CompanyName + title, 20, FontWeights.Bold));
-        y += 30;
+        y += 27;
 
         // 公司信息行（紧贴抬头）：电话/传真/地址 + 开户银行/帐号（旧图两行，公司信息始终显示）
         AddCentered(page, $"电话：{doc.Tel}  传真：{doc.Fax}  地址：{doc.Address}", 11, ref y);
         AddCentered(page, $"开户银行：{doc.Bank}    帐号：{doc.Account}", 11, ref y);
-        y += 4;
+        y += 2;
 
         // 系统信息区（旧图：开户银行：xx  帐号：xx  税号：xx / 开票日期、单号；pno='Y' 才显示银行/账号/税号）
         if (doc.PrintCompanyBank)
@@ -42,18 +42,18 @@ public static class SaleTicketDocument
             AddCentered(page, $"开户银行：{doc.Bank}  帐号：{doc.Account}  税号：{doc.TaxNo}", 11, ref y);
             AddCentered(page, $"开票日期：{doc.OutDate:yyyy-MM-dd}  单号：{doc.Paper}", 11, ref y);
         }
-        y += 4;
+        y += 2;
 
         // 收货单位区（带框，三列三行：左=收货单位/地址，中=日期/电话，右=单号/打印时间；右列止于 730 不出血）
         var boxTop = y;
         AddBoxText(page, $"收货单位: {Trunc(doc.CustomerName, 18)}", 15, y, 260, x: 26);
         AddBoxText(page, $"{(title == "退货清单" ? "退货" : "出库")}日期: {doc.OutDate:yyyy-MM-dd}", 15, y, 230, x: 295);
         AddBoxText(page, $"单号: {doc.PaperSuffix}", 15, y, 150, x: 545);
-        y += 24;
+        y += 21;
         AddBoxText(page, $"地    址: {Trunc(doc.CustomerAddress, 18)}", 15, y, 260, x: 26);
         AddBoxText(page, $"电话: {doc.CustomerTel}", 15, y, 230, x: 295);
         AddBoxText(page, $"打印时间: {doc.PrintTime:yyyy-MM-dd HH:mm}", 15, y, 185, x: 545);
-        y += 26;
+        y += 21;
         // 收货区外框
         page.Children.Add(new Rectangle
         {
@@ -64,20 +64,12 @@ public static class SaleTicketDocument
         });
         FixedPage.SetLeft(page.Children[^1], 18);
         FixedPage.SetTop(page.Children[^1], boxTop);
-        y += 4;
-
-        // 库号行（带框）起始 y
-        var tableTop = y;
-        AddBoxText(page, "库 号：", 16, y, 700);
-        y += 22;
-        page.Children.Add(new Rectangle { Width = 724, Height = 22, Stroke = Ink, StrokeThickness = 1 });
-        FixedPage.SetLeft(page.Children[^1], 18);
-        FixedPage.SetTop(page.Children[^1], y - 22);
-        y += 4;
+        y += 2;
 
         // 明细表（带框）：序号 | 零件编码 | 零件名 | 车型 | 出库数 | 售价 | 金额 | 仓位
         double[] widths = { 34, 130, 175, 120, 60, 60, 75, 60 };   // 合计 714
         string[] headers = { "序号", "零件编码", "零件名", "车型", "出库数", "售价", "金额", "仓位" };
+        var tableTop = y;   // 表头+明细行区域顶（外框/竖线起点）
         DrawTableHeader(page, widths, headers, ref y);
 
         foreach (var line in doc.Lines)
@@ -94,7 +86,7 @@ public static class SaleTicketDocument
                 line.Posi,
             }, ref y, boldQty: true);
         }
-        // 表格外框（从库号框到最后一行）
+        // 表格外框（表头到最后一行）
         page.Children.Add(new Rectangle
         {
             Width = 724,
@@ -105,24 +97,29 @@ public static class SaleTicketDocument
         FixedPage.SetLeft(page.Children[^1], 18);
         FixedPage.SetTop(page.Children[^1], tableTop);
 
-        // 营业员/制单人 + 合计行
-        y += 10;
-        AddBoxText(page, $"营业员: {doc.Operator}        制单: {doc.DocMaker}", 15, y, 380, x: 26);
-        AddBoxText(page, $"合计:  {doc.TotalQty:0.##}      ¥  {doc.FinalAmount:N2}", 15, y, 300, x: 460);
-        y += 26;
+        // 列间竖线（表头+明细行区域，各列分隔）
+        double vx = 22;
+        for (var i = 0; i < widths.Length - 1; i++)
+        {
+            vx += widths[i];
+            page.Children.Add(new Rectangle { Width = 0.8, Height = y - tableTop, Fill = Ink });
+            FixedPage.SetLeft(page.Children[^1], vx);
+            FixedPage.SetTop(page.Children[^1], tableTop);
+        }
 
-        // 付款方式/发货方式 + 大写 + 合计
-        AddBoxText(page, $"【付款方式: {doc.PayMode}】【发货方式: 自提】", 13, y, 340, x: 26);
-        AddBoxText(page, $"人民币大写:  {doc.AmountUpper}", 13, y, 250, x: 390);
-        AddBoxText(page, $"合 计: ¥ {doc.FinalAmount:N2}", 13, y, 130, x: 610);
-        y += 24;
+        // 营业员/制单 + 付款/发货方式 + 大写 + 合计（单行）
+        y += 6;
+        AddBoxText(page, $"营业员: {doc.Operator}   制单: {doc.DocMaker}   【付款方式: {doc.PayMode}】【发货方式: 自提】", 13, y, 400, x: 26);
+        AddBoxText(page, $"人民币大写:  {doc.AmountUpper}", 13, y, 200, x: 430);
+        AddBoxText(page, $"合 计: ¥ {doc.FinalAmount:N2}", 13, y, 105, x: 634);
+        y += 20;
 
         // 票尾声明
         AddText(page, doc.Footer, 10, ref y, wrap: true);
 
-        // 备注占位（旧图票尾"备注："）
-        y += 4;
-        AddBoxText(page, "备注：", 18, y, 700);
+        // 票尾备注（单据备注内容；旧图票尾"备注："）
+        y += 2;
+        AddBoxText(page, $"备注：{doc.Remark}", 18, y, 700);
 
         var fixedDoc = new FixedDocument();
         var pageContent = new PageContent { Child = page };
@@ -158,7 +155,7 @@ public static class SaleTicketDocument
         FixedPage.SetTop(tb, y);
         FixedPage.SetLeft(tb, 20);
         page.Children.Add(tb);
-        y += size + 5;
+        y += size + 3;
     }
 
     private static void AddText(FixedPage page, string text, double size, ref double y,
@@ -207,7 +204,7 @@ public static class SaleTicketDocument
             var tb = new TextBlock
             {
                 Text = headers[i],
-                FontSize = 11,
+                FontSize = i == 2 || i == 4 ? 16 : 14,   // 零件名/出库数 列加大
                 FontWeight = FontWeights.Bold,
                 Foreground = Ink,
                 FontFamily = new FontFamily("Microsoft YaHei"),
@@ -219,7 +216,7 @@ public static class SaleTicketDocument
             page.Children.Add(tb);
             x += widths[i];
         }
-        y += 22;
+        y += 25;
         // 表头底线
         page.Children.Add(new Rectangle { Width = 714, Height = 0.8, Fill = Ink });
         FixedPage.SetLeft(page.Children[^1], 22);
@@ -236,19 +233,19 @@ public static class SaleTicketDocument
             var tb = new TextBlock
             {
                 Text = cells[i],
-                FontSize = 11,
+                FontSize = i == 2 || i == 4 ? 16 : 14,   // 零件名/出库数 列加大
                 Foreground = Ink,
                 FontFamily = new FontFamily("Microsoft YaHei"),
                 Width = widths[i],
                 TextAlignment = i >= 4 ? TextAlignment.Center : TextAlignment.Left,
-                FontWeight = boldQty && i == 4 ? FontWeights.Bold : FontWeights.Normal,
+                FontWeight = i == 2 || (boldQty && i == 4) ? FontWeights.Bold : FontWeights.Normal,
             };
             FixedPage.SetTop(tb, y + 3);
             FixedPage.SetLeft(tb, x);
             page.Children.Add(tb);
             x += widths[i];
         }
-        y += 20;
+        y += 25;
         // 行分隔线
         page.Children.Add(new Rectangle { Width = 714, Height = 0.5, Fill = Ink });
         FixedPage.SetLeft(page.Children[^1], 22);
@@ -259,7 +256,7 @@ public static class SaleTicketDocument
     {
         var charsPerLine = (int)(700 / size);
         var lines = Math.Max(1, (int)Math.Ceiling(text.Length / (double)charsPerLine));
-        return lines * (size + 4);
+        return lines * (size + 2);
     }
 
     private static string Trunc(string? s, int max) =>

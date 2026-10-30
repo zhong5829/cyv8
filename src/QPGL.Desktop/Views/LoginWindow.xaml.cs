@@ -12,7 +12,8 @@ public partial class LoginWindow : Window
     {
         InitializeComponent();
         DataContext = _vm;
-        OperatorBox.Focus();
+        // 已预填上次账号时光标直接落密码框，否则落操作员框；回车从操作员跳到密码框
+        if (_vm.SelectedOperator.Length > 0) PasswordBox.Focus(); else OperatorBox.Focus();
 
         _vm.LoginSucceeded += () =>
         {

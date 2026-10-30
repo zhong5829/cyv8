@@ -131,8 +131,10 @@ public sealed class StockRepository(SqlConnectionFactory factory) : IStockReposi
         }
         if (!string.IsNullOrWhiteSpace(request.Nno))
         {
+            // 零件号框双模式（2026-10-30 需求，对齐开单页编码框）：首字符 / = 包含；否则前缀
+            var kw = request.Nno.Trim();
             where += " AND nno LIKE @nno";
-            p.Add("nno", $"%{request.Nno.Trim()}%");
+            p.Add("nno", kw.StartsWith("/") ? $"%{kw[1..].Trim()}%" : $"{kw}%");
         }
         if (!string.IsNullOrWhiteSpace(request.Na1))
         {

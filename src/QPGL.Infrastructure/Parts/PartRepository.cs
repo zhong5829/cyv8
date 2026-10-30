@@ -15,12 +15,13 @@ public interface IPartRepository
     /// 属性定义新增配件无需「传递到库存」即可搜到；新系统仅查 tbisto 导致新配件搜不到。true 时 UNION tbprnoty
     /// 中本部门无库存行的配件（kcamount=0、iprj/oprc 取属性库价，id=0 无库存行语义）。</summary>
     Task<PagedResult<PartItem>> SearchAsync(string dpm, string? cp, string? na1, string? ty, PagedRequest request,
-        bool fillLastIprj = true, string? brand = null, bool includeAttrOnly = false, CancellationToken ct = default);
+        string? note = null, bool fillLastIprj = true, string? brand = null, bool includeAttrOnly = false, CancellationToken ct = default);
 
     /// <summary>跨厂牌命中统计（2026-10-29 需求）：同 dpm+三条件、cp &lt;&gt; brand 的各厂牌行数。
-    /// 仅主查询为空且带条件时调用（回退提示"是否加载门市编码"）。返回 (厂牌, 行数) 列表。</summary>
+    /// 仅主查询为空且带条件时调用（回退提示"是否加载门市编码"）。返回 (厂牌, 行数) 列表。
+    /// note：备注包含匹配（2026-10-30 需求：开单页查询区新增备注框，与 SearchAsync 条件口径一致）。</summary>
     Task<IReadOnlyList<(string Cp, int Count)>> CountOtherBrandsAsync(string dpm, string brand,
-        string? cp, string? na1, string? ty, CancellationToken ct = default);
+        string? cp, string? na1, string? ty, CancellationToken ct = default, string? note = null);
 
     /// <summary>对已有行集批量回填最近进价（开单页「最近进价」列切换为可见时按需补取）。</summary>
     Task FillLastIprjAsync(IReadOnlyList<PartItem> items, string dpm, CancellationToken ct = default);
@@ -81,22 +82,36 @@ public sealed class PartRepository(SqlConnectionFactory factory) : IPartReposito
     }
 
     public async Task<PagedResult<PartItem>> SearchAsync(string dpm, string? cp, string? na1, string? ty, PagedRequest request,
-        bool fillLastIprj = true, string? brand = null, bool includeAttrOnly = false, CancellationToken ct = default)
+        string? note = null, bool fillLastIprj = true, string? brand = null, bool includeAttrOnly = false, CancellationToken ct = default)
     {
         var cpKw = (cp ?? "").Trim();
         var na1Kw = (na1 ?? "").Trim();
         var tyKw = (ty ?? "").Trim();
+        var noteKw = (note ?? "").Trim();
         var brandKw = (brand ?? "").Trim();
-        var hasAny = cpKw.Length > 0 || na1Kw.Length > 0 || tyKw.Length > 0;
+
+        // 编码框双模式（2026-10-30 需求，实测 tbisto/tbprnoty nno 均为「前缀+空格+编码」格式如 PT /OPT /GH ）：
+        //   首字符 / → 包含匹配 nno LIKE '%kw%'（可命中 PT 与 OPT 等含该片段的编码，原行为）；
+        //   否则     → 前缀匹配 nno LIKE 'kw%'（只命中该前缀类，如 pt 只查 PT 开头不混 OPT）。
+        // 前缀匹配用裸列（无 RTRIM）可走索引（SARGable，实测 7ms vs 包含 17ms）；/ 单独输入视为无编码条件。
+        var cpContains = cpKw.StartsWith("/");
+        var cpWord = cpContains ? cpKw[1..].Trim() : cpKw;
+        var hasCp = cpWord.Length > 0;
+        var hasAny = hasCp || na1Kw.Length > 0 || tyKw.Length > 0 || noteKw.Length > 0;
 
         var conditions = new List<string> { "dpm = @dpm" };
         // 厂牌过滤（2026-10-29 需求）：登录选择的厂牌（中驭/门市）初始只显示该厂牌编码；空 = 未选厂牌不过滤
         if (brandKw.Length > 0)
             conditions.Add("t.cp = @brand");
-        if (cpKw.Length > 0)
+        if (hasCp)
         {
-            // 编码框：查内部编号（包含匹配）
-            conditions.Add("nno LIKE '%' + @cp + '%'");
+            // 编码框：前缀（缺省）/ 包含（首字符 /）
+            conditions.Add(cpContains ? "nno LIKE '%' + @cp + '%'" : "nno LIKE @cp + '%'");
+        }
+        if (noteKw.Length > 0)
+        {
+            // 备注框：备注包含匹配（2026-10-30 需求：开单页查询区新增备注框）
+            conditions.Add("t.note LIKE '%' + @note + '%'");
         }
 
         // 拼音码匹配统一用 LEFT JOIN 派生表（2026-10-30 bug 修复：名称 IN + 车型 IN 两组半连接经 OR 组合后
@@ -129,10 +144,12 @@ public sealed class PartRepository(SqlConnectionFactory factory) : IPartReposito
         }
         if (tyKw.Length > 0)
         {
-            // 车型框：车型/名称包含 + tbty0 车型拼音码（2026-10-30 需求：旧系统车型不支持拼音码检索）
+            // 车型框：车型/名称/备注包含 + tbty0 车型拼音码（2026-10-30 需求：旧系统车型不支持拼音码检索；
+            // 2026-10-30 补充：车型框同时查备注——用户习惯把车型写在备注里，中文关键词直接命中备注）
             conditions.Add("""
                 (t.ty LIKE '%' + @ty + '%'
                  OR t.na1 LIKE '%' + @ty + '%'
+                 OR t.note LIKE '%' + @ty + '%'
                  OR tb2.ty IS NOT NULL)
                 """);
         }
@@ -149,8 +166,10 @@ public sealed class PartRepository(SqlConnectionFactory factory) : IPartReposito
             var attrConditions = new List<string>();
             if (brandKw.Length > 0)
                 attrConditions.Add("rtrim(p.cp) = @brand");
-            if (cpKw.Length > 0)
-                attrConditions.Add("rtrim(p.nno) LIKE '%' + @cp + '%'");
+            if (hasCp)
+                attrConditions.Add(cpContains ? "rtrim(p.nno) LIKE '%' + @cp + '%'" : "rtrim(p.nno) LIKE @cp + '%'");
+            if (noteKw.Length > 0)
+                attrConditions.Add("rtrim(p.note) LIKE '%' + @note + '%'");
             if (na1Kw.Length > 0)
             {
                 attrConditions.Add("""
@@ -164,6 +183,7 @@ public sealed class PartRepository(SqlConnectionFactory factory) : IPartReposito
                 attrConditions.Add("""
                     (rtrim(p.ty) LIKE '%' + @ty + '%'
                      OR rtrim(p.na1) LIKE '%' + @ty + '%'
+                     OR rtrim(p.note) LIKE '%' + @ty + '%'
                      OR tb2.ty IS NOT NULL)
                     """);
             attrConditions.Add("""
@@ -186,9 +206,10 @@ public sealed class PartRepository(SqlConnectionFactory factory) : IPartReposito
         {
             dpm = new DbString { Value = dpm, IsAnsi = true, Length = 10 },
             brand = brandKw.Length > 0 ? new DbString { Value = brandKw, IsAnsi = false, Length = 20 } : null,
-            cp = hasAny ? new DbString { Value = cpKw, IsAnsi = true, Length = 40 } : null,
+            cp = hasCp ? new DbString { Value = cpWord, IsAnsi = true, Length = 40 } : null,
             na1 = na1Kw.Length > 0 ? new DbString { Value = na1Kw, IsAnsi = false, Length = 40 } : null,
             ty = tyKw.Length > 0 ? new DbString { Value = tyKw, IsAnsi = false, Length = 40 } : null,
+            note = noteKw.Length > 0 ? new DbString { Value = noteKw, IsAnsi = true, Length = 50 } : null,
             offset = (request.Page - 1) * request.PageSize,
             pageSize = request.PageSize,
         };
@@ -210,7 +231,7 @@ public sealed class PartRepository(SqlConnectionFactory factory) : IPartReposito
         //            外层按 id 回取宽列——谓词只碰窄行，实测 777→460ms / 1015→440ms；
         //   无条件 → 窗口函数直查（骨架 JOIN 反增开销，实测 442ms vs 195ms）。
         // _total=COUNT(1) OVER() 在过滤后的同一行集上计数，tbisto 只扫一遍，总数与分页+COUNT 完全一致
-        var hasCondition = cpKw.Length > 0 || na1Kw.Length > 0 || tyKw.Length > 0;
+        var hasCondition = hasCp || na1Kw.Length > 0 || tyKw.Length > 0 || noteKw.Length > 0;
         var orderX = order.Replace("t.", "x.");   // 骨架外层 t=派生表（仅 id/_total），排序须引用 x（回取的 tbisto 宽行）
         var orderU = order.Replace("t.", "u.");   // 属性库补集骨架外层 u=UNION 派生表（tbisto ∪ tbprnoty-only）
         var pageSql = attrBranch.Length > 0
@@ -268,13 +289,19 @@ public sealed class PartRepository(SqlConnectionFactory factory) : IPartReposito
 
     /// <inheritdoc/>
     public async Task<IReadOnlyList<(string Cp, int Count)>> CountOtherBrandsAsync(string dpm, string brand,
-        string? cp, string? na1, string? ty, CancellationToken ct = default)
+        string? cp, string? na1, string? ty, CancellationToken ct = default, string? note = null)
     {
         var cpKw = (cp ?? "").Trim();
         var na1Kw = (na1 ?? "").Trim();
         var tyKw = (ty ?? "").Trim();
+        var noteKw = (note ?? "").Trim();
         var brandKw = (brand ?? "").Trim();
         if (brandKw.Length == 0) return [];
+
+        // 编码框双模式与 SearchAsync 同构（2026-10-30 需求）：首字符 / = 包含；否则前缀
+        var cpContains = cpKw.StartsWith("/");
+        var cpWord = cpContains ? cpKw[1..].Trim() : cpKw;
+        var hasCp = cpWord.Length > 0;
 
         // 条件与 SearchAsync 完全同构，仅厂牌条件换为 cp <> @brand；
         // 拼音码用 LEFT JOIN 派生表（同 SearchAsync 8622 修复：双 IN 半连接 + HASH JOIN 提示无法生成计划）
@@ -285,19 +312,15 @@ public sealed class PartRepository(SqlConnectionFactory factory) : IPartReposito
             ? "\nLEFT JOIN (SELECT DISTINCT rtrim(ty) AS ty FROM tbty0 WITH (NOLOCK) WHERE code LIKE '%' + @ty + '%') tb2 ON rtrim(t.ty) = tb2.ty"
             : "";
         var conditions = new List<string> { "t.dpm = @dpm", "t.cp <> @brand" };
-        if (cpKw.Length > 0)
-            conditions.Add("t.nno LIKE '%' + @cp + '%'");
-        if (na1Kw.Length > 0)
-            conditions.Add("""
-                (t.na1 LIKE '%' + @na1 + '%'
-                 OR t.nno LIKE '%' + @na1 + '%'
-                 OR t.ty LIKE '%' + @na1 + '%'
-                 OR nb.name IS NOT NULL)
-                """);
+        if (hasCp)
+            conditions.Add(cpContains ? "t.nno LIKE '%' + @cp + '%'" : "t.nno LIKE @cp + '%'");
+        if (noteKw.Length > 0)
+            conditions.Add("t.note LIKE '%' + @note + '%'");
         if (tyKw.Length > 0)
             conditions.Add("""
                 (t.ty LIKE '%' + @ty + '%'
                  OR t.na1 LIKE '%' + @ty + '%'
+                 OR t.note LIKE '%' + @ty + '%'
                  OR tb2.ty IS NOT NULL)
                 """);
         var hint = (na1Kw.Length > 0 || tyKw.Length > 0) ? " OPTION (HASH JOIN)" : "";
@@ -311,8 +334,10 @@ public sealed class PartRepository(SqlConnectionFactory factory) : IPartReposito
             ? "\nLEFT JOIN (SELECT DISTINCT rtrim(ty) AS ty FROM tbty0 WITH (NOLOCK) WHERE code LIKE '%' + @ty + '%') tb2 ON rtrim(p.ty) = tb2.ty"
             : "";
         var attrConditions = new List<string> { "rtrim(p.cp) <> @brand" };
-        if (cpKw.Length > 0)
-            attrConditions.Add("rtrim(p.nno) LIKE '%' + @cp + '%'");
+        if (hasCp)
+            attrConditions.Add(cpContains ? "rtrim(p.nno) LIKE '%' + @cp + '%'" : "rtrim(p.nno) LIKE @cp + '%'");
+        if (noteKw.Length > 0)
+            attrConditions.Add("rtrim(p.note) LIKE '%' + @note + '%'");
         if (na1Kw.Length > 0)
         {
             attrConditions.Add("""
@@ -326,6 +351,7 @@ public sealed class PartRepository(SqlConnectionFactory factory) : IPartReposito
             attrConditions.Add("""
                 (rtrim(p.ty) LIKE '%' + @ty + '%'
                  OR rtrim(p.na1) LIKE '%' + @ty + '%'
+                 OR rtrim(p.note) LIKE '%' + @ty + '%'
                  OR tb2.ty IS NOT NULL)
                 """);
         attrConditions.Add("""
@@ -354,9 +380,10 @@ public sealed class PartRepository(SqlConnectionFactory factory) : IPartReposito
             {
                 dpm = new DbString { Value = dpm, IsAnsi = true, Length = 10 },
                 brand = new DbString { Value = brandKw, IsAnsi = false, Length = 20 },
-                cp = new DbString { Value = cpKw, IsAnsi = true, Length = 40 },
+                cp = hasCp ? new DbString { Value = cpWord, IsAnsi = true, Length = 40 } : null,
                 na1 = new DbString { Value = na1Kw, IsAnsi = false, Length = 40 },
                 ty = new DbString { Value = tyKw, IsAnsi = false, Length = 40 },
+                note = noteKw.Length > 0 ? new DbString { Value = noteKw, IsAnsi = true, Length = 50 } : null,
             }, cancellationToken: ct));
         return rows.Select(r => (r.cp, r.n)).ToList();
     }

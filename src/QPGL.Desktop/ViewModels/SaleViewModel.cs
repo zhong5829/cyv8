@@ -51,6 +51,7 @@ public partial class SaleViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string _partCp = "";
     [ObservableProperty] private string _partNa1 = "";
     [ObservableProperty] private string _partTy = "";
+    [ObservableProperty] private string _partNote = "";   // 备注查询框（2026-10-30 需求）
     [ObservableProperty] private string _gno = "";
     [ObservableProperty] private string _gname = "";
     [ObservableProperty] private string _remark = "";
@@ -203,7 +204,7 @@ public partial class SaleViewModel : ObservableObject, IDisposable
         // 竞态守卫：递增序号，慢的旧请求返回后直接丢弃（防止空条件查询晚到覆盖过滤结果）
         var seq = ++_searchSeq;
         var sw = System.Diagnostics.Stopwatch.StartNew();
-        DebugLog.Log($"[SaleSearch] 触发 cp='{PartCp.Trim()}' na1='{PartNa1.Trim()}' ty='{PartTy.Trim()}'");
+        DebugLog.Log($"[SaleSearch] 触发 cp='{PartCp.Trim()}' na1='{PartNa1.Trim()}' ty='{PartTy.Trim()}' note='{PartNote.Trim()}'");
         Message = "";
         // 厂牌过滤（2026-10-29 需求）：登录选择的厂牌初始只显示该厂牌编码；未选厂牌不过滤
         var brand = AppSession.Brand.Trim();
@@ -212,7 +213,7 @@ public partial class SaleViewModel : ObservableObject, IDisposable
         {
             var request = new PagedRequest { Page = 1, PageSize = PartPageSize };
             var result = await Db.Parts.SearchAsync(Dept, PartCp.Trim(), PartNa1.Trim(), PartTy.Trim(), request,
-                fillLastIprj: IsLastIprjVisible, brand, ct: ct);
+                PartNote.Trim(), fillLastIprj: IsLastIprjVisible, brand, ct: ct);
             if (seq != _searchSeq) return;
             var tDb = sw.ElapsedMilliseconds;
             PartResults.Clear();
@@ -222,12 +223,12 @@ public partial class SaleViewModel : ObservableObject, IDisposable
             _loadingMore = false;
             _effectiveBrand = brand;
             DebugLog.Log($"[SaleSearch] 总耗时={sw.ElapsedMilliseconds}ms (DB={tDb}ms UI替换={sw.ElapsedMilliseconds - tDb}ms) rows={result.Items.Count}");
-            var hasCondition = PartCp.Trim().Length > 0 || PartNa1.Trim().Length > 0 || PartTy.Trim().Length > 0;
+            var hasCondition = PartCp.Trim().Length > 0 || PartNa1.Trim().Length > 0 || PartTy.Trim().Length > 0 || PartNote.Trim().Length > 0;
 
             // 跨厂牌回退（2026-10-29 需求）：当前厂牌无命中且带条件时，查其它厂牌命中数，弹窗确认后临时加载
             if (result.Total == 0 && hasCondition && brand.Length > 0)
             {
-                var others = await Db.Parts.CountOtherBrandsAsync(Dept, brand, PartCp.Trim(), PartNa1.Trim(), PartTy.Trim(), ct);
+                var others = await Db.Parts.CountOtherBrandsAsync(Dept, brand, PartCp.Trim(), PartNa1.Trim(), PartTy.Trim(), ct, PartNote.Trim());
                 if (seq != _searchSeq) return;
                 // 厂牌白名单（角色 usemcp）：非空时仅提示白名单内的厂牌；空 = 无限制
                 var wl = AppSession.BrandWhitelist;
@@ -244,7 +245,7 @@ public partial class SaleViewModel : ObservableObject, IDisposable
                     if (answer == System.Windows.MessageBoxResult.Yes)
                     {
                         var alt = await Db.Parts.SearchAsync(Dept, PartCp.Trim(), PartNa1.Trim(), PartTy.Trim(), request,
-                            fillLastIprj: IsLastIprjVisible, top, ct: ct);
+                            PartNote.Trim(), fillLastIprj: IsLastIprjVisible, top, ct: ct);
                         if (seq != _searchSeq) return;
                         PartResults.Clear();
                         foreach (var p in alt.Items) PartResults.Add(p);
@@ -276,7 +277,7 @@ public partial class SaleViewModel : ObservableObject, IDisposable
         {
             var request = new PagedRequest { Page = _partPage + 1, PageSize = PartPageSize };
             var result = await Db.Parts.SearchAsync(Dept, PartCp.Trim(), PartNa1.Trim(), PartTy.Trim(), request,
-                fillLastIprj: IsLastIprjVisible, _effectiveBrand, ct: ct);
+                PartNote.Trim(), fillLastIprj: IsLastIprjVisible, _effectiveBrand, ct: ct);
             if (seq != _searchSeq) return;
             _partPage++;
             _partTotal = result.Total;
@@ -482,8 +483,9 @@ public partial class SaleViewModel : ObservableObject, IDisposable
             }
             catch { /* 回读失败保持 0 */ }
         }
-        var dialog = new Views.ConfirmSaleDialog(LastPaper, DocType, Gno.Trim(), Gname.Trim(), amountBefore);
+        var dialog = new Views.ConfirmSaleDialog(LastPaper, DocType, Gno.Trim(), Gname.Trim(), amountBefore, Remark.Trim());
         if (dialog.ShowDialog() != true) return;
+        var printAfter = dialog.PrintAfterConfirm;
 
         IsBusy = true;
         Message = "";
@@ -492,9 +494,27 @@ public partial class SaleViewModel : ObservableObject, IDisposable
             var cmd = dialog.Command;
             cmd.Dept = Dept;
             var result = await Db.Sales.ConfirmAsync(cmd, AppSession.Operator, ct);
-            // 确认成功：清空开单面板，通知宿主切到查询模式（旧系统确认后回到单据浏览语义）
+            // 确认成功：清空开单面板。打印勾选（2026-10-30 需求）→ 留在开单模式直接发送打印机（打印失败不阻断确认）；
+            // 未勾选 → 通知宿主切到查询模式（旧系统确认后回到单据浏览语义）。宿主经 SkipQuerySwitchAfterConfirm 区分。
+            SkipQuerySwitchAfterConfirm = printAfter;
             ClearBill();
-            Message = $"已确认 {result.Paper}（结帐日期 {result.Jzdate:yyyy-MM-dd}）";
+            if (printAfter)
+            {
+                try
+                {
+                    // 静默打印（2026-10-30 需求）：直接输出默认打印机，不弹系统打印对话框
+                    await Printing.PrintService.PrintSaleSilentAsync(result.Paper, DocType, ct);
+                    Message = $"已确认 {result.Paper}（结帐日期 {result.Jzdate:yyyy-MM-dd}），已发送打印";
+                }
+                catch (Exception pex)
+                {
+                    Message = $"已确认 {result.Paper}（结帐日期 {result.Jzdate:yyyy-MM-dd}），打印失败：{pex.Message}";
+                }
+            }
+            else
+            {
+                Message = $"已确认 {result.Paper}（结帐日期 {result.Jzdate:yyyy-MM-dd}）";
+            }
             ConfirmSucceeded?.Invoke(this, EventArgs.Empty);
         }
         catch (AppException ex) { Message = ex.Message; }
@@ -504,6 +524,9 @@ public partial class SaleViewModel : ObservableObject, IDisposable
 
     /// <summary>整单确认成功事件（宿主 SaleControl 订阅：清屏后自动切查询模式）。</summary>
     public event EventHandler? ConfirmSucceeded;
+
+    /// <summary>确认后是否跳过切查询模式（2026-10-30 需求：勾选"确认后立即打印"时留在开单模式，宿主读取后自行处理）。</summary>
+    public bool SkipQuerySwitchAfterConfirm { get; private set; }
 
     /// <summary>销售转预售（row53 销售分支 M_PD=6：UPDATE 原单改 type/paper/ypaper/note/outdate 换预售号，库存零变动，需 C2 权限）。</summary>
     [RelayCommand]
@@ -627,6 +650,7 @@ public partial class SaleViewModel : ObservableObject, IDisposable
         PartCp = "";
         PartNa1 = "";
         PartTy = "";
+        PartNote = "";
         Lines.Clear();
         CustomerSuggestions.Clear();
         RecalcTotal();

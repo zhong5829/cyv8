@@ -8,7 +8,8 @@
                 <TextBlock Text="编码" VerticalAlignment="Center"/>
                 <TextBox Width="90" Text="{Binding CpFilter, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center" Margin="4,0,10,0"/>
                 <TextBlock Text="零件号" VerticalAlignment="Center"/>
-                <TextBox Width="110" Text="{Binding NnoFilter, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center" Margin="4,0,10,0"/>
+                <TextBox Width="110" Text="{Binding NnoFilter, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center" Margin="4,0,10,0"
+                         ToolTip="缺省前缀匹配（输 pt 只查 PT 开头）；输 /pt 转包含匹配"/>
                 <TextBlock Text="名称" VerticalAlignment="Center"/>
                 <TextBox Width="120" Text="{Binding Na1Filter, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center" Margin="4,0,10,0"/>
                 <TextBlock Text="车型" VerticalAlignment="Center"/>

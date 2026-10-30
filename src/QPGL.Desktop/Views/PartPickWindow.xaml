@@ -18,7 +18,7 @@
             <StackPanel Orientation="Horizontal">
                 <TextBlock Text="编码" VerticalAlignment="Center"/>
                 <TextBox x:Name="CpBox" Width="150" Margin="4,0,16,0" TextChanged="Box_TextChanged" PreviewKeyDown="SearchBox_PreviewKeyDown"
-                         ToolTip="查内部编号（包含匹配）；←/→ 切换条件框"/>
+                         ToolTip="查内部编号：缺省前缀匹配（输 pt 只查 PT 开头）；输 /pt 转包含匹配（PT/OPT 等含 pt 的都命中）；←/→ 切换条件框"/>
                 <TextBlock Text="名称" VerticalAlignment="Center"/>
                 <TextBox x:Name="Na1Box" Width="220" Margin="4,0,16,0" TextChanged="Box_TextChanged" PreviewKeyDown="SearchBox_PreviewKeyDown"
                          ToolTip="支持拼音码/编码/名称/车型；←/→ 切换条件框"/>
