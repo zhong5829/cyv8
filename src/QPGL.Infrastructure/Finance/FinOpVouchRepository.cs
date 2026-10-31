@@ -782,18 +782,19 @@ public sealed class FinOpVouchRepository(SqlConnectionFactory factory) : IFinOpV
         await using var conn = await factory.OpenAsync(ct);
         if (opty == "BBI")
         {
+            // tbistoed 无 yhl/oprc：旧 fr_finopdet 对 BBI 令 YHL=0、OPRCT=IPRJ（进价金额）
             var rows = await conn.QueryAsync<(string gyname, DateTime indate, string cno, string nno, string na1,
-                string ty, decimal jkamount, decimal iprc, decimal oprc, decimal yhl, string fkfs, string per)>(
+                string ty, decimal jkamount, decimal iprc, decimal iprj, decimal yhl, string fkfs, string per)>(
                 new CommandDefinition(
                     """
                     SELECT RTRIM(ISNULL(gyname,'')), indate, RTRIM(cno), RTRIM(nno), RTRIM(na1), RTRIM(ty),
-                           ISNULL(jkamount,0), ISNULL(iprc,0), ISNULL(oprc,0), ISNULL(yhl,0), RTRIM(ISNULL(fkfs,'')), RTRIM(ISNULL(per,''))
+                           ISNULL(jkamount,0), ISNULL(iprc,0), ISNULL(iprj,0), 0, RTRIM(ISNULL(fkfs,'')), RTRIM(ISNULL(per,''))
                     FROM tbistoed WITH (NOLOCK) WHERE rtrim(seano) = @paper ORDER BY id
                     """, new { paper = Ansi(paper, 15) }, cancellationToken: ct));
             return rows.Select(r => new FinOpDetailRow
             {
                 Gu = r.gyname, Date = r.indate, Paper = r.cno, Nno = r.nno, Na1 = r.na1, Ty = r.ty,
-                Amount = r.jkamount, Oprc = r.iprc, Oprct = r.oprc, Yhl = r.yhl,
+                Amount = r.jkamount, Oprc = r.iprc, Oprct = r.iprj, Yhl = r.yhl,
                 Pty = string.IsNullOrEmpty(r.fkfs) ? "现金" : r.fkfs, Per = r.per,
             }).ToList();
         }
@@ -821,18 +822,19 @@ public sealed class FinOpVouchRepository(SqlConnectionFactory factory) : IFinOpV
         var paper = (seano ?? "").Trim();
         var ord = (isord ?? "").Trim();
         await using var conn = await factory.OpenAsync(ct);
+        // tbistoed 无 yhl/oprc：旧 fr_finopdet 对 BBI 令 YHL=0、OPRCT=IPRJ（进价金额）
         var rows = await conn.QueryAsync<(string gyname, DateTime indate, string cno, string nno, string na1,
-            string ty, decimal jkamount, decimal iprc, decimal oprc, decimal yhl, string fkfs, string per)>(
+            string ty, decimal jkamount, decimal iprc, decimal iprj, decimal yhl, string fkfs, string per)>(
             new CommandDefinition(
                 """
                 SELECT RTRIM(ISNULL(gyname,'')), indate, RTRIM(cno), RTRIM(nno), RTRIM(na1), RTRIM(ty),
-                       ISNULL(jkamount,0), ISNULL(iprc,0), ISNULL(oprc,0), ISNULL(yhl,0), RTRIM(ISNULL(fkfs,'')), RTRIM(ISNULL(per,''))
+                       ISNULL(jkamount,0), ISNULL(iprc,0), ISNULL(iprj,0), 0, RTRIM(ISNULL(fkfs,'')), RTRIM(ISNULL(per,''))
                 FROM tbistoed WITH (NOLOCK) WHERE rtrim(seano) = @paper AND rtrim(ISNULL(isord,'')) = @ord ORDER BY id
                 """, new { paper = Ansi(paper, 15), ord = Ansi(ord, 6) }, cancellationToken: ct));
         return rows.Select(r => new FinOpDetailRow
         {
             Gu = r.gyname, Date = r.indate, Paper = r.cno, Nno = r.nno, Na1 = r.na1, Ty = r.ty,
-            Amount = r.jkamount, Oprc = r.iprc, Oprct = r.oprc, Yhl = r.yhl,
+            Amount = r.jkamount, Oprc = r.iprc, Oprct = r.iprj, Yhl = r.yhl,
             Pty = string.IsNullOrEmpty(r.fkfs) ? "现金" : r.fkfs, Per = r.per,
         }).ToList();
     }

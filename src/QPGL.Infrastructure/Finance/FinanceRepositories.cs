@@ -40,6 +40,14 @@ public sealed class XlskOutstandingRow
     public bool Included { get; set; }
 }
 
+/// <summary>活跃客户汇总行（收款/付款页右侧面板：未销账客户的单据数与未结金额）。</summary>
+public sealed class ActiveCustomerRow
+{
+    public string Gname { get; set; } = "";
+    public int DocCount { get; set; }
+    public decimal Amount { get; set; }
+}
+
 public sealed class XlskDocLine
 {
     public int Id { get; set; }
@@ -124,6 +132,8 @@ public interface IXlskRepository
     Task<IReadOnlyList<string>> GetBankNamesAsync(CancellationToken ct = default);
     Task<bool> IsLszDateLockedAsync(string dpm, CancellationToken ct = default);
     Task<IReadOnlyList<XlskOutstandingRow>> GetOutstandingAsync(string gname, string type, bool includeRebate, CancellationToken ct = default);
+    /// <summary>活跃客户（右侧面板）：当前类型下所有存在未销账单据的客户，含单据数与未结金额，按客户名称升序。</summary>
+    Task<IReadOnlyList<ActiveCustomerRow>> GetActiveCustomersAsync(string type, CancellationToken ct = default);
     Task<XlskDoc?> LoadDocAsync(string cno, string type, CancellationToken ct = default);
     Task<bool> HasMonthlyCloseAsync(CancellationToken ct = default);
     Task<bool> IsMonthlyLockedAsync(DateTime docDate, CancellationToken ct = default);
@@ -302,13 +312,47 @@ public sealed class XlskRepository(SqlConnectionFactory factory, IDocNoService d
                 Remark = r.remark ?? "",
                 Dpm = r.dpm ?? "",
             };
-            // 行纳入过滤（row41 L57）：非预收 且 有发生额 且 未结清
-            row.Included = r.type != "预收" && r.ys != 0 && r.ys - r.yf != 0 &&
+            // 行纳入过滤（鏤.row41 L15 原样）：非预收 + 本方向发生额非零 + 未结清
+            // 收款看 ys<>0，付款看 yf<>0（入库行只有 yf，不能再用 ys 拦截）
+            row.Included = r.type != "预收" && r.ys - r.yf != 0 &&
                            Math.Abs(r.skmoney) != Math.Abs(r.ys - r.yf) &&
                            (type == "收款" ? r.ys != 0 : r.yf != 0);
             list.Add(row);
         }
         return list;
+    }
+
+    /// <summary>
+    /// 活跃客户（右侧面板）：按当前类型（收款=应收 / 付款=应付）汇总所有存在未销账单据的客户。
+    /// 行过滤沿用 CmdGU（鏤.row41 L15）：非预收、本方向发生额非零、未结清、排除回扣行；
+    /// 金额口径同拉单 WSJE（收/付款类行 je+skmoney，其余 je-skmoney），单数取未结单号去重计数。
+    /// </summary>
+    public async Task<IReadOnlyList<ActiveCustomerRow>> GetActiveCustomersAsync(string type, CancellationToken ct = default)
+    {
+        await using var conn = await factory.OpenAsync(ct);
+        var rows = await conn.QueryAsync<ActiveCustomerRow>(new CommandDefinition(
+            """
+            SELECT RTRIM(gname) gname,
+                   COUNT(DISTINCT RTRIM(cno)) docCount,
+                   SUM(CASE WHEN RTRIM(type) IN (N'收款', N'付款')
+                            THEN je + skmoney ELSE je - skmoney END) amount
+            FROM (
+                SELECT gname, cno, skmoney, type,
+                       je = CASE WHEN @type = N'收款' THEN ys ELSE yf END,
+                       ys, yf
+                FROM tbysyf WITH (NOLOCK)
+                WHERE gname <> ''
+                  AND RTRIM(type) <> N'预收'
+                  AND ((@type = N'收款' AND ys <> 0) OR (@type = N'付款' AND yf <> 0))
+                  AND ys - yf <> 0
+                  AND ABS(skmoney) <> ABS(ys - yf)
+                  AND pno <> N'回扣' AND pno <> 'KH'
+            ) t
+            GROUP BY gname
+            ORDER BY gname
+            """,
+            new { type = Ansi(type, 8) }, cancellationToken: ct));
+        return rows.AsList();
     }
 
     /// <summary>载入已有单（skno，row2）：表头 tbysyf WHERE cno + 流水行 tblsz WHERE skno（含回查匹配规则）。</summary>

@@ -33,13 +33,14 @@ public static class PrintService
         LogPrinted(paper);
     }
 
-    /// <summary>打印预览（DocumentViewer 全屏逐页查看，§8.3.1）。</summary>
-    public static async System.Threading.Tasks.Task PreviewSaleAsync(string paper, string docType = "销售", CancellationToken ct = default)
+    /// <summary>打印预览（DocumentViewer 全屏逐页查看，§8.3.1）。
+    /// closeAfterPrint=true 时，预览窗内点「打印」成功后自动关闭（查询模式重打印用）。</summary>
+    public static async System.Threading.Tasks.Task PreviewSaleAsync(string paper, string docType = "销售", CancellationToken ct = default, bool closeAfterPrint = false)
     {
         var doc = await LoadSaleDocAsync(paper, docType, ct);
         var fixedDoc = SaleTicketDocument.Build(doc);
 
-        var window = new PrintPreviewWindow(fixedDoc, $"预览 - {docType}单 {paper}");
+        var window = new PrintPreviewWindow(fixedDoc, $"预览 - {docType}单 {paper}", closeAfterPrint);
         window.ShowDialog();
     }
 

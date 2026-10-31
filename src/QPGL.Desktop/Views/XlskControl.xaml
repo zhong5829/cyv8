@@ -10,14 +10,14 @@
                 BorderThickness="1" CornerRadius="3" Padding="8,6" Margin="0,0,0,6">
             <StackPanel Orientation="Horizontal">
                 <Button Content="查询" Command="{Binding LoadCustomerCommand}" ToolTip="载入客户未结清单（拉单）" Padding="12,4"/>
-                <Button Content="载入" Command="{Binding LoadDocCommand}" ToolTip="按单号载入已有单据" Margin="6,0,0,0" Padding="12,4"/>
                 <Button Content="增加" Command="{Binding NewDocCommand}" ToolTip="清屏取新号" Margin="6,0,0,0" Padding="12,4"/>
                 <Button Content="提取" Command="{Binding ExtractUnsettledCommand}" ToolTip="fr_xlsk_tq：从应收应付提取未结单" Margin="6,0,0,0" Padding="12,4"/>
                 <Button Content="预收款" Command="{Binding PresaleDepositCommand}" ToolTip="skinfor：录入预收定金（确认受「关闭预收款已结帐」配置控制）" Margin="6,0,0,0" Padding="12,4"/>
                 <Button Content="还原" Command="{Binding RestoreCommand}" ToolTip="需要 G21 权限；已做月结拒绝" Margin="6,0,0,0" Padding="12,4"/>
                 <Button Content="全选" Command="{Binding CheckAllCommand}" Margin="6,0,0,0" Padding="12,4"/>
                 <Button Content="全清" Command="{Binding ClearAllCommand}" Margin="6,0,0,0" Padding="12,4"/>
-                <Button Content="按金额分配" Command="{Binding AllocateCommand}" ToolTip="自动勾选收款单据" Margin="6,0,0,0" Padding="12,4"/>
+                <Button Content="业务明细" Command="{Binding ShowBizDetailCommand}"
+                        ToolTip="查看选中单据的业务明细（双击明细行同样打开）" Margin="6,0,0,0" Padding="12,4"/>
                 <Button Content="确认" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding SaveCommand}" Margin="16,0,0,0" Padding="20,4"/>
                 <Button Content="前单" Command="{Binding PrioCommand}" Margin="16,0,0,0" Padding="12,4"/>
                 <Button Content="后单" Command="{Binding NextCommand}" Margin="6,0,0,0" Padding="12,4"/>
@@ -110,8 +110,11 @@
                     </Grid.ColumnDefinitions>
                     <TextBlock Text="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=Tag, StringFormat={}{0}金额:}" VerticalAlignment="Center"/>
                     <TextBox Grid.Column="1" Text="{Binding PaySum, UpdateSourceTrigger=PropertyChanged, StringFormat=N2}"
+                             PreviewMouseLeftButtonDown="PaySumBox_PreviewMouseLeftButtonDown"
                              HorizontalContentAlignment="Right" VerticalAlignment="Center" Margin="4,0,6,0"/>
-                    <Button Grid.Column="2" Content="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=Tag, StringFormat=自动勾选{0}单据}"
+                    <!-- Button.Content 是 object，Binding.StringFormat 不生效（旧版只显示「收款」），改用 ContentStringFormat -->
+                    <Button Grid.Column="2" Content="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=Tag}"
+                            ContentStringFormat="自动勾选{0}单据"
                             Command="{Binding AllocateCommand}" VerticalAlignment="Center" Padding="10,3"/>
                 </Grid>
                 <Grid Grid.Row="2" Grid.Column="0">
@@ -187,21 +190,77 @@
             </DockPanel>
         </Border>
 
-        <!-- 明细网格（旧列序：业务类型/业务单号/日期/金额/已收/未收/本次…收款勾选列在末） -->
-        <DataGrid ItemsSource="{Binding Lines}" FontSize="12">
+        <!-- 右侧活跃客户面板（未销账客户汇总：单数/金额；双击直接拉取该客户） -->
+        <Border DockPanel.Dock="Right" Width="210" Margin="6,0,0,0" Background="White"
+                BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" CornerRadius="3" Padding="8,6">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Top" Text="活跃客户" FontWeight="Bold" Margin="2,0,0,6"/>
+                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,6">
+                    <Button Content="粘贴排序" Padding="10,2" FontSize="12" Click="PasteSort_Click"
+                            ToolTip="打开窗口粘贴客户名单（一行一个），确定后仅保留这些客户并按输入顺序排列"/>
+                    <Button Content="恢复默认" Padding="10,2" FontSize="12" Margin="6,0,0,0" Click="ResetSort_Click"
+                            ToolTip="恢复按客户名称升序排列"/>
+                </StackPanel>
+                <ListBox x:Name="ActiveCustList" ItemsSource="{Binding ActiveCustomers}" BorderThickness="0"
+                         HorizontalContentAlignment="Stretch" MouseDoubleClick="ActiveCustList_MouseDoubleClick"
+                         ToolTip="双击客户直接拉取其未销账单据">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Margin="2,2">
+                                <TextBlock Text="{Binding Gname}" TextTrimming="CharacterEllipsis"/>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="单数:" Foreground="#666"/>
+                                    <TextBlock Text="{Binding DocCount}" Foreground="#666"/>
+                                    <TextBlock Text="  金额:" Foreground="#666"/>
+                                    <TextBlock Text="{Binding Amount, StringFormat=N0}" Foreground="#666"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </DockPanel>
+        </Border>
+
+        <!-- 明细网格（勾选列前置；Shift+左键拖动可连续勾选） -->
+        <DataGrid x:Name="LinesGrid" ItemsSource="{Binding Lines}" FontSize="12"
+                  SelectedItem="{Binding SelectedLine, Mode=TwoWay}"
+                  MouseDoubleClick="LinesGrid_MouseDoubleClick"
+                  PreviewMouseLeftButtonDown="LinesGrid_PreviewMouseLeftButtonDown"
+                  PreviewMouseMove="LinesGrid_PreviewMouseMove"
+                  PreviewMouseLeftButtonUp="LinesGrid_PreviewMouseLeftButtonUp"
+                  LostMouseCapture="LinesGrid_LostMouseCapture">
             <DataGrid.Columns>
+                <!-- 旧 VFP 网格单击即勾；DataGridCheckBoxColumn 非编辑态不响应单击 → 模板列内嵌 CheckBox -->
+                <DataGridTemplateColumn Header="选择" Width="45">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <CheckBox IsChecked="{Binding IsChecked, UpdateSourceTrigger=PropertyChanged}"
+                                      Click="LineCheck_Click"
+                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
                 <DataGridTextColumn Header="业务类型" Binding="{Binding Type}" Width="70"/>
                 <DataGridTextColumn Header="业务单号" Binding="{Binding Paper}" Width="120"/>
                 <DataGridTextColumn Header="日期" Binding="{Binding Date, StringFormat=yyyy.MM.dd}" Width="90"/>
                 <DataGridTextColumn Header="金额" Binding="{Binding Je, StringFormat=N2}" Width="90" ElementStyle="{StaticResource NumCellRightNeg}"/>
                 <DataGridTextColumn Header="已收金额" Binding="{Binding Ysje, StringFormat=N2}" Width="90" ElementStyle="{StaticResource NumCellRightNeg}"/>
                 <DataGridTextColumn Header="未收金额" Binding="{Binding Wsje, StringFormat=N2}" Width="90" ElementStyle="{StaticResource NumCellRightNeg}"/>
-                <DataGridTextColumn Header="{Binding ColBc}" Binding="{Binding Bcje, StringFormat=N2, UpdateSourceTrigger=PropertyChanged}" Width="95"
+                <!-- DataGridColumn 不在可视树里，Header 上的 Binding 取不到 DataContext（会空白），改由代码赋值 -->
+                <DataGridTextColumn x:Name="ColBcColumn" Header="本次收款"
+                                    Binding="{Binding Bcje, StringFormat=N2, UpdateSourceTrigger=PropertyChanged}" Width="95"
                                     ElementStyle="{StaticResource NumCellRightNeg}" IsReadOnly="False"/>
+                <!-- 旧界面 BZ 列：勾选显示 √，取消勾选为空 -->
+                <DataGridTemplateColumn x:Name="ColMarkColumn" Header="收款" Width="60" IsReadOnly="True">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding Mark}" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
                 <DataGridTextColumn Header="车牌" Binding="{Binding Ch}" Width="75"/>
                 <DataGridTextColumn Header="车型" Binding="{Binding Dp}" Width="85"/>
                 <DataGridTextColumn Header="备注" Binding="{Binding Remark}" Width="*"/>
-                <DataGridCheckBoxColumn Header="{Binding ColMark}" Binding="{Binding IsChecked, UpdateSourceTrigger=PropertyChanged}" Width="45" IsReadOnly="False"/>
             </DataGrid.Columns>
         </DataGrid>
     </DockPanel>

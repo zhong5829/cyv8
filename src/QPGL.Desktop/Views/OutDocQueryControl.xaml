@@ -173,7 +173,7 @@
                     <Button Content="重打印" Command="{Binding PrintCommand}" Padding="14,3" Margin="0,0,8,0"/>
                 </StackPanel>
                 <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center"
-                           Text="{Binding SumAmount, StringFormat=已加载折后合计：{0:N2}（共 {1} 行）}" FontWeight="Bold" Foreground="#2E5C8A"/>
+                           Text="{Binding SumText}" FontWeight="Bold" Foreground="#2E5C8A"/>
             </DockPanel>
         </Grid>
     </Grid>

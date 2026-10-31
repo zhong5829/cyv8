@@ -28,6 +28,14 @@ public partial class XlskLineVm : ObservableObject
 
     [ObservableProperty] private bool _isChecked;
     [ObservableProperty] private decimal _bcje;
+
+    /// <summary>「收款/付款」列显示：勾选为 √，未勾选为空（旧界面 BZ 列）。</summary>
+    public string Mark => IsChecked ? "√" : "";
+
+    partial void OnIsCheckedChanged(bool value) => OnPropertyChanged(nameof(Mark));
+
+    /// <summary>本次金额改动联动勾选（旧码 txtlostfocus：金额非零即打勾，清零即取消）。</summary>
+    partial void OnBcjeChanged(decimal value) => IsChecked = value != 0;
 }
 
 /// <summary>
@@ -44,6 +52,10 @@ public partial class XlskViewModel : ObservableObject
     public ObservableCollection<XlskLineVm> Lines { get; } = [];
     public ObservableCollection<string> BankNames { get; } = [];    // 去向（tbsysset bankname）
     public ObservableCollection<string> FkfsList { get; } = [];     // 方式（tbsysset guno，同收款确认）
+    /// <summary>右侧活跃客户面板：当前类型下所有存在未销账单据的客户（默认按客户名称升序）。</summary>
+    public ObservableCollection<ActiveCustomerRow> ActiveCustomers { get; } = [];
+    private List<ActiveCustomerRow> _activeDefaultOrder = [];
+    private List<string>? _customOrder;   // 粘贴排序后的自定义名单（null=默认）
 
     [ObservableProperty] private string _gname = "";
     [ObservableProperty] private string _xm = "";
@@ -67,6 +79,7 @@ public partial class XlskViewModel : ObservableObject
     [ObservableProperty] private decimal _sumBcje;    // 合计：本次
     [ObservableProperty] private decimal _yueAfter;   // 收款/付款后余额
     [ObservableProperty] private decimal _yueAbs;     // 可用总金额（旧界面 = |TXTYUE|）
+    [ObservableProperty] private XlskLineVm? _selectedLine;   // 当前选中明细行（业务明细按钮/双击用）
 
     public string Title { get; }
 
@@ -108,7 +121,7 @@ public partial class XlskViewModel : ObservableObject
         CustomerSuggestions.Clear();
     }
 
-    /// <summary>列头文案随收款/付款切换（旧界面：已收金额/未收金额/本次收款 ↔ 已付金额/未付金额/本次付款）。</summary>
+    /// <summary>列头文案随收款/付款切换（旧界面：已收金额/未收金额/本次收款/收款 ↔ 已付金额/未付金额/本次付款/付款）。</summary>
     public string ColYs => _type == "收款" ? "已收金额" : "已付金额";
     public string ColWs => _type == "收款" ? "未收金额" : "未付金额";
     public string ColBc => _type == "收款" ? "本次收款" : "本次付款";
@@ -145,6 +158,70 @@ public partial class XlskViewModel : ObservableObject
 
         var locked = await Db.Xlsk.IsLszDateLockedAsync(AppSession.DeptNo, ct);
         LszDateEnabled = !locked || AppSession.Permission.HasMenu("G22");
+
+        await RefreshActiveCustomersAsync(ct);
+    }
+
+    // ── 活跃客户面板（右侧：未销账客户；双击拉取） ──
+    /// <summary>重新载入活跃客户（按当前类型统计未销账单据数与金额），保留当前排序方式。</summary>
+    [RelayCommand]
+    public async Task RefreshActiveCustomersAsync(CancellationToken ct = default)
+    {
+        var rows = await Db.Xlsk.GetActiveCustomersAsync(_type, ct);
+        _activeDefaultOrder = rows.ToList();
+        RebuildActiveList();   // 自定义排序生效时沿用名单，只刷新单数/金额
+    }
+
+    /// <summary>按默认或自定义名单重建面板列表。</summary>
+    private void RebuildActiveList()
+    {
+        var stats = _activeDefaultOrder
+            .GroupBy(c => c.Gname.Trim(), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+        ActiveCustomers.Clear();
+        if (_customOrder is null)
+        {
+            foreach (var r in _activeDefaultOrder) ActiveCustomers.Add(r);
+            return;
+        }
+        foreach (var name in _customOrder)
+            ActiveCustomers.Add(stats.TryGetValue(name, out var row) ? row : new ActiveCustomerRow { Gname = name });
+    }
+
+    /// <summary>双击活跃客户：回填客户名称并拉取其未销账单。</summary>
+    public Task PullActiveCustomerAsync(ActiveCustomerRow row)
+    {
+        Gname = row.Gname;
+        return LoadCustomerAsync();
+    }
+
+    /// <summary>粘贴排序：用输入名单（每行一个客户）覆盖面板客户与顺序，仅保留输入客户。</summary>
+    public void ApplyCustomOrder(string text)
+    {
+        var names = (text ?? "")
+            .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
+            .Select(l => l.Split('\t')[0].Trim())
+            .Where(l => l.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (names.Count == 0) { Message = "请输入至少一个客户名称（一行一个）"; return; }
+        var stats = _activeDefaultOrder
+            .GroupBy(c => c.Gname.Trim(), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+        var missing = names.Count(n => !stats.ContainsKey(n));
+        _customOrder = names;
+        RebuildActiveList();
+        Message = missing > 0
+            ? $"已用自定义排序：{names.Count} 个客户（{missing} 个无未结单据，按 0 显示）"
+            : $"已用自定义排序：{names.Count} 个客户";
+    }
+
+    /// <summary>恢复默认：回到数据库默认的客户名称升序列表。</summary>
+    public void ResetActiveOrder()
+    {
+        _customOrder = null;
+        RebuildActiveList();
+        Message = $"活跃客户已恢复默认排序（{_activeDefaultOrder.Count} 户）";
     }
 
     partial void OnIncludeRebateChanged(bool value) { }
@@ -362,6 +439,7 @@ public partial class XlskViewModel : ObservableObject
             Message = FinVouchEnabled
                 ? $"已确认并加入应收应付/收支流水帐/业务凭证。单号 {result.DocNo}，余额 {result.Yue:N2}"
                 : $"已确认并加入应收应付和收支流水帐。单号 {result.DocNo}，余额 {result.Yue:N2}";
+            await RefreshActiveCustomersAsync(ct);   // 未结数据已变化 → 活跃客户面板刷新
             // 保存后回到新增态（旧码 CONTAINER1.CMD增加.CLICK()）
             NewDoc();
         }
@@ -391,6 +469,7 @@ public partial class XlskViewModel : ObservableObject
                 Id = l.Id, Paper = l.Paper, LineType = l.Type, Bcje = l.Bcje, Wsje = l.Wsje, Checked = l.IsChecked,
             }).ToList(), AppSession.DeptNo, AppSession.Operator, FinVouchEnabled, ct);
             Message = $"{Cno} 单号已经还原！客户余额 {yue:N2}";
+            await RefreshActiveCustomersAsync(ct);   // 未结数据已变化 → 活跃客户面板刷新
             NewDoc();
         }
         catch (AppException ex) { Message = ex.Message; }
@@ -477,6 +556,55 @@ public partial class XlskViewModel : ObservableObject
         // TXTYUE 客户累计（row71 L23-25）
         Yue = await Db.Xlsk.GetCustomerYueAsync(Gname, ct);
         Message = $"已提取 {r.Cno}（{r.Type}）";
+    }
+
+    // ── 业务明细（fr_xlsk 唾.row78）──
+    /// <summary>业务明细：销售→SRO 出库明细、入库→BBI 入库明细（按 isord）、维修→维修模块（按约定排除）、
+    /// 收/付款→fr_skmx 明细窗；其他类型无跳转（旧 DO CASE 无 ELSE）。</summary>
+    [RelayCommand]
+    private async Task ShowBizDetailAsync(CancellationToken ct = default)
+    {
+        if (SelectedLine is null) { Message = "请先选择单据！"; return; }
+        await ShowBizDetailForLineAsync(SelectedLine, ct);
+    }
+
+    /// <summary>按指定明细行打开业务明细窗（网格双击同样走这里）。</summary>
+    public async Task ShowBizDetailForLineAsync(XlskLineVm line, CancellationToken ct = default)
+    {
+        var type = line.Type.Trim();
+        var paper = line.Paper.Trim();
+        if (paper.Length == 0) { Message = "该行没有单据号"; return; }
+        try
+        {
+            switch (type)
+            {
+                case "销售":
+                    var sro = await Db.FinOp.GetOpDetailAsync("SRO", paper, ct);
+                    if (sro.Count == 0) { Message = "没有业务明细！"; return; }
+                    new Views.FinOpDetailWindow("SRO", paper, line.Date, sro)
+                        { Owner = Application.Current.MainWindow }.ShowDialog();
+                    return;
+                case "入库":
+                    var bbi = await Db.FinOp.GetOpDetailBySeanoAsync(paper, line.Isord, ct);
+                    if (bbi.Count == 0) { Message = "没有业务明细！"; return; }
+                    new Views.FinOpDetailWindow("BBI", paper, bbi[0].Date, bbi)
+                        { Owner = Application.Current.MainWindow }.ShowDialog();
+                    return;
+                case "维修":
+                    Message = "维修明细随维修模块（按约定排除）";
+                    return;
+                case "收款":
+                case "付款":
+                    var mx = await Db.Xlsk.GetSkMxAsync(type, paper, AppSession.DeptNo, ct);
+                    if (mx is null) { Message = "没有业务明细！"; return; }
+                    new Views.SkmxWindow(type, mx) { Owner = Application.Current.MainWindow }.ShowDialog();
+                    return;
+                default:
+                    Message = $"「{type}」单据没有可查看的业务明细";
+                    return;
+            }
+        }
+        catch (AppException ex) { Message = ex.Message; }
     }
 
     // ── 入库单随付打印（fr_xlsk 墌.row67）──

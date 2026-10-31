@@ -10,6 +10,8 @@ public sealed class SaleLineInput
     public decimal Qty { get; set; }           // 出库数量（正数，旧系统 ckamount 语义）
     public decimal? Price { get; set; }        // 售价（空=取库存批次零售价 oprc）
     public string? Remark { get; set; }        // 行备注（tbsada.remark，如车牌/车型备注）
+    /// <summary>车型（tbsada.ty，2026-10-30 修复：销售编辑窗可改；空=取库存批次车型）。</summary>
+    public string? Ty { get; set; }
     public int? Kcid { get; set; }             // 指定批次（调拨：用户在库存列表选批次，不自动凑批；空=销售自动凑批）
 }
 

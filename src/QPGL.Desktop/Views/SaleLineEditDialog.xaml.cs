@@ -26,6 +26,15 @@ public partial class SaleLineEditDialog : Window
 {
     private readonly PartItem _part;
     private readonly string _dept;
+    /// <summary>跳过负库存拦截（2026-10-30 修复）：修改明细行路径——改单保存时服务端先删原单回补库存再重扣，
+    /// 当前库存 0 不代表不可改（且改单回读行无批次快照）；新增行路径仍拦截，服务端 StockAllocator 硬拦兜底。</summary>
+    private readonly bool _ignoreStockCheck;
+    /// <summary>改单可售上限 = 当前库存 + 原单数量（2026-10-30 需求：改单保存时服务端先删原单回补库存再重扣）。</summary>
+    private readonly decimal _editStockLimit;
+    /// <summary>数量输入最近一次合法文本（超上限弹窗后回退到此值）。</summary>
+    private string _lastValidQty = "1";
+    /// <summary>数量回退写回时屏蔽 TextChanged 递归。</summary>
+    private bool _qtyGuard;
 
     /// <summary>确认后的结果（车型/数量/单价/备注）。</summary>
     public string LineTy { get; private set; } = "";
@@ -34,12 +43,13 @@ public partial class SaleLineEditDialog : Window
     public string LineMemo { get; private set; } = "";
 
     public SaleLineEditDialog(PartItem part, string dept, decimal? initQty = null, decimal? initPrice = null, string? initMemo = null,
-        string? customerName = null)
+        string? customerName = null, bool ignoreStockCheck = false)
     {
         InitializeComponent();
         Owner = Application.Current.MainWindow;
         _part = part;
         _dept = dept;
+        _ignoreStockCheck = ignoreStockCheck;
 
         TxtPartNo.Text = part.Nno;
         TxtPartName.Text = part.Na1;
@@ -51,6 +61,14 @@ public partial class SaleLineEditDialog : Window
         TxtDepotInfo.Text = $"内部编号：{part.Cp}    零售价：{part.Oprc:N2}    批发价：{part.Oprb:N2}";
 
         TxtQty.Text = (initQty ?? 1).ToString("0.##");
+        _lastValidQty = TxtQty.Text;
+        // 改单可售上限（2026-10-30 需求）：当前库存 + 原单数量，标注 + 超限弹窗回退
+        _editStockLimit = part.Kcamount + (initQty ?? 0);
+        if (ignoreStockCheck)
+        {
+            TxtEditLimit.Text = $"改单可售上限：{_editStockLimit:0.##}（当前库存 {part.Kcamount:0.##} + 原单数量 {initQty ?? 0:0.##}）";
+            TxtEditLimit.Visibility = Visibility.Visible;
+        }
         // 默认价：编辑时用原价；新增时按零售/批发单选给默认
         RbRetail.IsChecked = true;
         TxtPrice.Text = (initPrice ?? part.Oprc).ToString("N2");
@@ -130,6 +148,10 @@ public partial class SaleLineEditDialog : Window
         {
             var history = await Db.Parts.GetSaleHistoryAsync(_part.Nno, _dept, 0, keyword);   // 0 = 全部记录
             DgSellHistory.ItemsSource = history;
+            // 筛选后自动匹配最近价格填充单价框（2026-10-31 需求）：取筛选结果第一条（按日期倒序的最近成交价）。
+            // 打开弹窗时已按客户名筛选（含先输入客户名称再打开的场景），同样自动带出该客户最近成交价
+            if (history.Count > 0)
+                TxtPrice.Text = history[0].Price.ToString("N2");
         }
         catch
         {
@@ -160,7 +182,26 @@ public partial class SaleLineEditDialog : Window
             TxtPrice.Text = (retail ? _part.Oprc : _part.Oprb).ToString("N2");
     }
 
-    private void QtyPrice_TextChanged(object sender, TextChangedEventArgs e) => UpdateAmount();
+    private void QtyPrice_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        // 改单模式数量守卫（2026-10-30 需求）：超可售上限立即弹窗并回退输入
+        if (_ignoreStockCheck && ReferenceEquals(sender, TxtQty) && !_qtyGuard && TxtQty is not null)
+        {
+            var qty = ParseDecimal(TxtQty.Text);
+            if (qty > _editStockLimit)
+            {
+                MessageBox.Show($"改单可售上限为 {_editStockLimit:0.##}（当前库存 + 原单数量），数量 {qty:0.##} 已回退",
+                    "销售编辑", MessageBoxButton.OK, MessageBoxImage.Warning);
+                _qtyGuard = true;
+                TxtQty.Text = _lastValidQty;
+                TxtQty.CaretIndex = TxtQty.Text.Length;
+                _qtyGuard = false;
+                return;
+            }
+            _lastValidQty = TxtQty.Text;
+        }
+        UpdateAmount();
+    }
 
     private void UpdateAmount()
     {
@@ -169,8 +210,14 @@ public partial class SaleLineEditDialog : Window
         var price = ParseDecimal(TxtPrice.Text);
         TxtAmount.Text = (qty * price).ToString("N2");
 
-        // 拦截负库存（2026-10-28 需求）：库存 0 或数量超库存 → 确认按钮禁用 + 红字提示
-        if (_part.Kcamount <= 0)
+        // 拦截负库存（2026-10-28 需求）：库存 0 或数量超库存 → 确认按钮禁用 + 红字提示；
+        // 修改明细行路径跳过（2026-10-30 修复：改单回读行无批次快照，且服务端会先回补库存）
+        if (_ignoreStockCheck)
+        {
+            BtnOk.IsEnabled = true;
+            TxtOverStock.Visibility = Visibility.Collapsed;
+        }
+        else if (_part.Kcamount <= 0)
         {
             BtnOk.IsEnabled = false;
             TxtOverStock.Text = "⚠ 该配件实际库存为 0，不允许销售（负库存拦截）";
@@ -189,17 +236,35 @@ public partial class SaleLineEditDialog : Window
         }
     }
 
-    private void DgSellHistory_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    /// <summary>双击销售历史行 → 弹出该销售单整单明细（2026-10-31 需求）。type 用历史行自带值
+    /// （旧账单 type='历史'，此前固定按'销售'查明细为空）。</summary>
+    private async void DgSellHistory_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
-        if (DgSellHistory.SelectedItem is PartSaleHistory h)
-            TxtPrice.Text = h.Price.ToString("N2");
+        if (DgSellHistory.SelectedItem is not PartSaleHistory h) return;
+        try
+        {
+            var lines = await Db.DocQuery.GetOutDocLinesAsync(h.Paper.Trim(), h.Type.Trim(), _dept);
+            new HistoryDocDetailWindow($"销售单 {h.Paper.Trim()} 明细（{h.Gname.Trim()} {h.OutDate:yyyy-MM-dd}）", lines).ShowDialog();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"加载单据明细失败：{ex.Message}", "单据明细", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
     }
 
-    /// <summary>双击进货历史行 → 切到零售并回填历史进价（不含税）作为售价参考。</summary>
-    private void DgPurchaseHistory_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    /// <summary>双击进货历史行 → 弹出该入库单整单明细（2026-10-31 需求；专用查询，本库 tbistoed 无 gu 列）。</summary>
+    private async void DgPurchaseHistory_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
-        if (DgPurchaseHistory.SelectedItem is PartPurchaseHistory h)
-            TxtPrice.Text = h.Iprj.ToString("N2");
+        if (DgPurchaseHistory.SelectedItem is not PartPurchaseHistory h) return;
+        try
+        {
+            var rows = await Db.Parts.GetPurchaseDocLinesAsync(h.Cno.Trim());
+            new HistoryDocDetailWindow($"入库单 {h.Cno.Trim()} 明细（{h.Gyname.Trim()} {h.InDate:yyyy-MM-dd}）", rows).ShowDialog();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"加载单据明细失败：{ex.Message}", "单据明细", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
     }
 
     private void BtnOk_Click(object sender, RoutedEventArgs e)
@@ -210,10 +275,14 @@ public partial class SaleLineEditDialog : Window
             MessageBox.Show("数量必须大于 0", "销售编辑", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
-        // 双保险：回车流转直接调本方法会绕过按钮 IsEnabled，负库存此处再拦一道
-        if (qty > _part.Kcamount)
+        // 双保险：回车流转直接调本方法会绕过按钮 IsEnabled，负库存此处再拦一道（修改明细行路径按改单上限拦）
+        var overLimit = _ignoreStockCheck ? qty > _editStockLimit : qty > _part.Kcamount;
+        if (overLimit)
         {
-            MessageBox.Show($"销售数量 {qty:0.##} 超过实际库存 {_part.Kcamount:0.##}，不允许负库存出库", "销售编辑",
+            var limitText = _ignoreStockCheck
+                ? $"改单可售上限为 {_editStockLimit:0.##}（当前库存 + 原单数量）"
+                : $"销售数量 {qty:0.##} 超过实际库存 {_part.Kcamount:0.##}";
+            MessageBox.Show($"{limitText}，不允许负库存出库", "销售编辑",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }

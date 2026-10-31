@@ -17,6 +17,12 @@ public interface IPartRepository
     Task<PagedResult<PartItem>> SearchAsync(string dpm, string? cp, string? na1, string? ty, PagedRequest request,
         string? note = null, bool fillLastIprj = true, string? brand = null, bool includeAttrOnly = false, CancellationToken ct = default);
 
+    /// <summary>多编码查询（2026-10-31 需求）：按内部编号一次性查回多个配件（一行一个编号）。
+    /// 默认精准匹配（RTRIM(nno)=编号），Contains=true 时包含匹配（nno LIKE %编号%）。
+    /// 开单页多条件查询按钮使用；不限厂牌（用户确认口径）。</summary>
+    Task<IReadOnlyList<PartItem>> SearchByNnosAsync(string dpm, IReadOnlyList<(string Code, bool Contains)> codes,
+        CancellationToken ct = default);
+
     /// <summary>跨厂牌命中统计（2026-10-29 需求）：同 dpm+三条件、cp &lt;&gt; brand 的各厂牌行数。
     /// 仅主查询为空且带条件时调用（回退提示"是否加载门市编码"）。返回 (厂牌, 行数) 列表。
     /// note：备注包含匹配（2026-10-30 需求：开单页查询区新增备注框，与 SearchAsync 条件口径一致）。</summary>
@@ -34,6 +40,12 @@ public interface IPartRepository
 
     /// <summary>按批次 id 批量点查当前库存（开单页轻量库存刷新：只刷库存列，不重查整表；2026-10-30 需求）。</summary>
     Task<IReadOnlyDictionary<int, decimal>> GetStockByIdsAsync(IReadOnlyCollection<int> ids, string dpm, CancellationToken ct = default);
+
+    /// <summary>入库单整单明细（tbistoed 按 cno；2026-10-31 需求：进货历史双击查看。本库 tbistoed 无 gu 列，不可复用收付款路径）。</summary>
+    Task<IReadOnlyList<PartPurchaseDocLine>> GetPurchaseDocLinesAsync(string cno, CancellationToken ct = default);
+
+    /// <summary>配件图片（tbImage.imgs base64 按内部编号；2026-10-31 需求：开单页选中配件显示图片。无图返回 null）。</summary>
+    Task<byte[]?> GetPartImageAsync(string nno, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -291,6 +303,41 @@ public sealed class PartRepository(SqlConnectionFactory factory) : IPartReposito
     }
 
     /// <inheritdoc/>
+    public async Task<IReadOnlyList<PartItem>> SearchByNnosAsync(string dpm,
+        IReadOnlyList<(string Code, bool Contains)> codes, CancellationToken ct = default)
+    {
+        var normalized = new List<(string Code, bool Contains)>();
+        foreach (var c in codes)
+        {
+            var code = (c.Code ?? "").Trim();
+            if (code.Length > 0) normalized.Add((code, c.Contains));
+        }
+        if (normalized.Count == 0) return [];
+
+        // 逐行参数化（一行一个编号）：精准 = RTRIM(nno) 相等；包含 = nno LIKE %编号%
+        var args = new DynamicParameters();
+        args.Add("dpm", new DbString { Value = dpm.Trim(), IsAnsi = true, Length = 10 });
+        var conditions = new List<string>();
+        for (var i = 0; i < normalized.Count; i++)
+        {
+            var (code, contains) = normalized[i];
+            var p = $"c{i}";
+            args.Add(p, new DbString { Value = code, IsAnsi = true, Length = 40 });
+            conditions.Add(contains ? $"t.nno LIKE '%' + @{p} + '%'" : $"RTRIM(t.nno) = @{p}");
+        }
+
+        var sql = $"""
+            SELECT {SelectColumnsT}
+            FROM tbisto t WITH (NOLOCK)
+            WHERE t.dpm = @dpm AND ({string.Join(" OR ", conditions)})
+            ORDER BY t.nno, t.id
+            """;
+        await using var conn = await factory.OpenAsync(ct);
+        var rows = (await conn.QueryAsync<PartSearchRow>(new CommandDefinition(sql, args, cancellationToken: ct))).AsList();
+        return rows.Select(r => r.ToItem()).ToList();
+    }
+
+    /// <inheritdoc/>
     public async Task<IReadOnlyList<(string Cp, int Count)>> CountOtherBrandsAsync(string dpm, string brand,
         string? cp, string? na1, string? ty, CancellationToken ct = default, string? note = null)
     {
@@ -446,7 +493,7 @@ public sealed class PartRepository(SqlConnectionFactory factory) : IPartReposito
             : "";
         var sql = $"""
             SELECT {topClause}
-                   RTRIM(paper) AS Paper, outdate AS OutDate, RTRIM(gname) AS Gname,
+                   RTRIM(paper) AS Paper, type AS Type, outdate AS OutDate, RTRIM(gname) AS Gname,
                    RTRIM(ISNULL(depotno, '')) AS Depotno,
                    ckamount AS Qty, oprc AS Price
             FROM tbsada WITH (NOLOCK)
@@ -507,6 +554,46 @@ public sealed class PartRepository(SqlConnectionFactory factory) : IPartReposito
             },
             cancellationToken: ct));
         return rows.AsList();
+    }
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<PartPurchaseDocLine>> GetPurchaseDocLinesAsync(string cno, CancellationToken ct = default)
+    {
+        await using var conn = await factory.OpenAsync(ct);
+        var rows = await conn.QueryAsync<PartPurchaseDocLine>(new CommandDefinition(
+            """
+            SELECT RTRIM(cno) AS Cno, RTRIM(nno) AS Nno, RTRIM(na1) AS Na1, RTRIM(ty) AS Ty,
+                   ISNULL(jkamount, 0) AS Qty, ISNULL(iprc, 0) AS Iprc, indate AS InDate,
+                   RTRIM(ISNULL(gyname, '')) AS Gyname
+            FROM tbistoed WITH (NOLOCK)
+            WHERE RTRIM(cno) = @cno
+            ORDER BY id
+            """,
+            new { cno = new DbString { Value = cno.Trim(), IsAnsi = true, Length = 20 } },
+            cancellationToken: ct));
+        return rows.AsList();
+    }
+
+    /// <inheritdoc/>
+    public async Task<byte[]?> GetPartImageAsync(string nno, CancellationToken ct = default)
+    {
+        await using var conn = await factory.OpenAsync(ct);
+        // imgs 为 base64 文本（JPG/PNG），fn 存原始文件名；旧系统 bmp 目录文件方案已迁入库内，客户端零依赖。
+        // tbImage.nno 存的是去掉空格的紧凑编号（如 PT48510-0N050），与 tbisto 带空格写法（PT 48510-0N050）不一致，
+        // 双形式匹配（2026-10-31 修复：图片不显示）
+        var key = nno.Trim();
+        var compact = key.Replace(" ", "");
+        var imgs = await conn.ExecuteScalarAsync<string?>(new CommandDefinition(
+            "SELECT TOP 1 imgs FROM tbImage WITH (NOLOCK) WHERE RTRIM(nno) IN (@key, @compact) ORDER BY id",
+            new
+            {
+                key = new DbString { Value = key, IsAnsi = true, Length = 18 },
+                compact = new DbString { Value = compact, IsAnsi = true, Length = 18 },
+            },
+            cancellationToken: ct));
+        if (string.IsNullOrWhiteSpace(imgs)) return null;
+        try { return Convert.FromBase64String(imgs.Trim()); }
+        catch { return null; }   // base64 损坏按无图处理
     }
 
     /// <inheritdoc/>

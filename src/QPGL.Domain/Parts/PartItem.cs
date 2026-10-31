@@ -32,4 +32,12 @@ public sealed class PartItem
         Unit = Unit, Kcamount = kcamount, Iprj = Iprj, Iprc = Iprc, Oprc = Oprc, Oprb = Oprb,
         Posi = Posi, Depotno = Depotno, Note = Note, LastIprj = LastIprj,
     };
+
+    /// <summary>「最近进价」回填后刷新用副本：仅替换 LastIprj（本类无属性变更通知，DataGrid 行按索引替换以刷新单元格）。</summary>
+    public PartItem WithLastIprj(decimal lastIprj) => new()
+    {
+        Id = Id, Dpm = Dpm, Cp = Cp, Nno = Nno, Na1 = Na1, Ty = Ty, Fa = Fa, Dc = Dc,
+        Unit = Unit, Kcamount = Kcamount, Iprj = Iprj, Iprc = Iprc, Oprc = Oprc, Oprb = Oprb,
+        Posi = Posi, Depotno = Depotno, Note = Note, LastIprj = lastIprj,
+    };
 }

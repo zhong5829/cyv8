@@ -74,6 +74,7 @@ public sealed class SaleRepository(SqlConnectionFactory factory, IDocNoService d
         {
             // 2) 事务内防重断言；改单（复用单号）→ 删除原行（sale_del 触发器回补库存，随后重插再扣）
             var isUpdate = !string.IsNullOrWhiteSpace(command.Paper);
+            DateTime? editOutdate = null;
             if (isUpdate)
             {
                 // 旧系统 row480 前置拦截：已确认单（mark<>''）禁止修改
@@ -83,6 +84,11 @@ public sealed class SaleRepository(SqlConnectionFactory factory, IDocNoService d
                     transaction: tx, cancellationToken: ct));
                 if (!string.IsNullOrWhiteSpace(mark))
                     throw new AppException("DOC_ALREADY_CONFIRMED", $"单据 {paper} 已确认，不能修改", 422);
+                // 保留原单出库日期（2026-10-30 修复：此前改单重插被重置为今天，查询模式排序窜到最上面）
+                editOutdate = await conn.ExecuteScalarAsync<DateTime?>(new CommandDefinition(
+                    "SELECT MAX(outdate) FROM tbsada WITH (UPDLOCK) WHERE paper = @paper AND type = @type",
+                    new { paper = Ansi(paper, 10), type = Ansi(docType) },
+                    transaction: tx, cancellationToken: ct));
                 var del = await conn.ExecuteAsync(new CommandDefinition(
                     "DELETE FROM tbsada WHERE paper = @paper AND type = @type",
                     new { paper = Ansi(paper, 10), type = Ansi(docType) },
@@ -100,7 +106,9 @@ public sealed class SaleRepository(SqlConnectionFactory factory, IDocNoService d
                     throw new AppException("DOC_NO_CONFLICT", $"单号 {paper} 已存在", 409);
             }
 
-            var outdate = DateTime.Today;
+            var outdate = isUpdate
+                ? editOutdate?.Date ?? DateTime.Today   // 改单保留原单出库日期（2026-10-30 修复）
+                : DateTime.Today;
             var gno = (command.Gno ?? "").Trim();
             var gname = (command.Gname ?? "").Trim();
 
@@ -203,6 +211,9 @@ public sealed class SaleRepository(SqlConnectionFactory factory, IDocNoService d
                         beforeSnapshot[alloc.Kcid] = Math.Min(beforeSnapshot[alloc.Kcid], b.kcamount);
 
                     var price = line.Price ?? b.oprc;
+                    // 车型（2026-10-30 修复）：销售编辑窗可改，行值非空优先；旧 row548 语义 PTY=TY 同源
+                    var tyEdited = (line.Ty ?? "").Trim();
+                    var effTy = tyEdited.Length > 0 ? tyEdited : b.ty;
                     var lineRemark = (line.Remark ?? "").Trim();
                     if (lineRemark.Length == 0) lineRemark = (command.Remark ?? "").Trim(); // 行备注缺省用单头备注
                     // 列集契约：销售 row548 写 dscp=cp、remark（note 缺省''）；调拨 Lf_.row511 写 note（dscp/remark 缺省''）。
@@ -232,7 +243,7 @@ public sealed class SaleRepository(SqlConnectionFactory factory, IDocNoService d
                             nno = Ansi(nno, 18),
                             na1 = Ansi(b.na1, 40),
                             fa = Ansi(b.fa, 8),
-                            ty = Ansi(b.ty, 14),
+                            ty = Ansi(effTy, 14),
                             unit = Ansi(b.unit, 4),
                             type = Ansi(docType),
                             posi = Ansi(b.posi, 10),
@@ -250,7 +261,7 @@ public sealed class SaleRepository(SqlConnectionFactory factory, IDocNoService d
                             cxnno = Ansi(b.cxnno, 18),
                             pnno = Ansi(nno, 18),        // row548: PNNO=NNO、PNA1=NA1、PTY=TY、PFA=FA
                             pna1 = Ansi(b.na1, 40),
-                            pty = Ansi(b.ty, 14),
+                            pty = Ansi(effTy, 14),
                             pfa = Ansi(b.fa, 8),
                             kcamount = b.kcamount,       // 出库时批次库存快照
                             outdate,

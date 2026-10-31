@@ -183,7 +183,8 @@ public sealed class DocQueryRepository(SqlConnectionFactory factory) : IDocQuery
             : "CASE WHEN MAX(c.paper) LIKE 'AH%' THEN 1 ELSE 0 END, MAX(c.outdate) DESC";
         // 聚合查询排序列必须包聚合：非白名单日期列统一用 MAX(col)（组内单值，MAX 语义无损）
         if (orderBy.StartsWith("c.", StringComparison.Ordinal)) orderBy = $"MAX({orderBy})";
-        orderBy += ", MIN(c.id) DESC";
+        // 同日并列键用单号（2026-10-30 修复：改单复用原单号重插，MIN(id) 会窜到组内最前；paper 序稳定）
+        orderBy += ", MAX(c.paper) DESC";
 
         await using var conn = await factory.OpenAsync(ct);
         var sql = $"""
@@ -232,7 +233,7 @@ public sealed class DocQueryRepository(SqlConnectionFactory factory) : IDocQuery
         await using var conn = await factory.OpenAsync(ct);
         var cmd = new CommandDefinition(
             $"""
-            SELECT c.id, c.cp, c.nno, c.na1, c.ckamount, c.oprc, c.oprct,
+            SELECT c.id, c.kcid, c.cp, c.nno, c.na1, c.ckamount, c.oprc, c.oprct,
                    CAST(c.oprct * (100 - c.yhl) / 100 AS numeric(12,2)) AS yhloprct,
                    CAST(c.oprct * c.ckamount AS numeric(12,2)) AS oprctTotal,
                    CAST(c.oprct * c.ckamount * (100 - c.yhl) / 100 AS numeric(12,2)) AS yhloprctTotal,

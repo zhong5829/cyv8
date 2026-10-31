@@ -77,12 +77,10 @@
                              Text="{Binding PartTy, UpdateSourceTrigger=PropertyChanged}" TextChanged="TyBox_TextChanged"
                              GotKeyboardFocus="SearchBox_GotKeyboardFocus" PreviewMouseLeftButtonDown="SearchBox_PreviewMouseLeftButtonDown"
                              PreviewKeyDown="SearchBox_PreviewKeyDown"/>
-                    <TextBlock Text="备注" VerticalAlignment="Center"/>
-                    <TextBox x:Name="NoteBox" Width="130" Margin="4,0,16,0"
-                             Text="{Binding PartNote, UpdateSourceTrigger=PropertyChanged}" TextChanged="NoteBox_TextChanged"
-                             GotKeyboardFocus="SearchBox_GotKeyboardFocus" PreviewMouseLeftButtonDown="SearchBox_PreviewMouseLeftButtonDown"
-                             PreviewKeyDown="SearchBox_PreviewKeyDown"
-                             ToolTip="按配件备注包含匹配（2026-10-30 需求）"/>
+                    <!-- 多条件查询（2026-10-31 需求）：逐行输入内部编号，一次查回多个配件 -->
+                    <Button Content="多条件查询" Click="MultiCodeSearch_Click" Padding="10,2" Margin="0,0,16,0"
+                            VerticalAlignment="Center"
+                            ToolTip="逐行输入内部编号，一次查回多个配件；默认精准匹配，行首加 / 表示包含匹配"/>
                     <TextBlock Text="输入即搜（0.5 秒），双击结果行加入明细；空格=开单，双击空格=显示/隐藏最近进价" Foreground="#888" VerticalAlignment="Center"/>
                     <!-- 厂牌提示（2026-10-29 需求）：登录厂牌过滤 / 跨厂牌回退后显示临时查看 -->
                     <TextBlock Text="{Binding BrandHint}" Foreground="#C70" FontWeight="Bold" Margin="16,0,0,0" VerticalAlignment="Center"/>
@@ -92,13 +90,26 @@
             <!-- 中部：上=配件搜索结果 / 下=开单明细 -->
             <Grid Grid.Row="2">
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="*"/>
-                    <RowDefinition Height="1.2*"/>
+                    <RowDefinition Height="3*"/>
+                    <RowDefinition Height="2*"/>
                 </Grid.RowDefinitions>
 
-                <Border Background="White" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" CornerRadius="3" Margin="0,0,0,8">
-                    <DataGrid x:Name="PartGrid" ItemsSource="{Binding PartResults}"
-                              MouseDoubleClick="PartGrid_MouseDoubleClick" PreviewKeyDown="PartGrid_PreviewKeyDown" Margin="1">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="170"/>
+                    </Grid.ColumnDefinitions>
+                    <Border Grid.Column="0" Background="White" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" CornerRadius="3" Margin="0,0,8,8">
+                    <DataGrid x:Name="PartGrid" ItemsSource="{Binding PartResults}" SelectionChanged="PartGrid_SelectionChanged"
+                              MouseDoubleClick="PartGrid_MouseDoubleClick" PreviewKeyDown="PartGrid_PreviewKeyDown" Margin="1"
+                              PreviewMouseRightButtonDown="PartGrid_PreviewMouseRightButtonDown" FontSize="14">
+                        <!-- 右键菜单（2026-10-30 需求）：编辑选中配件的属性（PartAttributeEditWindow） -->
+                        <DataGrid.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="编辑配件属性" Click="EditPartAttribute_Click"
+                                          ToolTip="打开零件属性编辑窗修改该配件的编码/名称/车型/价格等属性"/>
+                            </ContextMenu>
+                        </DataGrid.ContextMenu>
                         <DataGrid.RowStyle>
                             <!-- 2026-10-28 需求：库存为 0 的配件整行红色字体 -->
                             <Style TargetType="DataGridRow">
@@ -111,7 +122,13 @@
                         </DataGrid.RowStyle>
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="配件编号" Binding="{Binding Cp}" Width="100"/>
-                            <DataGridTextColumn Header="内部编号" Binding="{Binding Nno}" Width="110"/>
+                            <DataGridTextColumn Header="内部编号" Binding="{Binding Nno}" Width="110">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="ToolTip" Value="单击选中该行后按 Ctrl+C 复制编号"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
                             <DataGridTextColumn Header="名称" Binding="{Binding Na1}" Width="*"/>
                             <DataGridTextColumn Header="车型" Binding="{Binding Ty}" Width="90"/>
                             <DataGridTextColumn Header="货位" Binding="{Binding Posi}" Width="70"/>
@@ -127,10 +144,23 @@
                             <DataGridTextColumn Header="备注" Binding="{Binding Note}" Width="*"/>
                         </DataGrid.Columns>
                     </DataGrid>
-                </Border>
+                    </Border>
+                    <!-- 配件图片缩略图（2026-10-31 需求）：选中配件在 tbImage 有图时显示，单击打开大图（可复制） -->
+                    <Border Grid.Column="1" Background="White" BorderBrush="{StaticResource PanelBorderBrush}"
+                            BorderThickness="1" CornerRadius="3" Margin="0,0,0,8">
+                        <Grid>
+                            <Image x:Name="PartImage" Stretch="Uniform" Margin="4" Cursor="Hand"
+                                   MouseLeftButtonUp="PartImage_Click"
+                                   Visibility="Collapsed"/>
+                            <TextBlock x:Name="PartImagePlaceholder" Text="无图片"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       Foreground="#BBB" FontSize="13"/>
+                        </Grid>
+                    </Border>
+                </Grid>
 
                 <Border Grid.Row="1" Background="White" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" CornerRadius="3">
-                    <DataGrid x:Name="LineGrid" ItemsSource="{Binding Lines}" Margin="1"
+                    <DataGrid x:Name="LineGrid" ItemsSource="{Binding Lines}" Margin="1" FontSize="14"
                               CanUserDeleteRows="False" MouseDoubleClick="LineGrid_MouseDoubleClick"
                               PreviewKeyDown="LineGrid_PreviewKeyDown">
                         <DataGrid.Columns>

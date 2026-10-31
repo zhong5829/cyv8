@@ -21,7 +21,8 @@ public partial class ConfirmSaleDialog : Window
 
     private decimal _amountBefore;
 
-    public ConfirmSaleDialog(string paper, string docType, string gno, string gname, decimal amountBefore, string remark = "")
+    public ConfirmSaleDialog(string paper, string docType, string gno, string gname, decimal amountBefore, string remark = "",
+        DateTime? outdate = null)
     {
         _paper = paper.Trim();
         _docType = docType;
@@ -31,7 +32,8 @@ public partial class ConfirmSaleDialog : Window
         TxtPaper.Text = _paper;
         TxtGno.Text = gno;
         TxtGname.Text = gname;
-        DpOutdate.SelectedDate = DateTime.Today;
+        // 出库日期带单据实际日期（2026-10-30 修复：改单保留原单日期，弹窗不再固定显示当天）
+        DpOutdate.SelectedDate = outdate ?? DateTime.Today;
         TxtAmountBefore.Text = amountBefore.ToString("N2");
         // 单据备注自动带入开单页已填备注（2026-10-30 需求），弹窗内可继续修改
         TxtRemark.Text = remark;

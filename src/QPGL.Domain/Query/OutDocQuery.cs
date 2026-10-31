@@ -97,6 +97,8 @@ public sealed class OutDocRow
 public sealed class OutDocLine
 {
     public int Id { get; set; }
+    /// <summary>批次 id（tbsada.kcid；改单回读按此点查当前库存，2026-10-30 修复）。</summary>
+    public int Kcid { get; set; }
     public string Cp { get; set; } = "";
     public string Nno { get; set; } = "";
     public string Na1 { get; set; } = "";

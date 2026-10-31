@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+﻿﻿using System.Collections.ObjectModel;
 using System.Net.Http;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -9,6 +9,7 @@ using QPGL.Domain.Parts;
 using QPGL.Domain.Partners;
 using QPGL.Domain.Sales;
 using QPGL.Infrastructure;
+using QPGL.Infrastructure.Parts;
 
 namespace QPGL.Desktop.ViewModels;
 
@@ -35,6 +36,10 @@ public partial class SaleLineRow : ObservableObject
     [ObservableProperty] private string _memo = "";
 
     [ObservableProperty] private string _ty = "";   // 车型（编辑对话框可改，随行保存）
+
+    /// <summary>改单回读行（查询模式"修改"载入）：编辑时按 改单可售上限=当前库存+原单数量 放行；
+    /// 正常开单的已加行仍按批次快照库存拦截（2026-10-30 修复：改数量超库存被放过）。</summary>
+    public bool IsEditLoad { get; init; }
 
     public decimal Amount => Qty * Price;
 }
@@ -168,9 +173,16 @@ public partial class SaleViewModel : ObservableObject, IDisposable
     public async System.Threading.Tasks.Task FillLastIprjAsync()
     {
         if (PartResults.Count == 0) return;
+        var seq = _searchSeq;                       // 竞态守卫：回填期间若换了结果集则丢弃
+        var snapshot = PartResults.ToList();        // 快照：回填期间列表可能被搜索替换/追加
         try
         {
-            await Db.Parts.FillLastIprjAsync(PartResults, Dept);
+            await Db.Parts.FillLastIprjAsync(snapshot, Dept);
+            if (seq != _searchSeq) return;
+            // PartItem 无属性变更通知，回填只改字段时 DataGrid 不会重画单元格（表现为首次显示全 0）；
+            // 按索引替换为新行以刷新「最近进价」列（与 RefreshStockAsync 同款做法）
+            for (var i = 0; i < PartResults.Count; i++)
+                PartResults[i] = PartResults[i].WithLastIprj(PartResults[i].LastIprj);
         }
         catch { /* 进价回填失败不影响搜索结果 */ }
     }
@@ -267,6 +279,93 @@ public partial class SaleViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>多条件查询（2026-10-31 需求）：弹窗逐行输入内部编号，一次查回多个配件并替换结果列表。
+    /// 默认精准匹配，行首 / 为包含匹配（与编码框 / 约定一致）；不限厂牌（用户确认口径）。</summary>
+    public async System.Threading.Tasks.Task SearchByCodesAsync(string codesText, CancellationToken ct = default)
+    {
+        var codes = new List<(string Code, bool Contains)>();
+        foreach (var raw in (codesText ?? "").Split('\n'))
+        {
+            var line = raw.Trim();
+            if (line.Length == 0) continue;
+            var contains = line.StartsWith('/');
+            var code = contains ? line[1..].Trim() : line;
+            if (code.Length > 0) codes.Add((code, contains));
+        }
+        if (codes.Count == 0)
+        {
+            Message = "请输入内部编号（一行一个）";
+            return;
+        }
+
+        var seq = ++_searchSeq;            // 竞态守卫：作废挂起的防抖/旧请求
+        CancelPendingSearch();
+        Message = "";
+        BrandHint = "多编码查询（不限厂牌）";
+        try
+        {
+            var items = await Db.Parts.SearchByNnosAsync(Dept, codes, ct);
+            if (seq != _searchSeq) return;
+            // 最近进价列可见时先回填再入列表：PartItem 无属性变更通知，先加列表后回填会让首屏显示 0
+            if (IsLastIprjVisible && items.Count > 0)
+            {
+                await Db.Parts.FillLastIprjAsync(items, Dept);
+                if (seq != _searchSeq) return;
+            }
+            PartResults.Clear();
+            foreach (var p in items) PartResults.Add(p);
+            _partPage = 1;
+            _partTotal = items.Count;      // 多编码查询一次取全，不再触发无限滚动翻页
+            _effectiveBrand = "";
+            _loadingMore = false;
+            Message = items.Count == 0 ? "无匹配配件" : $"多编码查询命中 {items.Count} 行";
+        }
+        catch (Exception ex)
+        {
+            if (seq == _searchSeq) Message = "查询失败：" + ex.Message;
+        }
+    }
+
+    /// <summary>右键编辑配件属性（2026-10-30 需求）：按内部编号+厂牌点查 tbprnoty，弹属性编辑窗
+    /// （复刻旧 fr_prnoty frmAdd），确定后保存并重查配件列表（名称/车型/价格可能已变）。
+    /// dpmusem 固定 "A"，与零件属性定义页（A1 模块）同口径。</summary>
+    public async System.Threading.Tasks.Task EditPartAttributeAsync(PartItem part)
+    {
+        if (part.Id == 0) { Message = "该行为属性库补集行（无库存批次），请到「零件属性定义」页维护"; return; }
+        try
+        {
+            var nno = part.Nno.Trim().Replace("'", "''");
+            var rows = await Db.Prnoty.SearchAsync($"rtrim(nno) = '{nno}'", part.Cp, "A");
+            var row = rows.FirstOrDefault();
+            if (row is null)
+            {
+                MessageBox.Show($"配件 {part.Nno} 在厂牌【{part.Cp}】下没有属性记录，请到「零件属性定义」页新增。",
+                    "编辑配件属性", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            var oldNno = row.Nno;   // 弹窗只改副本，确定前原行不变；改码时保存需旧码
+            var dlg = new Views.PartAttributeEditWindow(row, part.Cp) { Owner = Application.Current.MainWindow };
+            if (dlg.ShowDialog() != true) return;
+            var r = dlg.Row;
+            await Db.Prnoty.SaveAsync(new PrnotySaveCommand
+            {
+                IsAdd = false,
+                Id = r.Id,
+                Cp = r.Cp,
+                Nno = r.Nno,
+                OldNno = oldNno,
+                Na1 = r.Na1, Ty = r.Ty, Fa = r.Fa, Dc = r.Dc, Unit = r.Unit, Iprj = r.Iprj,
+                Code_ts = r.Code_ts, Eng = r.Eng, Nnp = r.Nnp, Nnq = r.Nnq, Uqty = r.Uqty,
+                Xno = r.Xno, Tno = r.Tno, Amjj = r.Amjj, Bmjj = r.Bmjj,
+                Nvol = decimal.TryParse(r.Nvol, out var nv) ? nv : 0,
+                Suttle = r.Suttle, Note = r.Note, Note1 = r.Note1, Oprc_cp = r.Oprc_cp, Oprc_min = r.Oprc_min,
+            }, r.Cp, "A");
+            Message = $"配件 {r.Nno} 属性已保存";
+            await SearchPartsAsync(System.Threading.CancellationToken.None);   // 属性改动（名称/车型/零售价）回刷列表
+        }
+        catch (Exception ex) { Message = "保存配件属性失败：" + ex.Message; }
+    }
+
     /// <summary>轻量库存刷新（2026-10-30 需求）：按已加载批次 id 点查最新 kcamount，仅替换库存变化的行，
     /// 不重查整表、不打乱列表顺序（确认扣库后/从查询模式切回时刷新快照，避免拿过期库存开单）。</summary>
     public async System.Threading.Tasks.Task RefreshStockAsync(CancellationToken ct = default)
@@ -315,11 +414,19 @@ public partial class SaleViewModel : ObservableObject, IDisposable
     /// <summary>双击配件搜索行 → 弹销售编辑对话框（qp11 SellEditDialog 风格），确认后加入明细。</summary>
     public async System.Threading.Tasks.Task AddLineViaDialogAsync(PartItem part)
     {
-        // 报价单行 kcid=0（row469 报价行不占批次），防重按零件编码；销售/调拨按批次
+        // 防重（2026-10-30 修复）：报价按编码；销售/调拨按编码+厂牌判重（此前按批次 id，
+        // 改单回读行批次快照缺失时漏判，同一配件被重复加入明细）
         var isQuote = DocType == "报价";
-        if (Lines.Any(l => isQuote ? l.Cp == part.Cp && l.Nno == part.Nno : l.Kcid == part.Id))
+        var dup = Lines.FirstOrDefault(l => isQuote
+            ? l.Cp == part.Cp && l.Nno == part.Nno
+            : string.Equals(l.Cp.Trim(), part.Cp.Trim(), StringComparison.OrdinalIgnoreCase) &&
+              string.Equals(l.Nno.Trim(), part.Nno.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (dup is not null)
         {
-            Message = "该批次已在明细中，请双击明细行修改数量";
+            // 已存在 → 弹窗确认后进入修改（2026-10-30 需求：提示当前配件已存在，是否修改）
+            if (MessageBox.Show($"当前配件 {part.Nno.Trim()} 已存在，是否修改？", DocType + "管理",
+                    MessageBoxButton.OKCancel, MessageBoxImage.Question) == MessageBoxResult.OK)
+                EditExistingLine(dup);
             return;
         }
 
@@ -365,7 +472,9 @@ public partial class SaleViewModel : ObservableObject, IDisposable
             Oprb = row.Oprb,
             Posi = row.Posi,
         };
-        var dialog = new Views.SaleLineEditDialog(part, Dept, row.Qty, row.Price, row.Memo, customerName: Gname?.Trim())
+        var dialog = new Views.SaleLineEditDialog(part, Dept, row.Qty, row.Price, row.Memo,
+            customerName: Gname?.Trim(), ignoreStockCheck: row.IsEditLoad)   // 仅改单回读行放行（上限=库存+原单数量）；
+            // 正常开单的已加行保持库存拦截（2026-10-30 修复：改数量超库存被放过）
         {
             Title = "销售编辑 - 修改明细行",
         };
@@ -454,6 +563,7 @@ public partial class SaleViewModel : ObservableObject, IDisposable
                     Qty = l.Qty,
                     Price = l.Price,
                     Remark = l.Memo,
+                    Ty = l.Ty,   // 销售编辑窗可改车型（2026-10-30 修复：此前丢弃致落库仍为批次旧值）
                     // 调拨（Lf_.row511）：明细行即所选批次，指定批次单批出库不拆批；销售走自动凑批
                     Kcid = DocType == "调拨" ? l.Kcid : null,
                 }).ToList(),
@@ -492,17 +602,20 @@ public partial class SaleViewModel : ObservableObject, IDisposable
             await SaveAsync(ct);
             if (string.IsNullOrEmpty(LastPaper)) return;   // 保存失败（Message 已提示）
         }
-        if (amountBefore == 0 && !string.IsNullOrEmpty(LastPaper))
+        // 出库日期/重开确认合计从单据汇总回读（2026-10-30 修复：改单保留原单日期，确认弹窗不再固定显示当天）
+        DateTime? dialogOutdate = DateTime.Today;
+        if (!string.IsNullOrEmpty(LastPaper))
         {
-            // 已保存过的单（重开确认）：从单据汇总回读合计，避免显示 0
             try
             {
                 var doc = await Db.DocQuery.GetOutDocSummaryAsync(LastPaper.Trim(), DocType, Dept, ct);
-                amountBefore = doc.TotalDiscounted;
+                dialogOutdate = doc.Outdate;
+                if (amountBefore == 0) amountBefore = doc.TotalDiscounted;
             }
-            catch { /* 回读失败保持 0 */ }
+            catch { /* 回读失败保持现值 */ }
         }
-        var dialog = new Views.ConfirmSaleDialog(LastPaper, DocType, Gno.Trim(), Gname.Trim(), amountBefore, Remark.Trim());
+        var dialog = new Views.ConfirmSaleDialog(LastPaper, DocType, Gno.Trim(), Gname.Trim(), amountBefore, Remark.Trim(),
+            dialogOutdate);
         if (dialog.ShowDialog() != true) return;
         var printAfter = dialog.PrintAfterConfirm;
 
@@ -513,22 +626,35 @@ public partial class SaleViewModel : ObservableObject, IDisposable
             var cmd = dialog.Command;
             cmd.Dept = Dept;
             var result = await Db.Sales.ConfirmAsync(cmd, AppSession.Operator, ct);
-            // 确认成功：清空开单面板。打印勾选（2026-10-30 需求）→ 留在开单模式直接发送打印机（打印失败不阻断确认）；
-            // 未勾选 → 通知宿主切到查询模式（旧系统确认后回到单据浏览语义）。宿主经 SkipQuerySwitchAfterConfirm 区分。
+            // 确认成功：清空开单面板。打印勾选（2026-10-31 需求）→ 留在开单模式静默发送打印机，
+            // 同时弹出单据打印预览窗供截图，窗口由用户手动关闭（ESC）；任一步失败均不阻断确认。
+            // 未勾选 → 通知宿主切到查询模式（旧系统确认后回到单据浏览语义）。
             SkipQuerySwitchAfterConfirm = printAfter;
             ClearBill();
             if (printAfter)
             {
+                var status = $"已确认 {result.Paper}（结帐日期 {result.Jzdate:yyyy-MM-dd}）";
                 try
                 {
                     // 静默打印（2026-10-30 需求）：直接输出默认打印机，不弹系统打印对话框
                     await Printing.PrintService.PrintSaleSilentAsync(result.Paper, DocType, ct);
-                    Message = $"已确认 {result.Paper}（结帐日期 {result.Jzdate:yyyy-MM-dd}），已发送打印";
+                    status += "，已发送打印";
                 }
                 catch (Exception pex)
                 {
-                    Message = $"已确认 {result.Paper}（结帐日期 {result.Jzdate:yyyy-MM-dd}），打印失败：{pex.Message}";
+                    status += $"，打印失败：{pex.Message}";
                 }
+                try
+                {
+                    // 打印预览（2026-10-31 需求）：同时弹出预览窗方便截图给客户，窗口由用户手动关闭（ESC）
+                    await Printing.PrintService.PreviewSaleAsync(result.Paper, DocType, ct);
+                    status += "，已打开打印预览";
+                }
+                catch (Exception pex)
+                {
+                    status += $"，打印预览失败：{pex.Message}";
+                }
+                Message = status;
             }
             else
             {
@@ -622,10 +748,19 @@ public partial class SaleViewModel : ObservableObject, IDisposable
             Remark = doc.Remark;
             _editSourcePaper = doc.Paper;   // 改单来源（保存成功后作废），不占 LastPaper——确认时须走保存生成新单
 
+            // 改单可售上限/弹窗库存显示需要当前实际库存（2026-10-30 修复）：回读行无批次快照，按批次批量点查
+            var kcids = lines.Select(l => l.Kcid).Where(id => id > 0).Distinct().ToList();
+            var stockMap = kcids.Count > 0
+                ? await Db.Parts.GetStockByIdsAsync(kcids, Dept, ct)
+                : new System.Collections.Generic.Dictionary<int, decimal>();
+
             foreach (var l in lines)
             {
                 var row = new SaleLineRow
                 {
+                    Kcid = l.Kcid,
+                    BatchStock = l.Kcid > 0 && stockMap.TryGetValue(l.Kcid, out var kc) ? kc : 0,
+                    IsEditLoad = true,   // 改单回读行：编辑弹窗按改单上限（库存+原单数量）放行
                     Cp = l.Cp.Trim(),
                     Nno = l.Nno.Trim(),
                     Na1 = l.Na1.Trim(),
@@ -634,6 +769,7 @@ public partial class SaleViewModel : ObservableObject, IDisposable
                     Price = l.Oprct,          // 实收价（旧系统改单按折后价带出）
                     Qty = l.Ckamount,
                     Memo = l.Remark.Trim(),
+                    Ty = l.Ty.Trim(),         // 回读已保存车型，改单再保存不丢失（2026-10-30 修复）
                 };
                 row.PropertyChanged += (_, e) => { if (e.PropertyName is nameof(SaleLineRow.Amount)) RecalcTotal(); };
                 Lines.Add(row);

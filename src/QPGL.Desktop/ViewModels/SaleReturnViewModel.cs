@@ -366,6 +366,7 @@ public partial class SaleReturnViewModel : ObservableObject
             previewPaper, invoiceDefault, refundDict, reasonDict, shipDict, shipDefault, paperTypeDict, paperTypeDefault);
         if (dialog.ShowDialog() != true) return;
 
+        var printAfter = dialog.PrintAfterConfirm;
         Reason = dialog.Reason;
         IsBusy = true;
         Message = "";
@@ -395,7 +396,21 @@ public partial class SaleReturnViewModel : ObservableObject
         {
             var result = await Db.SaleReturns.CreateAsync(command, AppSession.Operator, ct);
             LastPaper = result.Paper;
-            Message = $"退货成功，退货单号 {result.Paper}（{result.LineCount} 行，退款 {result.TotalAmount:N2} 元）";
+            var status = $"退货成功，退货单号 {result.Paper}（{result.LineCount} 行，退款 {result.TotalAmount:N2} 元）";
+            // 立即打印（2026-10-31 需求）：勾选时静默发送默认打印机，不弹预览窗；打印失败不阻断退货
+            if (printAfter)
+            {
+                try
+                {
+                    await QPGL.Desktop.Printing.PrintService.PrintSaleSilentAsync(result.Paper, "销售", ct);
+                    status += "，已发送打印";
+                }
+                catch (Exception pex)
+                {
+                    status += $"，打印失败：{pex.Message}";
+                }
+            }
+            Message = status;
             // 上区已退数/未退量回写，退完的行移除（全集与显示集合同步）
             foreach (var l in lines)
             {

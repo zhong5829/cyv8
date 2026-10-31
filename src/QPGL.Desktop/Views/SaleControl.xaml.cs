@@ -1,6 +1,8 @@
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using QPGL.Desktop.Services;
 using QPGL.Desktop.ViewModels;
 
 namespace QPGL.Desktop.Views;
@@ -73,7 +75,73 @@ public partial class SaleControl : UserControl
     private void CpBox_TextChanged(object sender, TextChangedEventArgs e) => _vm.DebounceSearch();
     private void Na1Box_TextChanged(object sender, TextChangedEventArgs e) => _vm.DebounceSearch();
     private void TyBox_TextChanged(object sender, TextChangedEventArgs e) => _vm.DebounceSearch();
-    private void NoteBox_TextChanged(object sender, TextChangedEventArgs e) => _vm.DebounceSearch();
+
+    /// <summary>多条件查询（2026-10-31 需求）：弹窗逐行输入内部编号（默认精准匹配，行首 / 包含匹配），
+    /// 确定后一次查回多个配件替换结果列表。</summary>
+    private async void MultiCodeSearch_Click(object sender, RoutedEventArgs e)
+    {
+        var codes = ShowMultiCodeDialog();
+        if (codes is null) return;
+        await _vm.SearchByCodesAsync(codes);
+    }
+
+    /// <summary>多编码输入窗（代码构建：多行文本框 + 确定/取消）。取消返回 null。</summary>
+    private string? ShowMultiCodeDialog()
+    {
+        var box = new TextBox
+        {
+            Height = 200,
+            Margin = new Thickness(0, 6, 0, 6),
+            AcceptsReturn = true,
+            TextWrapping = TextWrapping.NoWrap,
+            VerticalContentAlignment = VerticalAlignment.Top,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+        };
+        var win = new Window
+        {
+            Title = "多条件查询",
+            Width = 420,
+            SizeToContent = SizeToContent.Height,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Owner = Window.GetWindow(this),
+            ResizeMode = ResizeMode.NoResize,
+            ShowInTaskbar = false,
+        };
+        var okBtn = new Button
+        {
+            Content = "确定", IsDefault = true,
+            Padding = new Thickness(22, 4, 22, 4), Margin = new Thickness(0, 0, 10, 0),
+        };
+        var cancelBtn = new Button { Content = "取消", IsCancel = true, Padding = new Thickness(22, 4, 22, 4) };
+        if (Application.Current.TryFindResource("PrimaryButtonStyle") is Style primary) okBtn.Style = primary;
+        okBtn.Click += (_, _) =>
+        {
+            if (box.Text.Split('\n').All(l => string.IsNullOrWhiteSpace(l)))
+            {
+                MessageBox.Show("请输入至少一个内部编号（一行一个）。", "多条件查询",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            win.DialogResult = true;
+        };
+
+        var body = new StackPanel { Margin = new Thickness(16) };
+        body.Children.Add(new TextBlock
+        {
+            Text = "请输入内部编号（一行一个）；默认精准匹配，编码前加 / 表示包含匹配：",
+            TextWrapping = TextWrapping.Wrap,
+        });
+        body.Children.Add(box);
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+        buttons.Children.Add(okBtn);
+        buttons.Children.Add(cancelBtn);
+        body.Children.Add(buttons);
+        win.Content = body;
+        win.Loaded += (_, _) => box.Focus();
+
+        return win.ShowDialog() == true ? box.Text : null;
+    }
 
     // 查询框获得键盘焦点即全选（Tab 切换），方便直接输入覆盖
     private void SearchBox_GotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
@@ -118,11 +186,10 @@ public partial class SaleControl : UserControl
             _ => 0,
         };
         if (move == 0) return;
-        // 四个查询框按 XAML 顺序相邻切换（编码→名称→车型→备注）
+        // 三个查询框按 XAML 顺序相邻切换（编码→名称→车型）
         TextBox? target = (box == CpBox) ? (move > 0 ? Na1Box : null)
                         : (box == Na1Box) ? (move > 0 ? TyBox : CpBox)
-                        : (box == TyBox) ? (move > 0 ? NoteBox : Na1Box)
-                        : (move > 0 ? null : TyBox);
+                        : (move > 0 ? null : Na1Box);
         if (target is null) return;
         target.Focus();
         target.SelectAll();
@@ -173,6 +240,19 @@ public partial class SaleControl : UserControl
 
     private async void PartGrid_PreviewKeyDown(object sender, KeyEventArgs e)
     {
+        // Ctrl+C 复制内部编号（2026-10-30 需求）：单击内部编号单元格选中行后，Ctrl+C 直接复制编号
+        if (e.Key == Key.C && System.Windows.Input.Keyboard.Modifiers == System.Windows.Input.ModifierKeys.Control
+            && PartGrid.SelectedItem is Domain.Parts.PartItem sel
+            && string.Equals(PartGrid.CurrentColumn?.Header?.ToString(), "内部编号"))
+        {
+            e.Handled = true;
+            var nno = sel.Nno.Trim();
+            if (TrySetClipboardTextNative(nno, out _, out _))
+                _vm.Message = $"已复制内部编号：{nno}";
+            else
+                _vm.Message = "复制失败：剪贴板被其它程序占用，请稍后重试";
+            return;
+        }
         if (e.Key is Key.F4 or Key.Enter && PartGrid.SelectedItem is Domain.Parts.PartItem part)
         {
             await _vm.AddLineViaDialogAsync(part);
@@ -375,6 +455,125 @@ public partial class SaleControl : UserControl
     /// <summary>VIN 查询窗外部添加配件：转发 VM 的销售编辑对话框流程（SaleLineEditDialog 预填 + 确认后入明细，不重复弹编辑窗）。</summary>
     public async System.Threading.Tasks.Task AddExternalPartAsync(Domain.Parts.PartItem part)
         => await _vm.AddLineViaDialogAsync(part);
+
+    /// <summary>右键按下时选中鼠标所在行（2026-10-30 需求）：右键菜单操作的是光标下的配件而非当前选中行。</summary>
+    private void PartGrid_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.OriginalSource is DependencyObject d &&
+            ItemsControl.ContainerFromElement(PartGrid, d) is DataGridRow row)
+            row.IsSelected = true;
+    }
+
+    /// <summary>
+    /// Win32 原生剪贴板文本写入（2026-10-31 修复复制卡顿/误报）：
+    /// WPF Clipboard.SetText 内部 OLE 封装被占用时单次阻塞约 1 秒且可能"已写入仍抛异常"；
+    /// 原生 OpenClipboard 被占立即返回 false，由本方法快速重试（30ms × 20 次 ≈ 0.6s），成败判定准确。
+    /// </summary>
+    private static bool TrySetClipboardTextNative(string text, out string error, out int attempts)
+    {
+        error = "";
+        for (attempts = 1; attempts <= 20; attempts++)
+        {
+            if (NativeClipboard.OpenClipboard(IntPtr.Zero))
+            {
+                try
+                {
+                    if (!NativeClipboard.EmptyClipboard()) { error = "EmptyClipboard 失败"; return false; }
+                    // GMEM_MOVEABLE|GMEM_ZEROINIT：分配含结尾 '\0' 的 UTF-16 缓冲，成功后所有权移交系统
+                    var hMem = NativeClipboard.GlobalAlloc(0x0042, (nuint)((text.Length + 1) * 2));
+                    if (hMem == IntPtr.Zero) { error = "GlobalAlloc 失败"; return false; }
+                    var p = NativeClipboard.GlobalLock(hMem);
+                    if (p == IntPtr.Zero) { error = "GlobalLock 失败"; return false; }
+                    System.Runtime.InteropServices.Marshal.Copy(text.ToCharArray(), 0, p, text.Length);
+                    NativeClipboard.GlobalUnlock(hMem);
+                    if (NativeClipboard.SetClipboardData(NativeClipboard.CF_UNICODETEXT, hMem) == IntPtr.Zero)
+                    {
+                        error = "SetClipboardData 失败";
+                        return false;   // 极罕见；hMem 不释放（正常路径所有权移交系统）
+                    }
+                    return true;
+                }
+                finally { NativeClipboard.CloseClipboard(); }
+            }
+            System.Threading.Thread.Sleep(30);   // OpenClipboard 被占立即失败，快速重试
+        }
+        error = "OpenClipboard 超时（剪贴板被其它程序持续占用）";
+        return false;
+    }
+
+    private static class NativeClipboard
+    {
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        internal static extern bool OpenClipboard(IntPtr hWndNewOwner);
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        internal static extern bool EmptyClipboard();
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        internal static extern IntPtr SetClipboardData(uint uFormat, IntPtr hMem);
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        internal static extern bool CloseClipboard();
+        [System.Runtime.InteropServices.DllImport("kernel32.dll")]
+        internal static extern IntPtr GlobalAlloc(uint uFlags, nuint dwBytes);
+        [System.Runtime.InteropServices.DllImport("kernel32.dll")]
+        internal static extern IntPtr GlobalLock(IntPtr hMem);
+        [System.Runtime.InteropServices.DllImport("kernel32.dll")]
+        internal static extern bool GlobalUnlock(IntPtr hMem);
+
+        internal const uint CF_UNICODETEXT = 13;
+    }
+
+    // 配件图片（2026-10-31 需求）：选中配件从 tbImage 取图显示缩略图，单击打开大图（可复制）
+    private int _imageLoadSeq;                       // 竞态守卫：慢的旧请求不覆盖新选中
+    private string _imageNno = "";                   // 当前缩略图对应的内部编号
+    private byte[]? _imageBytes;                     // 当前图片字节（传大图窗）
+
+    /// <summary>选中配件变化：异步取 tbImage 图片刷新缩略图（无图显示"无图片"占位）。</summary>
+    private async void PartGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        var seq = ++_imageLoadSeq;
+        _imageBytes = null;
+        _imageNno = "";
+        PartImage.Source = null;
+        PartImage.Visibility = Visibility.Collapsed;
+        PartImagePlaceholder.Text = "加载中…";
+        PartImagePlaceholder.Visibility = Visibility.Visible;
+        PartImage.Cursor = Cursors.Arrow;
+
+        if (PartGrid.SelectedItem is not Domain.Parts.PartItem p) { PartImagePlaceholder.Text = "无图片"; return; }
+        var nno = p.Nno.Trim();
+        var bytes = await Db.Parts.GetPartImageAsync(nno);
+        if (seq != _imageLoadSeq) return;            // 期间用户已切换选中
+        if (bytes is null || bytes.Length == 0)
+        {
+            PartImagePlaceholder.Text = "无图片";
+            return;
+        }
+        _imageNno = nno;
+        _imageBytes = bytes;
+        var bmp = new System.Windows.Media.Imaging.BitmapImage();
+        bmp.BeginInit();
+        bmp.StreamSource = new MemoryStream(bytes);
+        bmp.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+        bmp.EndInit();
+        bmp.Freeze();
+        PartImage.Source = bmp;
+        PartImage.Visibility = Visibility.Visible;
+        PartImagePlaceholder.Visibility = Visibility.Collapsed;
+        PartImage.Cursor = Cursors.Hand;
+    }
+
+    /// <summary>单击缩略图 → 打开大图查看窗（可复制图片、Esc 关闭）。</summary>
+    private void PartImage_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (_imageBytes is null || _imageNno.Length == 0) return;
+        new PartImageViewerWindow(_imageNno, _imageBytes).ShowDialog();
+    }
+
+    /// <summary>右键菜单「编辑配件属性」（2026-10-30 需求）：弹出属性编辑窗修改该配件。</summary>
+    private async void EditPartAttribute_Click(object sender, RoutedEventArgs e)
+    {
+        if (PartGrid.SelectedItem is Domain.Parts.PartItem part)
+            await _vm.EditPartAttributeAsync(part);
+    }
 }
 
 public partial class SaleControl : IDisposable

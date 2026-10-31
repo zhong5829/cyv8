@@ -126,9 +126,12 @@
                                FontWeight="Bold" FontSize="15" Foreground="{StaticResource BrandBrush}"/>
                 </Grid>
 
+                <!-- 改单可售上限标注（2026-10-30 需求）：仅修改明细行模式显示，超上限输入弹窗回退 -->
+                <TextBlock x:Name="TxtEditLimit" Visibility="Collapsed" Margin="0,0,0,4"
+                           Foreground="#2E5C8A" FontWeight="Bold" TextWrapping="Wrap"/>
                 <TextBlock x:Name="TxtOverStock" Visibility="Collapsed" Margin="0,0,0,4"
                            Foreground="{StaticResource WarnBrush}" FontWeight="Bold" TextWrapping="Wrap"/>
-                <TextBlock Text="提示: 双击右侧历史行可回填历史单价" Foreground="Gray" FontSize="11"/>
+                <TextBlock Text="提示: 双击历史行查看该单据的整单明细" Foreground="Gray" FontSize="11"/>
             </StackPanel>
             </GroupBox>
 

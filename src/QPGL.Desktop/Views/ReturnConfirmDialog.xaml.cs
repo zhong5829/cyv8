@@ -14,6 +14,9 @@ public partial class ReturnConfirmDialog : Window
     public string ShipMode { get; private set; } = "";
     public string PaperType { get; private set; } = "";
 
+    /// <summary>确认后是否立即打印（勾选框，默认勾选；2026-10-31 需求：勾选时静默发送打印机，不弹预览窗）。</summary>
+    public bool PrintAfterConfirm => ChkPrintAfter.IsChecked == true;
+
     /// <param name="paper">预览取号单号（旧 Frmok Init GETNEWDH(0)，正式号确认后再取）</param>
     /// <param name="invoiceDefault">发票号默认值 = 原行 pno（旧 TXTPNO.VALUE = C_TH.PNO）</param>
     /// <param name="refundDict">tbsysset type='guno'</param>

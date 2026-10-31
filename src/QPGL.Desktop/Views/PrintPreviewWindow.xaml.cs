@@ -3,6 +3,7 @@ using System.Printing;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
+using System.Windows.Input;
 
 namespace QPGL.Desktop.Views;
 
@@ -15,14 +16,17 @@ public partial class PrintPreviewWindow : Window
 {
     private readonly FixedDocument _document;
     private readonly string _docName;
+    /// <summary>点「打印」成功后是否自动关闭窗口（查询模式重打印入口传 true）。</summary>
+    private readonly bool _closeAfterPrint;
     /// <summary>枚举结果缓存（名→队列）：共享打印机连接复用枚举成功的对象，打印时不再按名重建。</summary>
     private readonly Dictionary<string, PrintQueue> _queues = new(StringComparer.OrdinalIgnoreCase);
 
-    public PrintPreviewWindow(FixedDocument document, string title)
+    public PrintPreviewWindow(FixedDocument document, string title, bool closeAfterPrint = false)
     {
         InitializeComponent();
         _document = document;
         _docName = title;
+        _closeAfterPrint = closeAfterPrint;
         DocInfoText.Text = title;
         Viewer.Document = document;
         LoadPrinters();
@@ -74,6 +78,8 @@ public partial class PrintPreviewWindow : Window
         {
             WriteToPrinter(printerName, copies);
             SaveLastPrinter(printerName);
+            // 查询模式重打印：发送成功后自动关闭预览窗（失败保持窗口便于重试）
+            if (_closeAfterPrint) Close();
         }
         catch (Exception ex)
         {
@@ -140,4 +146,12 @@ public partial class PrintPreviewWindow : Window
     }
 
     private void Close_Click(object sender, RoutedEventArgs e) => Close();
+
+    /// <summary>ESC 关闭预览窗（2026-10-31 需求：确认后弹出的预览窗由用户手动关闭）。</summary>
+    private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Escape) return;
+        e.Handled = true;
+        Close();
+    }
 }

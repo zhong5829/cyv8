@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+﻿﻿using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using QPGL.Desktop.Services;
@@ -65,6 +65,11 @@ public partial class OutDocQueryViewModel : ObservableObject
 
     [ObservableProperty]
     private decimal _sumAmount;
+
+    /// <summary>已加载合计展示文本（2026-10-31 修复：此前 StringFormat 带两个占位符但绑定只有一个值，
+    /// 每次刷新抛 FormatException；改为 VM 拼好字符串）。</summary>
+    [ObservableProperty]
+    private string _sumText = "已加载折后合计：0.00（共 0 行）";
 
     /// <summary>选中单据的单头汇总（下方单头只读栏）。</summary>
     [ObservableProperty]
@@ -151,6 +156,7 @@ public partial class OutDocQueryViewModel : ObservableObject
             foreach (var r in result.Items) Bills.Add(r);
             Total = result.Total;
             SumAmount = Bills.Sum(r => r.TotalAmount);
+            SumText = $"已加载折后合计：{SumAmount:N2}（共 {Bills.Count} 行）";
             OnPropertyChanged(nameof(HasMore));
             if (Bills.Count == 0)
             {
@@ -181,6 +187,7 @@ public partial class OutDocQueryViewModel : ObservableObject
             var result = await Db.DocQuery.SearchOutDocBillsAsync(request, ct);
             foreach (var r in result.Items) Bills.Add(r);
             SumAmount = Bills.Sum(r => r.TotalAmount);
+            SumText = $"已加载折后合计：{SumAmount:N2}（共 {Bills.Count} 行）";
             OnPropertyChanged(nameof(HasMore));
         }
         catch (Exception ex)
@@ -306,7 +313,8 @@ public partial class OutDocQueryViewModel : ObservableObject
         Message = "";
         try
         {
-            await QPGL.Desktop.Printing.PrintService.PreviewSaleAsync(SelectedBill.Paper.Trim(), "销售", ct);
+            // 查询模式重打印：预览窗点「打印」成功后自动关闭（2026-10-31 需求）
+            await QPGL.Desktop.Printing.PrintService.PreviewSaleAsync(SelectedBill.Paper.Trim(), "销售", ct, closeAfterPrint: true);
         }
         catch (Exception ex)
         {
