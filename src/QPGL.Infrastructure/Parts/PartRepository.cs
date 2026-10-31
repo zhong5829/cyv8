@@ -46,6 +46,13 @@ public interface IPartRepository
 
     /// <summary>配件图片（tbImage.imgs base64 按内部编号；2026-10-31 需求：开单页选中配件显示图片。无图返回 null）。</summary>
     Task<byte[]?> GetPartImageAsync(string nno, CancellationToken ct = default);
+
+    /// <summary>标签打印数据源（2026-10-31 需求，qp11 GetLabelItemsAsync 同构）：tbisto 三条件 LIKE 模糊查
+    /// （nno/na1/ty，空条件忽略），na1/ty 支持拼音码（tbname0/tbty0 派生表，同 SearchAsync 机制），
+    /// brand 非空时按厂牌 cp 精确过滤。按 仓位→内部编号 排序输出。
+    /// tbisto 为批次表，同 nno 多行 GROUP BY 合并：库存 SUM(kcamount)、货位取首个非空值。</summary>
+    Task<IReadOnlyList<LabelStockItem>> GetLabelItemsAsync(string dpm, string brand,
+        string? nno = null, string? na1 = null, string? ty = null, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -609,5 +616,57 @@ public sealed class PartRepository(SqlConnectionFactory factory) : IPartReposito
             new { dpm = new DbString { Value = dpm, IsAnsi = true, Length = 10 }, ids },
             cancellationToken: ct));
         return rows.ToDictionary(r => r.Id, r => r.Kcamount);
+    }
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<LabelStockItem>> GetLabelItemsAsync(string dpm, string brand,
+        string? nno = null, string? na1 = null, string? ty = null, CancellationToken ct = default)
+    {
+        var nnoKw = (nno ?? "").Trim();
+        var na1Kw = (na1 ?? "").Trim();
+        var tyKw = (ty ?? "").Trim();
+        var brandKw = (brand ?? "").Trim();
+
+        var conditions = new List<string> { "t.dpm = @dpm" };
+        if (brandKw.Length > 0) conditions.Add("t.cp = @brand");
+        if (nnoKw.Length > 0) conditions.Add("t.nno LIKE '%' + @nno + '%'");
+
+        // 拼音码匹配与开单页 SearchAsync 同构（2026-10-31 需求：标签打印名称/车型框支持拼音码）：
+        // LEFT JOIN 派生表（tbname0 名称拼音码 / tbty0 车型拼音码，code→name/ty 等值连接），
+        // 派生表已 DISTINCT 不膨胀行数，GROUP BY nno 去重语义不变
+        var na1Join = na1Kw.Length > 0
+            ? "\nLEFT JOIN (SELECT DISTINCT rtrim(name) AS name FROM tbname0 WITH (NOLOCK) WHERE code LIKE '%' + @na1 + '%') nb ON rtrim(t.na1) = nb.name"
+            : "";
+        var tyJoin = tyKw.Length > 0
+            ? "\nLEFT JOIN (SELECT DISTINCT rtrim(ty) AS ty FROM tbty0 WITH (NOLOCK) WHERE code LIKE '%' + @ty + '%') tb2 ON rtrim(t.ty) = tb2.ty"
+            : "";
+        if (na1Kw.Length > 0)
+            conditions.Add("(t.na1 LIKE '%' + @na1 + '%' OR nb.name IS NOT NULL)");
+        if (tyKw.Length > 0)
+            conditions.Add("(t.ty LIKE '%' + @ty + '%' OR tb2.ty IS NOT NULL)");
+
+        // 名称/车型条件带拼音码 JOIN 派生表时强制 HASH JOIN（同 SearchAsync：嵌套循环会逐行重扫，实测 10s+）
+        var hint = (na1Kw.Length > 0 || tyKw.Length > 0) ? "\nOPTION (HASH JOIN)" : "";
+
+        await using var conn = await factory.OpenAsync(ct);
+        var rows = await conn.QueryAsync<LabelStockItem>(new CommandDefinition(
+            $"""
+            SELECT t.nno, MIN(t.cp) cp, MAX(t.na1) na1, MAX(t.ty) ty,
+                   MIN(NULLIF(LTRIM(RTRIM(t.posi)), '')) posi, SUM(t.kcamount) kcamount
+            FROM tbisto t WITH (NOLOCK){na1Join}{tyJoin}
+            WHERE {string.Join(" AND ", conditions)}
+            GROUP BY t.nno
+            ORDER BY posi, nno{hint}
+            """,
+            new
+            {
+                dpm = new DbString { Value = dpm, IsAnsi = true, Length = 10 },
+                brand = new DbString { Value = brandKw, IsAnsi = true, Length = 20 },
+                nno = nnoKw,
+                na1 = na1Kw,
+                ty = tyKw,
+            },
+            cancellationToken: ct));
+        return rows.ToList();
     }
 }

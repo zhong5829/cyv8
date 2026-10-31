@@ -99,6 +99,25 @@ public partial class OutDocQueryControl : UserControl
         await _vm.SearchAsync(System.Threading.CancellationToken.None);
     }
 
+    /// <summary>明细区「打印标签」：打印选中明细行的配件标签（qp11 SellControl.BtnQueryLabelPrint 同构）。
+    /// 编码取 nno（内部编号，用户确认口径），名称/车型随行读取；仅打印不回写数据库。</summary>
+    private void BtnLabelPrint_Click(object sender, RoutedEventArgs e)
+    {
+        if (DgLines.SelectedItem is not Domain.Query.OutDocLine line || string.IsNullOrWhiteSpace(line.Nno))
+        {
+            System.Windows.MessageBox.Show("请先在下方明细中选择一行配件", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        var dlg = new LabelPrintDialog(new Services.LabelPrint.LabelPrintItem
+        {
+            PartNo = line.Nno,
+            Name = line.Na1 ?? "",
+            CarType = line.Ty ?? ""
+        });
+        dlg.Owner = Window.GetWindow(this);
+        dlg.ShowDialog();
+    }
+
     /// <summary>修改：校验选中行并携带单据数据切回开单模式（2026-10-29：退单不支持修改）。</summary>
     private void EditBill_Click(object sender, RoutedEventArgs e)
     {

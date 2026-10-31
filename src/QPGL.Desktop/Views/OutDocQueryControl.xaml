@@ -143,10 +143,20 @@
                 </StackPanel>
             </Border>
 
-            <Border Grid.Row="1" Background="White" BorderBrush="#DDD" BorderThickness="1" CornerRadius="3">
-                <DataGrid ItemsSource="{Binding Lines}" AutoGenerateColumns="False" IsReadOnly="True"
-                          VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
-                          GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12" Margin="1">
+            <Grid Grid.Row="1">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,4">
+                    <Button Content="打印标签" Width="86" Height="26" Click="BtnLabelPrint_Click"
+                            ToolTip="打印选中明细行的配件标签（qp11 复刻：模板/条码/预览编辑，仅打印不回写）"/>
+                </StackPanel>
+
+                <Border Grid.Row="1" Background="White" BorderBrush="#DDD" BorderThickness="1" CornerRadius="3">
+                    <DataGrid x:Name="DgLines" ItemsSource="{Binding Lines}" AutoGenerateColumns="False" IsReadOnly="True"
+                              VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12" Margin="1">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="配件编码" Binding="{Binding Cp}" Width="80"/>
                         <DataGridTextColumn Header="零件号" Binding="{Binding Nno}" Width="110"/>
@@ -163,7 +173,8 @@
                         <DataGridTextColumn Header="备注" Binding="{Binding Remark}" Width="*"/>
                     </DataGrid.Columns>
                 </DataGrid>
-            </Border>
+                </Border>
+            </Grid>
 
             <DockPanel Grid.Row="2" Margin="0,4,0,0">
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">

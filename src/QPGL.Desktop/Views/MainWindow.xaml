@@ -141,6 +141,7 @@
                 <MenuItem Header="系统管理(S)">
                     <MenuItem Header="修改密码" Command="{Binding NotImplementedCommand}"/>
                     <MenuItem Header="打印设置（票头/票尾）" Click="OpenPrintSettings_Click"/>
+                    <MenuItem Header="标签打印" Click="OpenLabelPrint_Click" ToolTip="配件标签打印（qp11 复刻）：三条件查询 + 模板编辑 + Code128 条码 + 批量打印"/>
                     <Separator/>
                     <MenuItem Header="VIN 查询" Click="OpenVinQuery_Click" ToolTip="VIN 解码 + 318car/品秀 适配配件查询（qp11 复刻）"/>
                     <Separator/>

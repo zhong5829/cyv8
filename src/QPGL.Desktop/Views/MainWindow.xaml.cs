@@ -89,6 +89,12 @@ public partial class MainWindow : Window
         new PrintFooterSettingsWindow().ShowDialog();
     }
 
+    /// <summary>系统管理(S) → 标签打印（qp11 复刻：三条件查询 + 模板/条码/预览编辑 + 批量打印，以标签页打开）。</summary>
+    private void OpenLabelPrint_Click(object sender, RoutedEventArgs e)
+    {
+        _vm.OpenTab("labelPrint", "标签打印", () => new LabelPrintControl());
+    }
+
     /// <summary>系统管理(S) → VIN 查询（qp11 复刻：VIN 解码 + 318car/品秀 适配配件查询）。</summary>
     private void OpenVinQuery_Click(object sender, RoutedEventArgs e)
     {

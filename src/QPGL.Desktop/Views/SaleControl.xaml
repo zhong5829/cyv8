@@ -122,15 +122,15 @@
                         </DataGrid.RowStyle>
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="配件编号" Binding="{Binding Cp}" Width="100"/>
-                            <DataGridTextColumn Header="内部编号" Binding="{Binding Nno}" Width="110">
+                            <DataGridTextColumn Header="内部编号" Binding="{Binding Nno}" Width="160">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock">
                                         <Setter Property="ToolTip" Value="单击选中该行后按 Ctrl+C 复制编号"/>
                                     </Style>
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
-                            <DataGridTextColumn Header="名称" Binding="{Binding Na1}" Width="*"/>
-                            <DataGridTextColumn Header="车型" Binding="{Binding Ty}" Width="90"/>
+                            <DataGridTextColumn Header="名称" Binding="{Binding Na1}" Width="150"/>
+                            <DataGridTextColumn Header="车型" Binding="{Binding Ty}" Width="150"/>
                             <DataGridTextColumn Header="货位" Binding="{Binding Posi}" Width="70"/>
                             <!-- 库存整数显示（0.##：整数不带 .00，真实小数库存仍保留），与价格列区分 -->
                             <DataGridTextColumn Header="库存" Binding="{Binding Kcamount, StringFormat={}{0:0.##}}" Width="70"
