@@ -1055,7 +1055,7 @@ public sealed class YsyfSummaryRow
     public DateTime Mindate { get; set; }
 }
 
-public sealed class YsyfDetailRow
+public sealed class YsyfDetailRow : System.ComponentModel.INotifyPropertyChanged
 {
     public int Id { get; set; }
     public string Gname { get; set; } = "";
@@ -1081,6 +1081,25 @@ public sealed class YsyfDetailRow
 
     /// <summary>结账标记（旧 _K.row5 L110 mark：ys-yf=0 → √；ys-yf≠0 且 |已收|≥|ys-yf| → √；否则空白）。</summary>
     public string Mark { get; set; } = "";
+
+    private bool _isChecked;
+
+    /// <summary>
+    /// 界面勾选状态（2026-10-31 需求：明细行首列勾选框，仅 UI 使用，不落库）。
+    /// 实现 INPC：Shift+拖动勾选由代码赋值，auto 属性无变更通知会导致界面勾选框不刷新（拖动勾选失效）。
+    /// </summary>
+    public bool IsChecked
+    {
+        get => _isChecked;
+        set
+        {
+            if (_isChecked == value) return;
+            _isChecked = value;
+            PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(nameof(IsChecked)));
+        }
+    }
+
+    public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
 }
 
 public sealed record YsyfCustomerCommand(string Gname, decimal Cb, decimal Tick, decimal Yjb, string? Htno,
@@ -1191,9 +1210,10 @@ public sealed class YsyfRepository(SqlConnectionFactory factory) : IYsyfReposito
             where.Add("gname IN (SELECT DISTINCT gname FROM tbysyf WHERE type = '入库')");
         if (dateFrom.HasValue && dateTo.HasValue)
         {
+            // 旧码 o__.row170 L9/L34：M_D2 = TEXT3.VALUE + 1，结束日按“次日 0 点前”包含（新系统曾漏加 1 天，导致结束日当天数据缺失）
             where.Add("gname IN (SELECT DISTINCT gname FROM tbysyf WHERE datime >= @d1 AND datime < @d2)");
-            p.Add("@d1", dateFrom.Value, System.Data.DbType.DateTime);
-            p.Add("@d2", dateTo.Value, System.Data.DbType.DateTime);
+            p.Add("@d1", dateFrom.Value.Date, System.Data.DbType.DateTime);
+            p.Add("@d2", dateTo.Value.Date.AddDays(1), System.Data.DbType.DateTime);
         }
         if (!string.IsNullOrWhiteSpace(fkfs))
         {

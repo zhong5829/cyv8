@@ -298,6 +298,12 @@ public sealed class FinOpDetailRow
     public decimal Yhl { get; set; }
     public string Pty { get; set; } = "";
     public string Per { get; set; } = "";
+
+    /// <summary>
+    /// 金额 = 数量 × 实售价 × (100-优惠率)/100（旧 fr_finopdet 合计口径 AMOUNT×OPRCT×(100-YHL)/100 的单行值）。
+    /// 注意 tbsada.oprct 是实售「单价」而非金额（tbsada 无金额列），直接显示会得到 数量×单价≠金额。
+    /// </summary>
+    public decimal Jine => Math.Round(Amount * Oprct * (100 - Yhl) / 100m, 2);
 }
 
 /// <summary>读凭证结果（fr_finrevouch 表头 + 分录）。</summary>
@@ -799,17 +805,19 @@ public sealed class FinOpVouchRepository(SqlConnectionFactory factory) : IFinOpV
             }).ToList();
         }
         var rowsS = await conn.QueryAsync<(string gname, DateTime outdate, string paper, string nno, string na1,
-            string ty, decimal ckamount, decimal iprc, decimal oprct, decimal yhl, string guno, string per)>(
+            string ty, decimal ckamount, decimal oprc, decimal oprct, decimal yhl, string guno, string per)>(
             new CommandDefinition(
                 """
                 SELECT RTRIM(ISNULL(gname,'')), outdate, RTRIM(paper), RTRIM(nno), RTRIM(na1), RTRIM(ty),
-                       ISNULL(ckamount,0), ISNULL(iprc,0), ISNULL(oprct,0), ISNULL(yhl,0), RTRIM(ISNULL(guno,'')), RTRIM(ISNULL(per,''))
+                       ISNULL(ckamount,0), ISNULL(oprc,0), ISNULL(oprct,0), ISNULL(yhl,0), RTRIM(ISNULL(guno,'')), RTRIM(ISNULL(per,''))
                 FROM tbsada WITH (NOLOCK) WHERE rtrim(paper) = @paper AND type <> N'报价' ORDER BY id
                 """, new { paper = Ansi(paper, 15) }, cancellationToken: ct));
+        // 旧码 fr_finopdet __.row2 L129-141（SRO/SMO）：SCATTER MEMVAR 直取 tbsada 同名字段——
+        // OPRC=oprc 售价、OPRCT=oprct 实收额（此前误取 iprc 进价，导致数量×单价≠金额）
         return rowsS.Select(r => new FinOpDetailRow
         {
             Gu = r.gname, Date = r.outdate, Paper = r.paper, Nno = r.nno, Na1 = r.na1, Ty = r.ty,
-            Amount = r.ckamount, Oprc = r.iprc, Oprct = r.oprct, Yhl = r.yhl, Pty = r.guno, Per = r.per,
+            Amount = r.ckamount, Oprc = r.oprc, Oprct = r.oprct, Yhl = r.yhl, Pty = r.guno, Per = r.per,
         }).ToList();
     }
 

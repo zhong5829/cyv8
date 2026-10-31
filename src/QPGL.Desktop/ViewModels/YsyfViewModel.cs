@@ -22,6 +22,9 @@ public partial class YsyfViewModel : ObservableObject
     public ObservableCollection<YsyfDetailRow> Details { get; } = [];
     public ObservableCollection<string> Options { get; } = ["全部", "大于零", "小于零", "等于零"];
 
+    /// <summary>最近一次查询的客户汇总原始结果（旧 REYS 游标）：切换「选项」时本地重筛，不再打库。</summary>
+    private List<YsyfSummaryRow> _summarySource = [];
+
     /// <summary>明细显示筛选（2026-10-29 需求）：结账状态或业务类型，切换后立即刷新明细。</summary>
     public ObservableCollection<string> DetailFilters { get; } = ["所有", "已结账", "未结账", "销售", "入库", "收款", "付款"];
 
@@ -99,10 +102,10 @@ public partial class YsyfViewModel : ObservableObject
         if (value is not null) LoadDetailsCommand.Execute(null);
     }
 
-    /// <summary>2026-10-29 需求：查询后切换「选项」→ 下方明细立即按选项刷新（不再作为查询前置条件）。</summary>
+    /// <summary>切换「选项」→ 按旧 __.row45 口径筛选上方客户汇总行并重算合计。</summary>
     partial void OnOptionChanged(string value)
     {
-        if (SelectedSummary is not null) LoadDetailsCommand.Execute(null);
+        if (_summarySource.Count > 0) ApplySummaryFilter();
     }
 
     /// <summary>2026-10-29 需求：切换「明细显示」筛选（结账状态/业务类型）→ 明细立即刷新。</summary>
@@ -122,14 +125,10 @@ public partial class YsyfViewModel : ObservableObject
         {
             IsBusy = true;
             Message = "";
-            // 2026-10-29 需求：选项不再作为查询前置条件（汇总查全量），选项仅用于查询后切换时过滤下方明细
+            // 2026-10-29 需求：选项不作为查询前置条件（汇总先查全量），随后本地按 LJ 筛选（旧 __.row45）
             var rows = await Db.Ysyf.GetSummariesAsync(GnameFilter, "", DateFrom, DateTo, "", AppSession.DeptNo, ct);
-            Summaries.Clear();
-            foreach (var r in rows) Summaries.Add(r);
-            TotalYs = rows.Sum(r => r.SYs);
-            TotalYf = rows.Sum(r => r.SYf);
-            TotalLj = rows.Sum(r => r.Lj);
-            Message = $"应收 {TotalYs:N2}    应付 {TotalYf:N2}    余额 {TotalYs - TotalYf:N2}";
+            _summarySource = rows.ToList();
+            ApplySummaryFilter();
             // 添加/修改客户后：自动选中新客户（View 端滚动到该行，明细联动加载）
             if (NewlyAddedGname is not null)
             {
@@ -141,7 +140,7 @@ public partial class YsyfViewModel : ObservableObject
         finally { IsBusy = false; }
     }
 
-    /// <summary>页2 明细（gname 过滤 + 选项过滤 + 明细显示筛选 + LJ 累计列应用层计算）。</summary>
+    /// <summary>页2 明细（gname 过滤 + 明细显示筛选 + LJ 累计列应用层计算）。</summary>
     [RelayCommand]
     public async Task LoadDetailsAsync(CancellationToken ct = default)
     {
@@ -150,27 +149,54 @@ public partial class YsyfViewModel : ObservableObject
         {
             var rows = await Db.Ysyf.GetDetailsAsync(SelectedSummary.Gname, ct);
             Details.Clear();
-            foreach (var r in FilterDetails(FilterDetailsByOption(rows, Option), DetailFilter)) Details.Add(r);
+            // 2026-10-31 需求：明细按日期倒序显示（最新单据在最上面）；
+            // LJ 累计仍按时间正序逐行累计（每行=该笔发生后的余额，最上面一行即当前总余额），此处仅反转显示顺序
+            foreach (var r in FilterDetails(rows, DetailFilter).Reverse()) Details.Add(r);
         }
         catch (AppException ex) { Message = ex.Message; }
     }
 
-    /// <summary>选项明细过滤（2026-10-29 需求：全部/大于零/小于零/等于零，按该行余额 ys-yf）。</summary>
-    private static IReadOnlyList<YsyfDetailRow> FilterDetailsByOption(IReadOnlyList<YsyfDetailRow> rows, string option) =>
-        option.Trim() switch
+    /// <summary>
+    /// 「选项」筛选上方客户汇总（旧 __.row45 L6-22：按客户 LJ 过滤；表头合计随过滤结果重算）。
+    /// 全部=Σ应收/Σ应付（旧 OptionGroup1.Option1 选中）；其余=Σ正 LJ 记应收、Σ负 LJ 记应付，余额=两者相加。
+    /// </summary>
+    private void ApplySummaryFilter()
+    {
+        var option = Option.Trim();
+        var filtered = option switch
         {
-            "大于零" => rows.Where(r => r.Ys - r.Yf > 0).ToList(),
-            "小于零" => rows.Where(r => r.Ys - r.Yf < 0).ToList(),
-            "等于零" => rows.Where(r => r.Ys - r.Yf == 0).ToList(),
-            _ => rows,
+            "大于零" => _summarySource.Where(r => r.Lj > 0).ToList(),
+            "小于零" => _summarySource.Where(r => r.Lj < 0).ToList(),
+            "等于零" => _summarySource.Where(r => r.Lj == 0).ToList(),
+            _ => _summarySource.ToList(),
         };
+        Summaries.Clear();
+        foreach (var r in filtered) Summaries.Add(r);
+        if (option == "全部")
+        {
+            TotalYs = filtered.Sum(r => r.SYs);
+            TotalYf = filtered.Sum(r => r.SYf);
+            TotalLj = TotalYs - TotalYf;
+        }
+        else
+        {
+            TotalYs = filtered.Where(r => r.Lj > 0).Sum(r => r.Lj);
+            TotalYf = filtered.Where(r => r.Lj < 0).Sum(r => r.Lj);
+            TotalLj = TotalYs + TotalYf;
+        }
+        Message = $"应收 {TotalYs:N2}    应付 {TotalYf:N2}    余额 {TotalLj:N2}";
+    }
 
-    /// <summary>明细显示过滤（2026-10-29 需求）：已结账=mark√；未结账=非√；销售/入库/收款/付款=按类型；所有=不过滤。</summary>
+    /// <summary>
+    /// 明细显示过滤（旧 OptionGroup2 + A_.row88 L20-44 口径）：
+    /// 已结账=结清或已收够（ys-yf≠0 且 |skmoney|≥|ys-yf|）；未结账=ys-yf≠0 且 |skmoney|&lt;|ys-yf|；
+    /// 销售/入库/收款/付款=按类型；所有=不过滤。（维修按约定不纳入）
+    /// </summary>
     private static IReadOnlyList<YsyfDetailRow> FilterDetails(IReadOnlyList<YsyfDetailRow> rows, string detailFilter) =>
         detailFilter.Trim() switch
         {
-            "已结账" => rows.Where(r => r.Mark == "√").ToList(),
-            "未结账" => rows.Where(r => r.Mark != "√").ToList(),
+            "已结账" => rows.Where(r => r.Ys - r.Yf != 0 && Math.Abs(r.Skmoney) >= Math.Abs(r.Ys - r.Yf)).ToList(),
+            "未结账" => rows.Where(r => r.Ys - r.Yf != 0 && Math.Abs(r.Skmoney) < Math.Abs(r.Ys - r.Yf)).ToList(),
             "销售" or "入库" or "收款" or "付款" => rows.Where(r => r.Type.Trim() == detailFilter.Trim()).ToList(),
             _ => rows,
         };
@@ -256,6 +282,7 @@ public partial class YsyfViewModel : ObservableObject
                 Gname = dlg.Result.Gname.Trim(),
                 Cb = dlg.Result.Cb, Tick = dlg.Result.Tick, Yjb = dlg.Result.Yjb,
             };
+            _summarySource.Add(newRow);
             Summaries.Add(newRow);
             SelectedSummary = newRow;
         }

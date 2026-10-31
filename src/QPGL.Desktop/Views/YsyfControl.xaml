@@ -66,6 +66,8 @@
                 <Button Content="删除明细" Command="{Binding DeleteDetailCommand}" Padding="10,3" Margin="0,0,6,0"/>
                 <Button Content="多条删除" Command="{Binding MultiDeleteCommand}" Padding="10,3"
                         ToolTip="删除当前行之前的所有明细，当前行归并为汇总行（datime=1900-01-01）"/>
+                <Button Content="图片导出" Click="BtnExportImage_Click" Padding="10,3" Margin="16,0,0,0"
+                        ToolTip="勾选的明细导出为图片（无勾选导全部）：一张单据图（按单据号归并）+ 一张明细图，复制到剪贴板"/>
             </StackPanel>
         </Border>
 
@@ -85,17 +87,42 @@
                     <DataGridTextColumn Header="应付" Binding="{Binding SYf, StringFormat=N2}" Width="95" ElementStyle="{StaticResource NumCellRightNeg}"/>
                     <DataGridTextColumn Header="余额" Binding="{Binding Lj, StringFormat=N2}" Width="95" ElementStyle="{StaticResource NumCellRightNeg}"/>
                     <DataGridTextColumn Header="余款" Binding="{Binding Cb, StringFormat=N2}" Width="80" ElementStyle="{StaticResource NumCellRightNeg}"/>
+                    <!-- 2026-10-31 补齐旧表单列：赊数期(天)=tick、警戒限额=yjb（旧 Grid1 Column7/Column10，数据汇总查询已带出） -->
+                    <DataGridTextColumn Header="赊数期(天)" Binding="{Binding Tick, StringFormat=N0}" Width="70" ElementStyle="{StaticResource NumCellRightNeg}"/>
                     <DataGridTextColumn Header="可挂帐余额" Binding="{Binding Gzye, StringFormat=N2}" Width="90" ElementStyle="{StaticResource NumCellRightNeg}"/>
                     <DataGridTextColumn Header="业务员" Binding="{Binding Ywy}" Width="70"/>
                     <DataGridTextColumn Header="财负责人" Binding="{Binding Cwfzr}" Width="70"/>
+                    <DataGridTextColumn Header="警戒限额" Binding="{Binding Yjb, StringFormat=N2}" Width="80" ElementStyle="{StaticResource NumCellRightNeg}"/>
                     <DataGridTextColumn Header="最近收款" Binding="{Binding Mindate, StringFormat=yyyy-MM-dd}" Width="90"/>
                 </DataGrid.Columns>
             </DataGrid>
             <GridSplitter Grid.Row="1" Height="4" HorizontalAlignment="Stretch" Background="#DDD"/>
-            <DataGrid Grid.Row="2" ItemsSource="{Binding Details}" AutoGenerateColumns="False" CanUserAddRows="False"
+            <DataGrid x:Name="DetailsGrid" Grid.Row="2" ItemsSource="{Binding Details}" AutoGenerateColumns="False" CanUserAddRows="False"
                       GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12" IsReadOnly="True"
-                      SelectedItem="{Binding SelectedDetail}" MouseDoubleClick="Details_MouseDoubleClick">
+                      SelectedItem="{Binding SelectedDetail}" MouseDoubleClick="Details_MouseDoubleClick"
+                      PreviewMouseLeftButtonDown="DetailsGrid_PreviewMouseLeftButtonDown"
+                      PreviewMouseMove="DetailsGrid_PreviewMouseMove"
+                      PreviewMouseLeftButtonUp="DetailsGrid_PreviewMouseLeftButtonUp"
+                      LostMouseCapture="DetailsGrid_LostMouseCapture">
                 <DataGrid.Columns>
+                    <!-- 2026-10-31 需求：行首勾选框，支持单击勾选与 Shift+左键拖动连续勾选；
+                         收款/付款行不显示勾选框（DataTrigger 隐藏），拖动勾选时同样跳过 -->
+                    <DataGridTemplateColumn Header="选择" Width="45">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <CheckBox x:Name="Chk" IsChecked="{Binding IsChecked, UpdateSourceTrigger=PropertyChanged}"
+                                          HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding Type}" Value="收款">
+                                        <Setter TargetName="Chk" Property="Visibility" Value="Collapsed"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Type}" Value="付款">
+                                        <Setter TargetName="Chk" Property="Visibility" Value="Collapsed"/>
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
                     <DataGridTextColumn Header="日期" Binding="{Binding Datime, StringFormat=yyyy-MM-dd}" Width="85"/>
                     <DataGridTextColumn Header="单据号" Binding="{Binding Cno}" Width="130"/>
                     <DataGridTextColumn Header="类型" Binding="{Binding Type}" Width="60"/>

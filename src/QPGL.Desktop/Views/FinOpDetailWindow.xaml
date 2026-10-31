@@ -17,7 +17,7 @@
                 <DataGridTextColumn Header="车型" Binding="{Binding Ty}" Width="100"/>
                 <DataGridTextColumn Header="数量" Binding="{Binding Amount, StringFormat=N2}" Width="70" ElementStyle="{StaticResource NumCellRight}"/>
                 <DataGridTextColumn Header="单价" Binding="{Binding Oprc, StringFormat=N2}" Width="80" ElementStyle="{StaticResource NumCellRight}"/>
-                <DataGridTextColumn Header="金额" Binding="{Binding Oprct, StringFormat=N2}" Width="90" ElementStyle="{StaticResource NumCellRight}"/>
+                <DataGridTextColumn Header="金额" Binding="{Binding Jine, StringFormat=N2}" Width="90" ElementStyle="{StaticResource NumCellRight}"/>
                 <DataGridTextColumn Header="优惠%" Binding="{Binding Yhl, StringFormat=N0}" Width="60" ElementStyle="{StaticResource NumCellRight}"/>
                 <DataGridTextColumn Header="付款方式" Binding="{Binding Pty}" Width="80"/>
                 <DataGridTextColumn Header="营业员" Binding="{Binding Per}" Width="70"/>
