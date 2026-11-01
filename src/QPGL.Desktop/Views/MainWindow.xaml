@@ -6,7 +6,8 @@
         Height="760" Width="1200"
         WindowStartupLocation="CenterScreen"
         Icon="pack://application:,,,/QP12.ico"
-        Background="{StaticResource WindowBackBrush}">
+        Background="{StaticResource WindowBackBrush}"
+        PreviewKeyDown="Window_PreviewKeyDown">
     <Window.InputBindings>
         <KeyBinding Key="F12" Command="{Binding CloseActiveTabCommand}"/>
     </Window.InputBindings>
@@ -22,8 +23,17 @@
                 </DockPanel>
             </Border>
 
-            <!-- 传统菜单条（1:1 映射旧菜单 A~S；维修管理置灰=排除，附录A） -->
-            <Menu Background="White" Padding="4,2" FontSize="13">
+            <!-- 传统菜单条（1:1 映射旧菜单 A~S；维修管理置灰=排除，附录A）；
+                 右侧 VIN 快捷查询框（2026-11-01 需求）：任意页面连按两次 Alt 键定位到此框，回车/查询直接进 VIN 查询窗执行 -->
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0">
+                    <TextBlock Text="VIN:" VerticalAlignment="Center" FontSize="13"/>
+                    <TextBox x:Name="TxtVinQuick" Width="200" FontSize="13" Margin="4,0,4,0" VerticalContentAlignment="Center"
+                             KeyDown="TxtVinQuick_KeyDown"
+                             ToolTip="输入 VIN 码或配件编号，回车/点「查询」直接进 VIN 查询窗执行；任意页面连按两次 Alt 键定位到此框"/>
+                    <Button Content="查询" Padding="10,3" Click="BtnVinQuickQuery_Click"/>
+                </StackPanel>
+                <Menu Background="White" Padding="4,2" FontSize="13">
                 <MenuItem Header="属性定义(A)">
                     <MenuItem Header="零件属性定义" Command="{Binding OpenAttrBasicCommand}" CommandParameter="A1" ToolTip="A1（fr_prnoty：tbprnoty CRUD+通用码/套件码/税号批改/最低售价/传递到库存）"/>
                     <MenuItem Header="零件代码定义" Command="{Binding OpenAttrBasicCommand}" CommandParameter="A2" ToolTip="A2（fr_prname：tbname0 拼音码 CRUD+up_name0 提取）"/>
@@ -150,7 +160,8 @@
                 <MenuItem Header="帮助(H)">
                     <MenuItem Header="检查更新" Click="CheckUpdate_Click" ToolTip="从 GitHub Releases（国内代理加速）检查并升级到最新版本"/>
                 </MenuItem>
-            </Menu>
+                </Menu>
+            </DockPanel>
 
         </StackPanel>
 

@@ -53,10 +53,10 @@ public partial class ConfirmSaleDialog : Window
         {
             var methods = await Services.Db.Receipts.GetPaymentMethodsAsync();
             CboGuno.ItemsSource = methods.Select(m => m.Name).ToList();
-            // 默认「挂帐」（与入库页同语义：非 NS 部署默认挂帐，缺则取第一项）
             var names = methods.Select(m => m.Name).ToList();
             CboGuno.ItemsSource = names;
-            CboGuno.SelectedItem = names.Contains("挂帐") ? "挂帐" : names.FirstOrDefault();
+            // 默认「现金」，缺则取第一项
+            CboGuno.SelectedItem = names.Contains("现金") ? "现金" : names.FirstOrDefault();
 
             // 发票号（旧 CBOPNO）：自由输入 + 客户档案 tbgu.pno 带入，缺省 '*'
             // 发货方式：tbsysset type='fhfs'（旧 l__.row294），默认「送货」；

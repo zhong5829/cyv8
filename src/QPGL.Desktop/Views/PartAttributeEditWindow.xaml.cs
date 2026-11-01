@@ -1,5 +1,7 @@
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media.Imaging;
 using QPGL.Desktop.Services;
 using QPGL.Infrastructure.Parts;
 
@@ -19,11 +21,16 @@ public partial class PartAttributeEditWindow : Window
 
     private List<ComplexRow> _tax = [];   // tbcomplex 全量（税号→税率）
 
+    // 配件图片（2026-11-01 需求，旧 mypicture 类口径）：选择进缓冲、确定时落 tbImage
+    private readonly List<(byte[] Bytes, string Ext, string Chksum)> _pendingImages = [];
+    private byte[]? _existingImage;   // 窗口打开时已有的第一张图（仅预览，不重复落库）
+
     public PartAttributeEditWindow(PrnotyRow? source, string cp)
     {
         InitializeComponent();
         Row = source is null ? new PrnotyRow { Cp = cp } : CloneRow(source);
         Loaded += async (_, _) => await LoadDictsAsync();
+        Loaded += async (_, _) => await LoadPartImageAsync();
         FillFields();
     }
 
@@ -126,7 +133,7 @@ public partial class PartAttributeEditWindow : Window
         RateBox.Text = hit.Low_rate.ToString("0.####");
     }
 
-    private void OkButton_Click(object sender, RoutedEventArgs e)
+    private async void OkButton_Click(object sender, RoutedEventArgs e)
     {
         // 旧 CMDOK 校验：零件编号与零件名必填
         if (NnoBox.Text.Trim().Length == 0 || Na1Box.Text.Trim().Length == 0)
@@ -135,7 +142,133 @@ public partial class PartAttributeEditWindow : Window
             return;
         }
         WriteBack();
+        // 添加的图片随「确定」写入 tbImage（旧 saveimg 随表单保存落库同语义；失败仅提示不阻断属性保存）
+        if (_pendingImages.Count > 0)
+        {
+            try
+            {
+                var nno = NnoBox.Text.Trim();
+                foreach (var (bytes, ext, chk) in _pendingImages)
+                    await Db.Parts.SavePartImageAsync(nno, bytes, $"bmp\\{nno.Replace(" ", "")}_{chk}{ext}", chk);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"图片保存失败：{ex.Message}", Title, MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
         DialogResult = true;
+    }
+
+    // ==== 配件图片（2026-11-01 需求，旧 mypicture addimg/saveimg 口径）====
+
+    /// <summary>窗口打开时预览已有第一张图（tbImage，开单页同源）。</summary>
+    private async Task LoadPartImageAsync()
+    {
+        var nno = NnoBox.Text.Trim();
+        if (nno.Length == 0) return;
+        try
+        {
+            var bytes = await Db.Parts.GetPartImageAsync(nno);
+            if (bytes is null) return;
+            _existingImage = bytes;
+            ShowThumb(bytes);
+            ImgHint.Text = "已有图片";
+        }
+        catch { /* 预览失败不阻断编辑 */ }
+    }
+
+    /// <summary>添加图片：选 jpg/bmp/png，超上限先转 PNG 重压（旧 addimg IMG2IMG 口径），仍超拒绝；确定时统一落库。</summary>
+    private async void AddImage_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "添加配件图片",
+            Filter = "有效图片文件(*.jpg,*.bmp,*.png)|*.jpg;*.jpeg;*.bmp;*.png",
+        };
+        if (dlg.ShowDialog(this) != true) return;
+        try
+        {
+            var bytes = await File.ReadAllBytesAsync(dlg.FileName);
+            var max = await Db.Parts.GetMaxImageSizeAsync();
+            if (max != 0 && bytes.Length > max)
+            {
+                var compressed = TryCompressToPng(bytes);
+                if (compressed is null || compressed.Length >= max)
+                {
+                    MessageBox.Show($"{dlg.FileName} 文件太大!{Environment.NewLine}图片文件最大不能超过 {max / 1024}KB",
+                        Title, MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+                bytes = compressed;
+            }
+            var chk = Checksum(bytes);
+            if (_existingImage is not null && chk == Checksum(_existingImage))
+            {
+                ImgHint.Text = "该图片与已有图片相同";
+                return;
+            }
+            if (_pendingImages.Any(p => p.Chksum == chk)) return;   // 同一文件重复添加忽略
+            _pendingImages.Add((bytes, Path.GetExtension(dlg.FileName).ToLowerInvariant(), chk));
+            ShowThumb(bytes);
+            ImgHint.Text = $"已选 {_pendingImages.Count} 张新图片，点「确定」保存";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"读取图片失败：{ex.Message}", Title, MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    /// <summary>缩略图单击看大图（优先最新添加的，否则已有图）。</summary>
+    private void PartImage_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        var bytes = _pendingImages.Count > 0 ? _pendingImages[^1].Bytes : _existingImage;
+        if (bytes is null) return;
+        new PartImageViewerWindow(NnoBox.Text.Trim(), bytes).ShowDialog();
+    }
+
+    private void ShowThumb(byte[] bytes)
+    {
+        try
+        {
+            var bmp = new BitmapImage();
+            bmp.BeginInit();
+            bmp.StreamSource = new MemoryStream(bytes);
+            bmp.CacheOption = BitmapCacheOption.OnLoad;
+            bmp.EndInit();
+            bmp.Freeze();
+            PartImageThumb.Source = bmp;
+        }
+        catch { PartImageThumb.Source = null; }
+    }
+
+    /// <summary>超限图片转 PNG 重压（旧 IMG2IMG→PNG 口径）；解码失败返回 null。</summary>
+    private static byte[]? TryCompressToPng(byte[] source)
+    {
+        try
+        {
+            var bmp = new BitmapImage();
+            bmp.BeginInit();
+            bmp.StreamSource = new MemoryStream(source);
+            bmp.CacheOption = BitmapCacheOption.OnLoad;
+            bmp.EndInit();
+            var encoder = new PngBitmapEncoder();
+            encoder.Frames.Add(BitmapFrame.Create(bmp));
+            using var ms = new MemoryStream();
+            encoder.Save(ms);
+            return ms.ToArray();
+        }
+        catch { return null; }
+    }
+
+    /// <summary>内容指纹（FNV-1a 32 位十进制串，用于 tbImage.chksum 去重；fn 命名同旧格式 {nno}_{chksum}.{ext}）。</summary>
+    private static string Checksum(byte[] bytes)
+    {
+        unchecked
+        {
+            uint h = 2166136261;
+            foreach (var b in bytes) { h ^= b; h *= 16777619; }
+            return h.ToString();
+        }
     }
 
     private static decimal PDec(string s) => decimal.TryParse(s?.Trim(), out var v) ? v : 0m;

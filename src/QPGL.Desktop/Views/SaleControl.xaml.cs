@@ -186,10 +186,10 @@ public partial class SaleControl : UserControl
             _ => 0,
         };
         if (move == 0) return;
-        // 三个查询框按 XAML 顺序相邻切换（编码→名称→车型）
-        TextBox? target = (box == CpBox) ? (move > 0 ? Na1Box : null)
-                        : (box == Na1Box) ? (move > 0 ? TyBox : CpBox)
-                        : (move > 0 ? null : Na1Box);
+        // 三个查询框按 XAML 顺序相邻切换（编码→车型→名称，2026-11-01 需求调整列序）
+        TextBox? target = (box == CpBox) ? (move > 0 ? TyBox : null)
+                        : (box == TyBox) ? (move > 0 ? Na1Box : CpBox)
+                        : (move > 0 ? null : TyBox);
         if (target is null) return;
         target.Focus();
         target.SelectAll();
@@ -419,7 +419,7 @@ public partial class SaleControl : UserControl
         }
     }
 
-    /// <summary>整单确认成功：勾选"立即打印"（2026-10-30 需求）时留在开单模式（打印已在 VM 内发送）；
+    /// <summary>整单确认成功：勾选"立即打印"（2026-11-01 需求：弹打印预览，手动打印后自动关窗）时留在开单模式；
     /// 否则清屏后自动切换到查询模式（并刷新单据列表到当天）。</summary>
     private void Vm_ConfirmSucceeded(object? sender, EventArgs e)
     {

@@ -52,7 +52,7 @@ public static class SaleTicketDocument
         y += 21;
         AddBoxText(page, $"地    址: {Trunc(doc.CustomerAddress, 18)}", 15, y, 260, x: 26);
         AddBoxText(page, $"电话: {doc.CustomerTel}", 15, y, 230, x: 295);
-        AddBoxText(page, $"打印时间: {doc.PrintTime:yyyy-MM-dd HH:mm}", 15, y, 185, x: 545);
+        AddBoxText(page, $"打印时间: {doc.PrintTime:yyyy-MM-dd HH:mm}", 15, y, 205, x: 545);
         y += 21;
         // 收货区外框
         page.Children.Add(new Rectangle
@@ -84,7 +84,7 @@ public static class SaleTicketDocument
                 line.Price.ToString("N2"),
                 line.Amount.ToString("N2"),
                 line.Posi,
-            }, ref y, boldQty: true);
+            }, ref y);
         }
         // 表格外框（表头到最后一行）
         page.Children.Add(new Rectangle
@@ -201,18 +201,24 @@ public static class SaleTicketDocument
         double x = 22;
         for (var i = 0; i < widths.Length; i++)
         {
+            // 2026-11-01 需求：明细区表头不加粗；左对齐列右移 3px 内边距，避免首字与列竖线重叠
+            var pad = i < 4 ? 3 : 0;
+            // 行高 25px 内垂直居中（LineHeight=25 + BlockLineHeight）：大字号（16/18）不再压下方分隔线
             var tb = new TextBlock
             {
                 Text = headers[i],
                 FontSize = i == 2 || i == 4 ? 16 : 14,   // 零件名/出库数 列加大
-                FontWeight = FontWeights.Bold,
+                FontWeight = FontWeights.Normal,
                 Foreground = Ink,
                 FontFamily = new FontFamily("Microsoft YaHei"),
-                Width = widths[i],
+                Height = 25,
+                LineHeight = 25,
+                LineStackingStrategy = LineStackingStrategy.BlockLineHeight,
+                Width = widths[i] - pad,
                 TextAlignment = i >= 4 ? TextAlignment.Center : TextAlignment.Left,
             };
-            FixedPage.SetTop(tb, y + 3);
-            FixedPage.SetLeft(tb, x);
+            FixedPage.SetTop(tb, y);
+            FixedPage.SetLeft(tb, x + pad);
             page.Children.Add(tb);
             x += widths[i];
         }
@@ -224,24 +230,30 @@ public static class SaleTicketDocument
         y += 3;
     }
 
-    private static void DrawTableRow(FixedPage page, double[] widths, string[] cells, ref double y,
-        bool boldQty = false)
+    private static void DrawTableRow(FixedPage page, double[] widths, string[] cells, ref double y)
     {
         double x = 22;
         for (var i = 0; i < widths.Length; i++)
         {
+            // 2026-11-01 需求：零件名/出库数不加粗；出库数字体加大到 18；
+            // 左对齐列右移 3px 内边距，避免首字与列竖线重叠
+            var pad = i < 4 ? 3 : 0;
+            // 行高 25px 内垂直居中（LineHeight=25 + BlockLineHeight）：出库数 18 号字不再压下方分隔线
             var tb = new TextBlock
             {
                 Text = cells[i],
-                FontSize = i == 2 || i == 4 ? 16 : 14,   // 零件名/出库数 列加大
+                FontSize = i == 4 ? 18 : i == 2 ? 16 : 14,   // 出库数 18 / 零件名 16 / 其余 14
                 Foreground = Ink,
                 FontFamily = new FontFamily("Microsoft YaHei"),
-                Width = widths[i],
+                Height = 25,
+                LineHeight = 25,
+                LineStackingStrategy = LineStackingStrategy.BlockLineHeight,
+                Width = widths[i] - pad,
                 TextAlignment = i >= 4 ? TextAlignment.Center : TextAlignment.Left,
-                FontWeight = i == 2 || (boldQty && i == 4) ? FontWeights.Bold : FontWeights.Normal,
+                FontWeight = FontWeights.Normal,
             };
-            FixedPage.SetTop(tb, y + 3);
-            FixedPage.SetLeft(tb, x);
+            FixedPage.SetTop(tb, y);
+            FixedPage.SetLeft(tb, x + pad);
             page.Children.Add(tb);
             x += widths[i];
         }

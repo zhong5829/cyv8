@@ -66,17 +66,17 @@
                              GotKeyboardFocus="SearchBox_GotKeyboardFocus" PreviewMouseLeftButtonDown="SearchBox_PreviewMouseLeftButtonDown"
                              PreviewKeyDown="SearchBox_PreviewKeyDown"
                              ToolTip="查内部编号：缺省前缀匹配（输 pt 只查 PT 开头）；输 /pt 转包含匹配（PT/OPT 等含 pt 的都命中）"/>
+                    <TextBlock Text="车型" VerticalAlignment="Center"/>
+                    <TextBox x:Name="TyBox" Width="150" Margin="4,0,16,0"
+                             Text="{Binding PartTy, UpdateSourceTrigger=PropertyChanged}" TextChanged="TyBox_TextChanged"
+                             GotKeyboardFocus="SearchBox_GotKeyboardFocus" PreviewMouseLeftButtonDown="SearchBox_PreviewMouseLeftButtonDown"
+                             PreviewKeyDown="SearchBox_PreviewKeyDown"/>
                     <TextBlock Text="名称" VerticalAlignment="Center"/>
                     <TextBox x:Name="Na1Box" Width="200" Margin="4,0,16,0"
                              Text="{Binding PartNa1, UpdateSourceTrigger=PropertyChanged}" TextChanged="Na1Box_TextChanged"
                              GotKeyboardFocus="SearchBox_GotKeyboardFocus" PreviewMouseLeftButtonDown="SearchBox_PreviewMouseLeftButtonDown"
                              PreviewKeyDown="SearchBox_PreviewKeyDown"
                              ToolTip="支持拼音码/编码/名称/车型"/>
-                    <TextBlock Text="车型" VerticalAlignment="Center"/>
-                    <TextBox x:Name="TyBox" Width="150" Margin="4,0,16,0"
-                             Text="{Binding PartTy, UpdateSourceTrigger=PropertyChanged}" TextChanged="TyBox_TextChanged"
-                             GotKeyboardFocus="SearchBox_GotKeyboardFocus" PreviewMouseLeftButtonDown="SearchBox_PreviewMouseLeftButtonDown"
-                             PreviewKeyDown="SearchBox_PreviewKeyDown"/>
                     <!-- 多条件查询（2026-10-31 需求）：逐行输入内部编号，一次查回多个配件 -->
                     <Button Content="多条件查询" Click="MultiCodeSearch_Click" Padding="10,2" Margin="0,0,16,0"
                             VerticalAlignment="Center"
@@ -134,6 +134,9 @@
                             <DataGridTextColumn Header="货位" Binding="{Binding Posi}" Width="70"/>
                             <!-- 库存整数显示（0.##：整数不带 .00，真实小数库存仍保留），与价格列区分 -->
                             <DataGridTextColumn Header="库存" Binding="{Binding Kcamount, StringFormat={}{0:0.##}}" Width="70"
+                                                ElementStyle="{StaticResource NumCellRight}"/>
+                            <!-- 2026-11-01 需求：最低售价（tbprnoty.oprc_min，搜索后批量回填） -->
+                            <DataGridTextColumn Header="最低售价" Binding="{Binding OprcMin, StringFormat=N2}" Width="70"
                                                 ElementStyle="{StaticResource NumCellRight}"/>
                             <!-- 2026-10-28 需求：最近一次进价默认隐藏，双击空格切换显示（PartGrid_PreviewKeyDown） -->
                             <DataGridTextColumn x:Name="LastIprcColumn" Header="最近进价" Binding="{Binding LastIprj, StringFormat=N2}"

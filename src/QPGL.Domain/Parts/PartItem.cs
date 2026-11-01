@@ -24,13 +24,14 @@ public sealed class PartItem
     public string Depotno { get; init; } = "";  // 仓库号
     public string Note { get; init; } = "";     // 备注
     public decimal LastIprj { get; set; }       // 最近一次进价（tbistoed 最近一条入库行 iprj，搜索后批量回填；2026-10-28 需求：默认隐藏列，双击空格切换显示）
+    public decimal OprcMin { get; set; }        // 最低售价（tbprnoty.oprc_min，搜索后批量回填；2026-11-01 需求：开单页库存列后显示）
 
     /// <summary>轻量库存刷新用副本：仅替换 Kcamount（本类不可变，DataGrid 行按索引替换以刷新单元格；2026-10-30 需求）。</summary>
     public PartItem WithStock(decimal kcamount) => new()
     {
         Id = Id, Dpm = Dpm, Cp = Cp, Nno = Nno, Na1 = Na1, Ty = Ty, Fa = Fa, Dc = Dc,
         Unit = Unit, Kcamount = kcamount, Iprj = Iprj, Iprc = Iprc, Oprc = Oprc, Oprb = Oprb,
-        Posi = Posi, Depotno = Depotno, Note = Note, LastIprj = LastIprj,
+        Posi = Posi, Depotno = Depotno, Note = Note, LastIprj = LastIprj, OprcMin = OprcMin,
     };
 
     /// <summary>「最近进价」回填后刷新用副本：仅替换 LastIprj（本类无属性变更通知，DataGrid 行按索引替换以刷新单元格）。</summary>
@@ -38,6 +39,6 @@ public sealed class PartItem
     {
         Id = Id, Dpm = Dpm, Cp = Cp, Nno = Nno, Na1 = Na1, Ty = Ty, Fa = Fa, Dc = Dc,
         Unit = Unit, Kcamount = Kcamount, Iprj = Iprj, Iprc = Iprc, Oprc = Oprc, Oprb = Oprb,
-        Posi = Posi, Depotno = Depotno, Note = Note, LastIprj = lastIprj,
+        Posi = Posi, Depotno = Depotno, Note = Note, LastIprj = lastIprj, OprcMin = OprcMin,
     };
 }

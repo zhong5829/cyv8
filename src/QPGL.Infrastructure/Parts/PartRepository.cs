@@ -47,6 +47,13 @@ public interface IPartRepository
     /// <summary>配件图片（tbImage.imgs base64 按内部编号；2026-10-31 需求：开单页选中配件显示图片。无图返回 null）。</summary>
     Task<byte[]?> GetPartImageAsync(string nno, CancellationToken ct = default);
 
+    /// <summary>图片大小上限（tbsysset type='system' name='MaxImageSize'，缺省 0x0C8000=819200；旧 mypicture.initimage 口径，2026-11-01 需求）。</summary>
+    Task<int> GetMaxImageSizeAsync(CancellationToken ct = default);
+
+    /// <summary>追加配件图片（tbImage：nno 紧凑编号 + chksum 防重，旧 mypicture.saveimg 口径；imgtype='prnoty'。2026-11-01 需求）。
+    /// 已存在同编号同内容时跳过返回 false，否则插入返回 true。</summary>
+    Task<bool> SavePartImageAsync(string nno, byte[] bytes, string fn, string chksum, CancellationToken ct = default);
+
     /// <summary>标签打印数据源（2026-10-31 需求，qp11 GetLabelItemsAsync 同构）：tbisto 三条件 LIKE 模糊查
     /// （nno/na1/ty，空条件忽略），na1/ty 支持拼音码（tbname0/tbty0 派生表，同 SearchAsync 机制），
     /// brand 非空时按厂牌 cp 精确过滤。按 仓位→内部编号 排序输出。
@@ -299,6 +306,9 @@ public sealed class PartRepository(SqlConnectionFactory factory) : IPartReposito
             await FillLastIprjCoreAsync(conn, items, dpm, ct);
             QPGL.Infrastructure.DebugLog.Log($"[PartSearch] fillLastIprj={swFill.ElapsedMilliseconds}ms");
         }
+        // 最低售价批量回填（2026-11-01 需求：开单页库存列后显示）：tbprnoty 按 cp+nno 匹配
+        if (items.Count > 0)
+            await FillOprcMinCoreAsync(conn, items, ct);
 
         return new PagedResult<PartItem>
         {
@@ -341,7 +351,11 @@ public sealed class PartRepository(SqlConnectionFactory factory) : IPartReposito
             """;
         await using var conn = await factory.OpenAsync(ct);
         var rows = (await conn.QueryAsync<PartSearchRow>(new CommandDefinition(sql, args, cancellationToken: ct))).AsList();
-        return rows.Select(r => r.ToItem()).ToList();
+        var items = rows.Select(r => r.ToItem()).ToList();
+        // 最低售价回填（同 SearchAsync 口径，开单页多条件查询按钮共用 PartItem）
+        if (items.Count > 0)
+            await FillOprcMinCoreAsync(conn, items, ct);
+        return items;
     }
 
     /// <inheritdoc/>
@@ -480,6 +494,24 @@ public sealed class PartRepository(SqlConnectionFactory factory) : IPartReposito
         }
     }
 
+    /// <summary>最低售价回填核心（nno IN 本页零件号，tbprnoty 按 rtrim(cp)+rtrim(nno) 匹配取 oprc_min）。</summary>
+    private static async Task FillOprcMinCoreAsync(System.Data.Common.DbConnection conn, IReadOnlyList<PartItem> items, CancellationToken ct)
+    {
+        var nnos = items.Select(p => p.Nno.Trim()).Where(n => n.Length > 0).Distinct().ToList();
+        if (nnos.Count == 0) return;
+        var rows = await conn.QueryAsync<(string cp, string nno, decimal oprc_min)>(new CommandDefinition(
+            """
+            SELECT rtrim(cp) AS cp, rtrim(nno) AS nno, oprc_min
+            FROM tbprnoty WITH (NOLOCK)
+            WHERE nno IN @nnos
+            """,
+            new { nnos = nnos.Select(n => new DbString { Value = n, IsAnsi = true, Length = 18 }).ToList() },
+            cancellationToken: ct));
+        var map = rows.ToDictionary(r => $"{r.cp}|{r.nno}", r => r.oprc_min, StringComparer.OrdinalIgnoreCase);
+        foreach (var p in items)
+            p.OprcMin = map.GetValueOrDefault($"{p.Cp.Trim()}|{p.Nno.Trim()}");
+    }
+
     /// <summary>
     /// 历史售价：tbsada type IN ('销售','历史') 全部出库行按时间倒序（NOLOCK，显式列，点查 nno+dpm 走索引）。
     /// type 两态都取：日营业统计会把 '销售' 翻转为 '历史'（旧 VFP fr_sale 同款口径），只查 '销售' 会漏掉全部已日结历史。
@@ -601,6 +633,45 @@ public sealed class PartRepository(SqlConnectionFactory factory) : IPartReposito
         if (string.IsNullOrWhiteSpace(imgs)) return null;
         try { return Convert.FromBase64String(imgs.Trim()); }
         catch { return null; }   // base64 损坏按无图处理
+    }
+
+    /// <inheritdoc/>
+    public async Task<int> GetMaxImageSizeAsync(CancellationToken ct = default)
+    {
+        await using var conn = await factory.OpenAsync(ct);
+        var v = await conn.ExecuteScalarAsync<decimal?>(new CommandDefinition(
+            "SELECT valuen FROM tbsysset WITH (NOLOCK) WHERE type = 'system' AND name = 'MaxImageSize'",
+            cancellationToken: ct));
+        return v is > 0 ? (int)v.Value : 0x0C8000;   // 旧码缺省 0x0C8000=819200
+    }
+
+    /// <inheritdoc/>
+    public async Task<bool> SavePartImageAsync(string nno, byte[] bytes, string fn, string chksum, CancellationToken ct = default)
+    {
+        var compact = nno.Trim().Replace(" ", "");   // tbImage.nno 紧凑编号（旧 PJNNO 去空格口径）
+        var imgs = Convert.ToBase64String(bytes);
+        await using var conn = await factory.OpenAsync(ct);
+        // 防重：同编号同内容（chksum）已存在则跳过（旧 saveimg count(1) 口径）
+        var exists = await conn.ExecuteScalarAsync<int>(new CommandDefinition(
+            "SELECT COUNT(1) FROM tbImage WITH (NOLOCK) WHERE RTRIM(nno) = @nno AND RTRIM(chksum) = @chksum",
+            new
+            {
+                nno = new DbString { Value = compact, IsAnsi = true, Length = 18 },
+                chksum = new DbString { Value = chksum, IsAnsi = true, Length = 20 },
+            },
+            cancellationToken: ct));
+        if (exists > 0) return false;
+        await conn.ExecuteAsync(new CommandDefinition(
+            "INSERT INTO tbImage (nno, imgs, fn, imgtype, chksum) VALUES (@nno, @imgs, @fn, 'prnoty', @chksum)",
+            new
+            {
+                nno = new DbString { Value = compact, IsAnsi = true, Length = 18 },
+                imgs,
+                fn = new DbString { Value = fn, IsAnsi = true, Length = 254 },
+                chksum = new DbString { Value = chksum, IsAnsi = true, Length = 20 },
+            },
+            cancellationToken: ct));
+        return true;
     }
 
     /// <inheritdoc/>

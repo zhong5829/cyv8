@@ -1189,6 +1189,8 @@ public sealed class YsyfRepository(SqlConnectionFactory factory) : IYsyfReposito
         gnamePrefix = (gnamePrefix ?? "").Trim();
         if (gnamePrefix.Length > 0)
         {
+            // 2026-11-01 需求：客户名称改中文包含匹配（"鹏伟"可查"上海鹏伟"），拼音码路径不受影响；
+            // 旧"/"前缀转义分支保留（语义与默认一致）
             if (gnamePrefix.StartsWith("/", StringComparison.Ordinal))
             {
                 where.Add("gname LIKE @glike");
@@ -1196,9 +1198,8 @@ public sealed class YsyfRepository(SqlConnectionFactory factory) : IYsyfReposito
             }
             else
             {
-                where.Add("gname >= @gfrom AND gname <= @gto");
-                p.Add("@gfrom", gnamePrefix, System.Data.DbType.AnsiString, size: 60);
-                p.Add("@gto", gnamePrefix + "组组组组", System.Data.DbType.AnsiString, size: 64);
+                where.Add("gname LIKE @glike");
+                p.Add("@glike", $"%{gnamePrefix}%", System.Data.DbType.AnsiString);
             }
         }
         if (option == "应收") where.Add("(ys <> 0 OR (ys = 0 AND yf = 0))");

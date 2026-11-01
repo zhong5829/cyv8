@@ -626,8 +626,8 @@ public partial class SaleViewModel : ObservableObject, IDisposable
             var cmd = dialog.Command;
             cmd.Dept = Dept;
             var result = await Db.Sales.ConfirmAsync(cmd, AppSession.Operator, ct);
-            // 确认成功：清空开单面板。打印勾选（2026-10-31 需求）→ 留在开单模式静默发送打印机，
-            // 同时弹出单据打印预览窗供截图，窗口由用户手动关闭（ESC）；任一步失败均不阻断确认。
+            // 确认成功：清空开单面板。打印勾选（2026-11-01 需求）→ 留在开单模式并自动弹出打印预览窗
+            //（原静默打印取消），用户在预览窗选打印机手动点「打印」，发送成功后预览窗自动关闭；
             // 未勾选 → 通知宿主切到查询模式（旧系统确认后回到单据浏览语义）。
             SkipQuerySwitchAfterConfirm = printAfter;
             ClearBill();
@@ -636,18 +636,8 @@ public partial class SaleViewModel : ObservableObject, IDisposable
                 var status = $"已确认 {result.Paper}（结帐日期 {result.Jzdate:yyyy-MM-dd}）";
                 try
                 {
-                    // 静默打印（2026-10-30 需求）：直接输出默认打印机，不弹系统打印对话框
-                    await Printing.PrintService.PrintSaleSilentAsync(result.Paper, DocType, ct);
-                    status += "，已发送打印";
-                }
-                catch (Exception pex)
-                {
-                    status += $"，打印失败：{pex.Message}";
-                }
-                try
-                {
-                    // 打印预览（2026-10-31 需求）：同时弹出预览窗方便截图给客户，窗口由用户手动关闭（ESC）
-                    await Printing.PrintService.PreviewSaleAsync(result.Paper, DocType, ct);
+                    // 打印预览（勾选立即打印=自动弹预览，不静默打印；closeAfterPrint=预览窗内点「打印」成功后自动关闭）
+                    await Printing.PrintService.PreviewSaleAsync(result.Paper, DocType, ct, closeAfterPrint: true);
                     status += "，已打开打印预览";
                 }
                 catch (Exception pex)

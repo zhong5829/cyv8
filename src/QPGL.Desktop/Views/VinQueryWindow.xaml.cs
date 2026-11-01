@@ -511,6 +511,13 @@ public partial class VinQueryWindow : Window, INotifyPropertyChanged
             }
             _currentVin = vin;
             _currentVehicleInfo = vehicleInfo;
+
+            // 2026-11-01 需求：VIN 查询成功后自动打开本次结果的配件适配列表
+            //（此前结果气泡只进会话视图，若窗口停留在旧列表则被遮挡，须手动返回再找消息）
+            if (allCategories.Count > 0)
+            {
+                ShowPartListView(allCategories);
+            }
         }
         catch (Exception ex)
         {
@@ -830,10 +837,13 @@ public partial class VinQueryWindow : Window, INotifyPropertyChanged
         }
     }
 
-    public async void QueryFromExternal(string vin)
+    public async Task QueryFromExternal(string vin)
     {
+        // 2026-11-01 需求：窗口正停留在旧配件列表时，新查询先切回会话视图（成功后自动直开新结果列表，见 QueryByVinAsync）
+        BackToChatView();
         VinInput = vin;
         Activate();
+        txtVinInput.Focus();
         await QueryVinAsync();
     }
 

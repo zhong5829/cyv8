@@ -20,7 +20,7 @@ public interface IPartnerRepository
 /// <summary>
 /// 客户资料仓储（tbgu，结构零改动）。
 /// 旧实现出处：fr_client* 表单族（客户资料维护/查询）。
-/// 性能（§10.2）：显式列 + OFFSET/FETCH 强制分页 + 排序走白名单索引列 + 关键字前缀匹配（SARGable）
+/// 性能（§10.2）：显式列 + OFFSET/FETCH 强制分页 + 排序走白名单索引列 + 关键字匹配（客户名称包含、其余前缀，SARGable）
 /// + READ UNCOMMITTED（旧系统全局 P_WITHNOLOCK 语义，仅列表查询；写路径严禁脏读）。
 /// </summary>
 public sealed class PartnerRepository(SqlConnectionFactory factory) : IPartnerRepository
@@ -37,10 +37,12 @@ public sealed class PartnerRepository(SqlConnectionFactory factory) : IPartnerRe
             offset = (request.Page - 1) * request.PageSize,
             pageSize = request.PageSize,
         };
+        // 2026-11-01 需求：客户名称改中文包含匹配（"鹏伟"可查"上海鹏伟"）；
+        // 编号/拼音码(code)/数字码/电话/手机保持前缀匹配（拼音输入不用动）
         var where = hasKeyword
             ? """
               WHERE gno    LIKE @kw + '%'
-                 OR gname  LIKE @kw + '%'
+                 OR gname  LIKE '%' + @kw + '%'
                  OR code   LIKE @kw + '%'
                  OR code1  LIKE @kw + '%'
                  OR mobile LIKE @kw + '%'

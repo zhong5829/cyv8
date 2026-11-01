@@ -98,22 +98,77 @@ public partial class MainWindow : Window
     /// <summary>系统管理(S) → VIN 查询（qp11 复刻：VIN 解码 + 318car/品秀 适配配件查询）。</summary>
     private void OpenVinQuery_Click(object sender, RoutedEventArgs e)
     {
+        EnsureVinQueryWindow();
+    }
+
+    /// <summary>VIN 查询窗单例打开（菜单入口 + 顶部快捷框共用）：非模态、不设 Owner（qp11 同款语义）。</summary>
+    private bool EnsureVinQueryWindow()
+    {
         if (Db.VinQuery is null || Db.VinLocalMatch is null)
         {
             MessageBox.Show("VIN 查询功能初始化失败，请检查 appsettings.json 的 VinQuery/Pinxiu 配置段。",
                 "VIN 查询", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
+            return false;
         }
         // qp11 OpenVinQueryWindow 语义：非模态单例；不设置Owner，使VIN窗口与主窗口平级，可自由切换焦点
         // （设Owner会使被拥有窗口永远压在主窗口上方，表现为"置顶覆盖主程序"）
         if (_vinQueryWindow != null && _vinQueryWindow.IsLoaded)
         {
             _vinQueryWindow.Activate();
-            return;
+            return true;
         }
         _vinQueryWindow = new VinQueryWindow();
         _vinQueryWindow.Closed += (_, _) => _vinQueryWindow = null;
         _vinQueryWindow.Show();
+        return true;
+    }
+
+    // ==== 顶部 VIN 快捷查询框（2026-11-01 需求）====
+    private DateTime _lastAltUtc = DateTime.MinValue;
+
+    /// <summary>全局双击 Alt 键（600ms 内两次，按住不松的自动重复不计）定位到顶部 VIN 快捷框（隧道事件对任意页面/控件焦点均生效）。</summary>
+    private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        var isAlt = e.Key is Key.LeftAlt or Key.RightAlt
+            || (e.Key == Key.System && e.SystemKey is Key.LeftAlt or Key.RightAlt);
+        // 只认单独的 Alt（排除 Ctrl+Alt / Shift+Alt 等；Alt 本身不算修饰冲突），长按自动重复不计
+        if (!isAlt || e.IsRepeat || (Keyboard.Modifiers & ~(ModifierKeys.Alt | ModifierKeys.None)) != 0) return;
+        var now = DateTime.UtcNow;
+        if ((now - _lastAltUtc).TotalMilliseconds <= 600)
+        {
+            _lastAltUtc = DateTime.MinValue;
+            e.Handled = true;
+            TxtVinQuick.Focus();
+            TxtVinQuick.SelectAll();
+        }
+        else
+        {
+            _lastAltUtc = now;
+        }
+    }
+
+    /// <summary>快捷框回车 = 点查询按钮：文本送入 VIN 查询窗执行并聚焦该窗。</summary>
+    private void TxtVinQuick_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter) return;
+        e.Handled = true;
+        SendQuickVinQuery();
+    }
+
+    private void BtnVinQuickQuery_Click(object sender, RoutedEventArgs e) => SendQuickVinQuery();
+
+    /// <summary>非空时经 QueryFromExternal 送入 VIN 查询窗（填入文本 + Activate + 自动执行查询）。</summary>
+    private async void SendQuickVinQuery()
+    {
+        var vin = TxtVinQuick.Text.Trim();
+        if (vin.Length == 0)
+        {
+            TxtVinQuick.Focus();
+            return;
+        }
+        if (!EnsureVinQueryWindow()) return;
+        TxtVinQuick.Clear();
+        await _vinQueryWindow!.QueryFromExternal(vin);
     }
 
     /// <summary>VIN 查询窗添加配件入口：优先取激活 Tab 的销售开单页，其次任意已打开的销售开单 Tab
