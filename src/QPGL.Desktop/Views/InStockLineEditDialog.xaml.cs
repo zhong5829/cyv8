@@ -94,9 +94,36 @@ public partial class InStockLineEditDialog : Window
             ? $"货位：{existing.Posi?.Trim()}    备注：{existing.Note?.Trim()}"
             : $"当前库存：{part.Kcamount:0.##}    货位：{part.Posi}    备注：{part.Note}";
         Title = existing is not null ? $"入库明细编辑 - {part.Nno}（修改已有行）" : "入库明细编辑";
+
+        // 2026-11-02 需求：打开默认定位"进货数量"并全选
+        Loaded += (_, _) => { TxtQty.Focus(); TxtQty.SelectAll(); };
     }
 
     private readonly InStockLineRow? _existing;
+
+    /// <summary>进货数量框回车 → 跳转进价（不含税）框并全选（2026-11-02 需求）。</summary>
+    private void Qty_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key != System.Windows.Input.Key.Enter) return;
+        TxtIprj.Focus();
+        TxtIprj.SelectAll();
+        e.Handled = true;
+    }
+
+    /// <summary>进价（不含税）变化 → 含税价自动同步同金额（2026-11-02 需求：不换算税率）。</summary>
+    private void Iprj_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (TxtIprc is null) return;   // InitializeComponent 初始化期触发
+        TxtIprc.Text = TxtIprj.Text;
+    }
+
+    /// <summary>进价（不含税）框回车 = 确认保存（2026-11-02 需求）。</summary>
+    private void Iprj_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key != System.Windows.Input.Key.Enter) return;
+        e.Handled = true;
+        BtnOk_Click(sender, e);
+    }
 
     private void BtnOk_Click(object sender, RoutedEventArgs e)
     {

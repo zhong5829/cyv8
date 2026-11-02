@@ -1,0 +1,34 @@
+<Window x:Class="QPGL.Desktop.Views.InStockDraftPickWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="未生效暂存单" Width="600" Height="400"
+        WindowStartupLocation="CenterOwner" MinWidth="520" MinHeight="340"
+        ShowInTaskbar="False"
+        Background="{StaticResource WindowBackBrush}">
+    <DockPanel Margin="10">
+        <TextBlock DockPanel.Dock="Top" Text="检测到未生效的散件入库暂存单，选择一张恢复继续入库："
+                   Margin="0,0,0,8" FontWeight="SemiBold"/>
+        <Border DockPanel.Dock="Top" Background="White" BorderBrush="{StaticResource PanelBorderBrush}"
+                BorderThickness="1" CornerRadius="3" Margin="0,0,0,8">
+            <DataGrid x:Name="Grid" Height="230" Margin="1" MouseDoubleClick="Grid_MouseDoubleClick">
+                <DataGrid.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="删除暂存单" Click="MenuDelete_Click"
+                                  ToolTip="删除选中的暂存单全部明细（不入库，不可恢复）"/>
+                    </ContextMenu>
+                </DataGrid.ContextMenu>
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="单号" Binding="{Binding Cno}" Width="130"/>
+                    <DataGridTextColumn Header="日期" Binding="{Binding InDate, StringFormat=yyyy-MM-dd}" Width="110"/>
+                    <DataGridTextColumn Header="供应商" Binding="{Binding Gyname}" Width="*"/>
+                    <DataGridTextColumn Header="行数" Binding="{Binding LineCount}" Width="60"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="恢复选中" Width="90" Height="28" Margin="4,0" Click="BtnOk_Click" IsDefault="True"
+                    Style="{StaticResource PrimaryButtonStyle}"/>
+            <Button Content="取消 (Esc)" Width="90" Height="28" Margin="4,0" IsCancel="True"/>
+        </StackPanel>
+    </DockPanel>
+</Window>

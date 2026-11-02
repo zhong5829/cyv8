@@ -31,9 +31,31 @@
         <TextBlock Grid.Row="0" Grid.Column="0" Text="零件编码：" VerticalAlignment="Center"/>
         <TextBox x:Name="NnoBox" Grid.Row="0" Grid.Column="1" Width="120" HorizontalAlignment="Left" VerticalAlignment="Center"/>
         <TextBlock Grid.Row="1" Grid.Column="0" Text="零件名：" VerticalAlignment="Center"/>
-        <TextBox x:Name="Na1Box" Grid.Row="1" Grid.Column="1" Width="170" HorizontalAlignment="Left" VerticalAlignment="Center" Background="#CCFFCC"/>
+        <!-- 零件名联想（2026-11-02 需求）：tbname0 拼音码/名称匹配，↓↑选择回车填充 -->
+        <Grid Grid.Row="1" Grid.Column="1" Width="170" HorizontalAlignment="Left">
+            <TextBox x:Name="Na1Box" VerticalAlignment="Center" Background="#CCFFCC"
+                     TextChanged="Na1Box_TextChanged" PreviewKeyDown="SuggestBox_PreviewKeyDown"/>
+            <Popup x:Name="Na1Popup" PlacementTarget="{Binding ElementName=Na1Box}" Placement="Bottom"
+                   StaysOpen="False" AllowsTransparency="True" Width="{Binding ActualWidth, ElementName=Na1Box}">
+                <Border Background="White" BorderBrush="#999" BorderThickness="1" Margin="0,1,8,8" SnapsToDevicePixels="True">
+                    <ListBox x:Name="Na1List" MaxHeight="180" BorderThickness="0"
+                             MouseLeftButtonUp="Na1List_MouseLeftButtonUp"/>
+                </Border>
+            </Popup>
+        </Grid>
         <TextBlock Grid.Row="2" Grid.Column="0" Text="车型：" VerticalAlignment="Center"/>
-        <TextBox x:Name="TyBox" Grid.Row="2" Grid.Column="1" Width="170" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+        <!-- 车型联想（2026-11-02 需求）：tbty0 混合拼音码/车型匹配，↓↑选择回车填充 -->
+        <Grid Grid.Row="2" Grid.Column="1" Width="170" HorizontalAlignment="Left">
+            <TextBox x:Name="TyBox" VerticalAlignment="Center"
+                     TextChanged="TyBox_TextChanged" PreviewKeyDown="SuggestBox_PreviewKeyDown"/>
+            <Popup x:Name="TyPopup" PlacementTarget="{Binding ElementName=TyBox}" Placement="Bottom"
+                   StaysOpen="False" AllowsTransparency="True" Width="{Binding ActualWidth, ElementName=TyBox}">
+                <Border Background="White" BorderBrush="#999" BorderThickness="1" Margin="0,1,8,8" SnapsToDevicePixels="True">
+                    <ListBox x:Name="TyList" MaxHeight="180" BorderThickness="0"
+                             MouseLeftButtonUp="TyList_MouseLeftButtonUp"/>
+                </Border>
+            </Popup>
+        </Grid>
         <TextBlock Grid.Row="3" Grid.Column="0" Text="产地：" VerticalAlignment="Center"/>
         <ComboBox x:Name="FaBox" Grid.Row="3" Grid.Column="1" Width="110" HorizontalAlignment="Left" VerticalAlignment="Center" IsEditable="True"/>
         <TextBlock Grid.Row="4" Grid.Column="0" Text="分类码：" VerticalAlignment="Center"/>

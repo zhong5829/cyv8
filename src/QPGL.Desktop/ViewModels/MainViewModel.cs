@@ -87,9 +87,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void CloseTab(DocumentTab? tab) => Close(tab ?? ActiveTab);
 
-    private void Close(DocumentTab? tab)
+    private async void Close(DocumentTab? tab)
     {
         if (tab is null) return;
+        // 散件入库暂存脏检查（2026-11-02）：用户取消或保存失败 → 留在页面不关闭
+        if (tab.Content is Views.InStockControl instock && !await instock.ConfirmCloseAsync()) return;
         var idx = Tabs.IndexOf(tab);
         Tabs.Remove(tab);
         if (tab.Content is IDisposable d) d.Dispose();

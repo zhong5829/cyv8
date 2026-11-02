@@ -45,7 +45,7 @@
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock Text="进货数量*: " VerticalAlignment="Center"/>
-                <TextBox x:Name="TxtQty" Grid.Column="1" Text="1" Margin="0,1"/>
+                <TextBox x:Name="TxtQty" Grid.Column="1" Text="1" Margin="0,1" KeyDown="Qty_KeyDown"/>
             </Grid>
 
             <!-- 进价（不含税）/ 含税价 -->
@@ -57,7 +57,8 @@
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock Text="进价(不含税)*: " VerticalAlignment="Center"/>
-                <TextBox x:Name="TxtIprj" Grid.Column="1" Margin="0,1"/>
+                <TextBox x:Name="TxtIprj" Grid.Column="1" Margin="0,1"
+                         TextChanged="Iprj_TextChanged" KeyDown="Iprj_KeyDown"/>
                 <TextBlock Grid.Column="2" Text="含税价: " VerticalAlignment="Center" Margin="8,0,0,0"/>
                 <TextBox x:Name="TxtIprc" Grid.Column="3" Margin="0,1"/>
             </Grid>

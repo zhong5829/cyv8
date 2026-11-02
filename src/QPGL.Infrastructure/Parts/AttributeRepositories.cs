@@ -39,6 +39,12 @@ public interface IPrnotyRepository
     Task SaveLjdlAsync(int id, string name, string valuec, bool isAdd, string dpm, CancellationToken ct = default);
 
     Task DeleteLjdlAsync(int id, CancellationToken ct = default);
+
+    /// <summary>零件名联想（tbname0 拼音码/名称匹配，2026-11-02 属性编辑窗需求）：中文=包含匹配，ASCII=拼音码前缀。</summary>
+    Task<IReadOnlyList<string>> SuggestNamesAsync(string keyword, CancellationToken ct = default);
+
+    /// <summary>车型联想（tbty0 混合拼音码/车型匹配）：中文=包含匹配，ASCII=拼音码前缀。</summary>
+    Task<IReadOnlyList<string>> SuggestTysAsync(string keyword, CancellationToken ct = default);
 }
 
 public sealed class PrnotyRow
@@ -630,6 +636,39 @@ public sealed class PrnotyRepository(SqlConnectionFactory factory, IDmService dm
     {
         await using var conn = await factory.OpenAsync(ct);
         await conn.ExecuteAsync(new CommandDefinition("DELETE FROM tbsysset WHERE id=@id", new { id }, cancellationToken: ct));
+    }
+
+    /// <summary>
+    /// 零件名联想（2026-11-02 属性编辑窗需求）：tbname0 拼音码表。
+    /// 匹配口径与全页面一致：含中文 → 名称包含匹配；纯 ASCII → code/code1 拼音码前缀匹配。
+    /// </summary>
+    public async Task<IReadOnlyList<string>> SuggestNamesAsync(string keyword, CancellationToken ct = default)
+    {
+        var kw = (keyword ?? "").Trim();
+        if (kw.Length == 0) return [];
+        await using var conn = await factory.OpenAsync(ct);
+        var hasChinese = kw.Any(c => c > 127);
+        var sql = hasChinese
+            ? "SELECT TOP (20) RTRIM(name) FROM tbname0 WITH (NOLOCK) WHERE RTRIM(name) LIKE @kw ORDER BY RTRIM(name)"
+            : "SELECT TOP (20) RTRIM(name) FROM tbname0 WITH (NOLOCK) WHERE RTRIM(code) LIKE @kw OR RTRIM(code1) LIKE @kw ORDER BY RTRIM(name)";
+        var rows = await conn.QueryAsync<string>(new CommandDefinition(
+            sql, new { kw = hasChinese ? $"%{kw}%" : $"{kw}%" }, cancellationToken: ct));
+        return rows.Where(s => !string.IsNullOrWhiteSpace(s)).Distinct().ToList();
+    }
+
+    /// <summary>车型联想（2026-11-02 属性编辑窗需求）：tbty0 车型拼音码表，口径同上。</summary>
+    public async Task<IReadOnlyList<string>> SuggestTysAsync(string keyword, CancellationToken ct = default)
+    {
+        var kw = (keyword ?? "").Trim();
+        if (kw.Length == 0) return [];
+        await using var conn = await factory.OpenAsync(ct);
+        var hasChinese = kw.Any(c => c > 127);
+        var sql = hasChinese
+            ? "SELECT TOP (20) RTRIM(ty) FROM tbty0 WITH (NOLOCK) WHERE RTRIM(ty) LIKE @kw ORDER BY RTRIM(ty)"
+            : "SELECT TOP (20) RTRIM(ty) FROM tbty0 WITH (NOLOCK) WHERE RTRIM(code) LIKE @kw OR RTRIM(code1) LIKE @kw ORDER BY RTRIM(ty)";
+        var rows = await conn.QueryAsync<string>(new CommandDefinition(
+            sql, new { kw = hasChinese ? $"%{kw}%" : $"{kw}%" }, cancellationToken: ct));
+        return rows.Where(s => !string.IsNullOrWhiteSpace(s)).Distinct().ToList();
     }
 
     /// <summary>EDITALL 复刻（读回属性行 → update tbisto/tborder WHERE nno=行值；tborder 加 type&lt;&gt;'历史'）。</summary>

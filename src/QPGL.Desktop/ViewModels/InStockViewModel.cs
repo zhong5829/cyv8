@@ -26,6 +26,8 @@ public partial class InStockLineRow : ObservableObject
     [ObservableProperty] private string _posi = "";
     [ObservableProperty] private string _depotno = "";
     [ObservableProperty] private string _note = "";
+    /// <summary>tbistosm 暂存行 id（0=未暂存；保存暂存后回填，删行时精确删暂存行，2026-11-02）。</summary>
+    public int SmId { get; set; }
 }
 
 /// <summary>
@@ -54,6 +56,8 @@ public partial class InStockViewModel : ObservableObject
     [ObservableProperty] private string _message = "";
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private decimal _totalAmount;
+    /// <summary>脏标记（2026-11-02 暂存需求）：加/改/删明细后为 true，保存暂存或生效后清零，关闭页面/退出时据此提示。</summary>
+    [ObservableProperty] private bool _isDirty;
 
     public InStockLineRow? SelectedLine { get; set; }
 
@@ -132,12 +136,20 @@ public partial class InStockViewModel : ObservableObject
     private void AddLine()
     {
         var row = new InStockLineRow { Depotno = Warehouses.FirstOrDefault() ?? "", Cp = AppSession.Brand };   // 旧行厂牌默认 P_CP
+        HookRow(row);
+        Lines.Add(row);
+    }
+
+    /// <summary>行事件统一挂钩：数量/进价联动合计 + 任意改动置脏标记（2026-11-02 暂存需求）。
+    /// 注意必须在行属性初始化完成之后挂钩（构造期赋值不算脏）。</summary>
+    private void HookRow(InStockLineRow row)
+    {
         row.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName is nameof(InStockLineRow.Iprj) or nameof(InStockLineRow.Jkamount))
                 RecalcTotal();
+            IsDirty = true;
         };
-        Lines.Add(row);
     }
 
     /// <summary>
@@ -164,12 +176,9 @@ public partial class InStockViewModel : ObservableObject
             Depotno = r.Depotno,
             Note = r.Note,
         };
-        row.PropertyChanged += (_, e) =>
-        {
-            if (e.PropertyName is nameof(InStockLineRow.Iprj) or nameof(InStockLineRow.Jkamount))
-                RecalcTotal();
-        };
+        HookRow(row);
         Lines.Add(row);
+        IsDirty = true;
         RecalcTotal();
     }
 
@@ -188,14 +197,20 @@ public partial class InStockViewModel : ObservableObject
         row.Unit = r.Unit;
         row.Ty = r.Ty;
         row.Note = r.Note;
+        IsDirty = true;
         RecalcTotal();
     }
 
     [RelayCommand]
     private void RemoveLine()
     {
-        if (SelectedLine is not null) Lines.Remove(SelectedLine);
+        if (SelectedLine is null) return;
+        var smId = SelectedLine.SmId;
+        Lines.Remove(SelectedLine);
         RecalcTotal();
+        IsDirty = true;
+        // 已暂存行同步删除（2026-11-02）：避免不点保存直接关页面后重开恢复出已删行
+        if (smId > 0) _ = Db.InStock.DeleteDraftLineAsync(smId);
     }
 
     /// <summary>
@@ -265,13 +280,94 @@ public partial class InStockViewModel : ObservableObject
     /// <summary>直接追加导入行（不弹窗，含金额联动）。</summary>
     private void AddPartRowDirect(InStockLineRow row)
     {
-        row.PropertyChanged += (_, e) =>
-        {
-            if (e.PropertyName is nameof(InStockLineRow.Iprj) or nameof(InStockLineRow.Jkamount))
-                RecalcTotal();
-        };
+        HookRow(row);
         Lines.Add(row);
+        IsDirty = true;
         RecalcTotal();   // 行价格在初始化器中已赋值，追加后主动重算（修复导入后总金额为 0）
+    }
+
+    /// <summary>明细行 → 生效/暂存共用输入模型。</summary>
+    private IEnumerable<InStockLineInput> ToLineInputs() => Lines.Select(l => new InStockLineInput
+    {
+        Cp = l.Cp, Nno = l.Nno, Na1 = l.Na1, Ty = l.Ty, Unit = l.Unit,
+        Fa = l.Fa, Dc = l.Dc,
+        Jkamount = l.Jkamount, Iprc = l.Iprc, Iprj = l.Iprj,
+        Oprc = l.Oprc, Oprb = l.Oprb, Posi = l.Posi, Depotno = l.Depotno, Note = l.Note,
+    });
+
+    /// <summary>
+    /// 保存暂存（2026-11-02 需求）：全部明细写 tbistosm，不入库、不更新库存；
+    /// 首次保存自动取「散件入库单」号（页头回显），再次保存全删重插。
+    /// </summary>
+    [RelayCommand]
+    public Task<bool> SaveDraftAsync(CancellationToken ct) => SaveDraftCoreAsync(ct);
+
+    /// <summary>保存暂存核心（生效入库前的自动同步、关闭页面脏提示共用）。返回是否成功。</summary>
+    public async Task<bool> SaveDraftCoreAsync(CancellationToken ct = default)
+    {
+        Message = "";
+        if (Lines.Count == 0) { Message = "入库明细为空"; return false; }
+        // 供应商必填：暂存单列表要显示供应商名称，生效路径同样必填（旧 X__.row212 L74-78）
+        if (string.IsNullOrWhiteSpace(Gyname)) { Message = "请输入供应商！"; return false; }
+        IsBusy = true;
+        try
+        {
+            var result = await Db.InStock.SaveDraftAsync(new InStockDraftSaveCommand
+            {
+                Cno = Cno.Trim(),   // 空 = 自动取号；非空 = 已有暂存单全删重插
+                Gyno = Gyno, Gyname = Gyname, Pno = Pno, Fkfs = Fkfs, Ywr = Ywr,
+                Lines = ToLineInputs().ToList(),
+            }, AppSession.DeptNo, AppSession.Operator, ct);
+            Cno = result.Cno;
+            // 回填各行暂存 id（删行时精确删 tbistosm）
+            for (var i = 0; i < Lines.Count; i++)
+                Lines[i].SmId = i < result.SmIds.Count ? result.SmIds[i] : 0;
+            IsDirty = false;
+            Message = $"已暂存（单号 {result.Cno}），未生效入库，重开页面可恢复继续";
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Message = ex is AppException ae ? ae.Message : "暂存失败：" + ex.Message;
+            return false;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    /// <summary>恢复暂存单（页面打开选择恢复时调用）：读 tbistosm 行 + 回填单头冗余字段。</summary>
+    public async Task<bool> RestoreDraftAsync(string cno, CancellationToken ct = default)
+    {
+        try
+        {
+            var rows = await Db.InStock.GetDraftLinesAsync(cno.Trim(), AppSession.DeptNo, ct);
+            if (rows.Count == 0) { Message = $"暂存单 {cno} 无明细行"; return false; }
+            Lines.Clear();
+            foreach (var r in rows)
+            {
+                var row = new InStockLineRow
+                {
+                    SmId = r.SmId, Cp = r.Cp, Nno = r.Nno, Na1 = r.Na1, Ty = r.Ty, Fa = r.Fa, Dc = r.Dc,
+                    Unit = r.Unit, Jkamount = r.Jkamount, Iprj = r.Iprj, Iprc = r.Iprc, Oprc = r.Oprc,
+                    Oprb = r.Oprb, Posi = r.Posi, Depotno = r.Depotno, Note = r.Note,
+                };
+                HookRow(row);
+                Lines.Add(row);
+            }
+            var h = rows[0];
+            Cno = cno.Trim(); Gyno = h.Gyno; Gyname = h.Gyname; Pno = h.Pno; Fkfs = h.Fkfs; Ywr = h.Ywr;
+            RecalcTotal();
+            IsDirty = false;
+            Message = $"已恢复暂存单 {cno.Trim()}（{rows.Count} 行），可继续添加或点「生效入库」";
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Message = "恢复暂存单失败：" + ex.Message;
+            return false;
+        }
     }
 
     private void RecalcTotal() => TotalAmount = Lines.Sum(l => l.Jkamount * l.Iprj);
@@ -286,6 +382,12 @@ public partial class InStockViewModel : ObservableObject
         IsBusy = true;
         try
         {
+            // 暂存单有未保存改动 → 先同步暂存（生效以本页明细为准；仓储侧会清同 cno 残留行）
+            if (IsDirty && Cno.Trim().Length > 0 && !await SaveDraftCoreAsync(ct))
+            {
+                Message = "暂存同步失败，" + Message;
+                return;
+            }
             var command = new CreateInStockCommand
             {
                 Cno = Cno.Trim(),   // 空 = 生效时自动取号（旧 P_AUTO 关闭语义）
@@ -312,6 +414,7 @@ public partial class InStockViewModel : ObservableObject
             TotalAmount = 0;
             Cno = "";
             Pno = "";
+            IsDirty = false;
         }
         catch (Exception ex)
         {
@@ -335,6 +438,7 @@ public partial class InStockViewModel : ObservableObject
                     Lines.Clear();
                     TotalAmount = 0;
                     Cno = "";
+                    IsDirty = false;
                 }
                 catch (Exception ex2)
                 {

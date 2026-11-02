@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Media.Imaging;
 using QPGL.Desktop.Services;
 using QPGL.Infrastructure.Parts;
@@ -32,6 +33,111 @@ public partial class PartAttributeEditWindow : Window
         Loaded += async (_, _) => await LoadDictsAsync();
         Loaded += async (_, _) => await LoadPartImageAsync();
         FillFields();
+        // 构造期赋值完成后再启用联想（FillFields 的预填不触发下拉）
+        _na1Suppress = false;
+        _tySuppress = false;
+        _na1Debounce.Tick += async (_, _) => { _na1Debounce.Stop(); await LoadSuggestAsync(Na1Box, Na1List, Na1Popup, kw => Db.Prnoty.SuggestNamesAsync(kw)); };
+        _tyDebounce.Tick += async (_, _) => { _tyDebounce.Stop(); await LoadSuggestAsync(TyBox, TyList, TyPopup, kw => Db.Prnoty.SuggestTysAsync(kw)); };
+    }
+
+    // ---- 零件名/车型联想（2026-11-02 需求）：tbname0/tbty0 拼音码匹配，↓↑选择，回车/单击填充 ----
+
+    /// <summary>预填屏蔽标志：FillFields/填充候选时不触发联想（true=跳过）。</summary>
+    private bool _na1Suppress = true;
+    private bool _tySuppress = true;
+    private readonly System.Windows.Threading.DispatcherTimer _na1Debounce = new() { Interval = TimeSpan.FromMilliseconds(300) };
+    private readonly System.Windows.Threading.DispatcherTimer _tyDebounce = new() { Interval = TimeSpan.FromMilliseconds(300) };
+
+    private void Na1Box_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_na1Suppress) return;
+        _na1Debounce.Stop();
+        _na1Debounce.Start();
+    }
+
+    private void TyBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_tySuppress) return;
+        _tyDebounce.Stop();
+        _tyDebounce.Start();
+    }
+
+    private async System.Threading.Tasks.Task LoadSuggestAsync(TextBox box, ListBox list, Popup popup,
+        Func<string, System.Threading.Tasks.Task<IReadOnlyList<string>>> query)
+    {
+        try
+        {
+            var kw = box.Text.Trim();
+            IReadOnlyList<string> items = kw.Length == 0 ? [] : await query(kw);
+            list.ItemsSource = items;
+            if (items.Count > 0)
+            {
+                list.SelectedIndex = 0;   // 默认选第一项：直接回车即填充
+                popup.IsOpen = true;
+            }
+            else
+            {
+                popup.IsOpen = false;
+            }
+        }
+        catch
+        {
+            popup.IsOpen = false;   // 联想失败不阻断录入
+        }
+    }
+
+    /// <summary>联想框共用键盘流：↓↑在候选间移动，回车填充选中项（不触发 K.确定），Esc 收起下拉。</summary>
+    private void SuggestBox_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (sender is not TextBox box) return;
+        var isNa1 = box == Na1Box;
+        var list = isNa1 ? Na1List : TyList;
+        var popup = isNa1 ? Na1Popup : TyPopup;
+        if (!popup.IsOpen) return;   // 下拉未开 → 回车仍走 K.确定
+
+        switch (e.Key)
+        {
+            case System.Windows.Input.Key.Down:
+                list.SelectedIndex = Math.Min(list.SelectedIndex + 1, list.Items.Count - 1);
+                list.ScrollIntoView(list.SelectedItem);
+                e.Handled = true;
+                break;
+            case System.Windows.Input.Key.Up:
+                list.SelectedIndex = Math.Max(list.SelectedIndex - 1, 0);
+                list.ScrollIntoView(list.SelectedItem);
+                e.Handled = true;
+                break;
+            case System.Windows.Input.Key.Enter when list.SelectedItem is string s:
+                ApplySuggest(box, popup, s, isNa1);
+                e.Handled = true;
+                break;
+            case System.Windows.Input.Key.Escape:
+                popup.IsOpen = false;
+                e.Handled = true;
+                break;
+        }
+    }
+
+    private void Na1List_MouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (Na1List.SelectedItem is string s) ApplySuggest(Na1Box, Na1Popup, s, isNa1: true);
+    }
+
+    private void TyList_MouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (TyList.SelectedItem is string s) ApplySuggest(TyBox, TyPopup, s, isNa1: false);
+    }
+
+    /// <summary>填充候选值并收起下拉（填充期间屏蔽联想防抖）。</summary>
+    private void ApplySuggest(TextBox box, Popup popup, string value, bool isNa1)
+    {
+        if (isNa1) _na1Suppress = true;
+        else _tySuppress = true;
+        box.Text = value;
+        box.CaretIndex = box.Text.Length;
+        if (isNa1) _na1Suppress = false;
+        else _tySuppress = false;
+        popup.IsOpen = false;
     }
 
     private static PrnotyRow CloneRow(PrnotyRow r) => new()

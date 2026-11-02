@@ -12,6 +12,21 @@ public interface IInStockRepository
     /// <summary>散件入库生效（复刻 fr_isor 收货 + fr_isto1 row31 生效序列）。</summary>
     Task<CreateInStockResult> CreateAsync(CreateInStockCommand command, string dept, string per, bool allowReentry, CancellationToken ct = default);
 
+    /// <summary>未生效暂存单列表（tbistosm GROUP BY cno，本部门，2026-11-02 暂存需求）。</summary>
+    Task<IReadOnlyList<InStockDraftHeader>> GetDraftsAsync(string dept, CancellationToken ct = default);
+
+    /// <summary>暂存单明细行（含单头冗余字段，恢复时回填页头）。</summary>
+    Task<IReadOnlyList<InStockDraftLine>> GetDraftLinesAsync(string cno, string dept, CancellationToken ct = default);
+
+    /// <summary>保存暂存：全量写 tbistosm（不入库不动库存）；无单号自动取号，已有单号全删重插（幂等）。</summary>
+    Task<InStockDraftSaveResult> SaveDraftAsync(InStockDraftSaveCommand command, string dept, string per, CancellationToken ct = default);
+
+    /// <summary>删除单条暂存行（明细网格删行时同步，避免重开页面恢复出已删行）。</summary>
+    Task DeleteDraftLineAsync(int smId, CancellationToken ct = default);
+
+    /// <summary>删除整张暂存单（恢复选择窗右键删除，2026-11-02 需求）。</summary>
+    Task DeleteDraftAsync(string cno, string dept, CancellationToken ct = default);
+
     /// <summary>业务员列表（旧 fr_isto row203：tbsysset type='ywr' 优先，无则 tbkey.per 全量）。</summary>
     Task<IReadOnlyList<string>> GetYwrListAsync(CancellationToken ct = default);
 
@@ -80,6 +95,13 @@ public sealed class InStockRepository(SqlConnectionFactory factory, Parts.IDmSer
                     throw new AppException("CNO_REENTRY_CONFIRM",
                         $"该单号 {cno} 已于 {last.indate:yyyy-MM-dd} 由 {last.per} 入过库，仍生效入库请确认重入", 409);
             }
+
+            // 1.5) 暂存单/人工合同号生效：清同 cno 残留暂存行（明细以本命令为准，防止暂存旧行重复生效）
+            if (command.Cno.Trim().Length > 0)
+                await conn.ExecuteAsync(new CommandDefinition(
+                    "DELETE tbistosm WHERE cno = @cno",
+                    new { cno = new DbString { Value = command.Cno.Trim(), IsAnsi = true, Length = 15 } },
+                    transaction: tx, cancellationToken: ct));
 
             // 2) 收货暂存写入（旧 fr_isor → tbistosm；PASSTH 补 dpm 契约显式写）
             foreach (var l in command.Lines)
@@ -262,6 +284,158 @@ public sealed class InStockRepository(SqlConnectionFactory factory, Parts.IDmSer
         public string Note { get; set; } = "";
         public int Xno { get; set; }
         public string Cxnno { get; set; } = "";
+    }
+
+    /// <summary>
+    /// 未生效暂存单列表（旧 P__.row194 L25-28：tbistosm GROUP BY cno ORDER BY indate DESC；
+    /// 旧按 per 过滤的 B201 部署变体休眠，本部署按 dpm 过滤=本店所有操作员的暂存单）。
+    /// </summary>
+    public async Task<IReadOnlyList<InStockDraftHeader>> GetDraftsAsync(string dept, CancellationToken ct = default)
+    {
+        await using var conn = await factory.OpenAsync(ct);
+        var rows = await conn.QueryAsync<(string cno, DateTime indate, string gyname, int linecnt)>(
+            new CommandDefinition(
+                """
+                SELECT RTRIM(cno) AS cno, MAX(indate) AS indate, MAX(RTRIM(gyname)) AS gyname, COUNT(1) AS linecnt
+                FROM tbistosm WITH (NOLOCK)
+                WHERE dpm = @dpm AND RTRIM(cno) <> ''
+                GROUP BY cno
+                ORDER BY MAX(indate) DESC, MAX(id) DESC
+                """,
+                new { dpm = Ansi(dept, 10) },
+                cancellationToken: ct));
+        return rows.Select(r => new InStockDraftHeader(r.cno, r.indate, r.gyname, r.linecnt)).ToList();
+    }
+
+    /// <summary>暂存单明细行（恢复时读回，含单头冗余字段回填页头）。</summary>
+    public async Task<IReadOnlyList<InStockDraftLine>> GetDraftLinesAsync(string cno, string dept, CancellationToken ct = default)
+    {
+        await using var conn = await factory.OpenAsync(ct);
+        var rows = await conn.QueryAsync<SmDraftRow>(
+            new CommandDefinition(
+                """
+                SELECT id AS SmId, RTRIM(cp) AS Cp, RTRIM(nno) AS Nno, RTRIM(na1) AS Na1, RTRIM(ty) AS Ty,
+                       RTRIM(fa) AS Fa, RTRIM(dc) AS Dc, RTRIM(unit) AS Unit,
+                       jkamount AS Jkamount, iprj AS Iprj, iprc AS Iprc, oprc AS Oprc, oprb AS Oprb,
+                       RTRIM(posi) AS Posi, RTRIM(depotno) AS Depotno, RTRIM(note) AS Note,
+                       RTRIM(gyno) AS Gyno, RTRIM(gyname) AS Gyname, RTRIM(pno) AS Pno,
+                       RTRIM(fkfs) AS Fkfs, RTRIM(ywr) AS Ywr
+                FROM tbistosm WITH (NOLOCK)
+                WHERE cno = @cno AND dpm = @dpm
+                ORDER BY id
+                """,
+                new { cno = Ansi(cno, 15), dpm = Ansi(dept, 10) },
+                cancellationToken: ct));
+        return rows.Select(r => new InStockDraftLine(
+            r.SmId, r.Cp, r.Nno, r.Na1, r.Ty, r.Fa, r.Dc, r.Unit,
+            r.Jkamount, r.Iprj, r.Iprc, r.Oprc, r.Oprb,
+            r.Posi, r.Depotno, r.Note, r.Gyno, r.Gyname, r.Pno, r.Fkfs, r.Ywr)).ToList();
+    }
+
+    /// <summary>
+    /// 保存暂存（2026-11-02 需求）：全量写 tbistosm，不入库、不碰 tbisto/tbistoed/库存。
+    /// 无单号 → getnewdh('散件入库单') 取号（旧 _L_.row165 L241 语义）；
+    /// 已有单号 → 全删重插（幂等，可反复点保存）；跳过未填零件号的预置空行。
+    /// indate=今天（恢复列表按日期显示/排序）。
+    /// </summary>
+    public async Task<InStockDraftSaveResult> SaveDraftAsync(InStockDraftSaveCommand command, string dept, string per, CancellationToken ct = default)
+    {
+        var deptTrim = dept.Trim();
+        var today = DateTime.Today;
+        var cno = (command.Cno ?? "").Trim();
+
+        await using var conn = await factory.OpenAsync(ct);
+        await using var tx = (SqlTransaction)await conn.BeginTransactionAsync(ct);
+        try
+        {
+            if (cno.Length == 0)
+                cno = await docNo.GetNewDocNoAsync("散件入库单", deptTrim,
+                    new DocNo.DocNoService.DocNoCheckTarget("tbistoed", "cno"), ct);
+            else
+                await conn.ExecuteAsync(new CommandDefinition(
+                    "DELETE tbistosm WHERE cno = @cno",
+                    new { cno = new DbString { Value = cno, IsAnsi = true, Length = 15 } },
+                    transaction: tx, cancellationToken: ct));
+
+            var ids = new List<int>();
+            foreach (var l in command.Lines)
+            {
+                if (string.IsNullOrWhiteSpace(l.Nno)) continue;   // 预置空行不落库
+                var id = await conn.ExecuteScalarAsync<int>(new CommandDefinition(
+                    """
+                    INSERT INTO tbistosm
+                        (cp, dpm, nno, na1, ty, fa, dc, unit, jkamount, iprj, iprc, oprc, oprb, posi,
+                         indate, per, cno, gyno, gyname, pno, note, fkfs, depotno, ywr)
+                    VALUES
+                        (@cp, @dpm, @nno, @na1, @ty, @fa, @dc, @unit, @jkamount, @iprj, @iprc, @oprc, @oprb, @posi,
+                         @indate, @per, @cno, @gyno, @gyname, @pno, @note, @fkfs, @depotno, @ywr);
+                    SELECT CAST(SCOPE_IDENTITY() AS int);
+                    """,
+                    new
+                    {
+                        cp = Ansi(l.Cp, 10), dpm = Ansi(deptTrim, 10), nno = Ansi(l.Nno, 18), na1 = Ansi(l.Na1, 40),
+                        ty = Ansi(l.Ty, 14), fa = Ansi(l.Fa, 8), dc = Ansi(l.Dc, 8), unit = Ansi(l.Unit, 4),
+                        jkamount = l.Jkamount, iprj = l.Iprj, iprc = l.Iprc, oprc = l.Oprc, oprb = l.Oprb,
+                        posi = Ansi(l.Posi, 10), indate = today, per = Ansi(per, 6), cno = Ansi(cno, 15),
+                        gyno = Ansi(command.Gyno, 10), gyname = Ansi(command.Gyname, 60), pno = Ansi(command.Pno, 12),
+                        note = Ansi(l.Note, 100), fkfs = Ansi(command.Fkfs, 10), depotno = Ansi(l.Depotno, 10),
+                        ywr = Ansi(command.Ywr, 10),
+                    },
+                    transaction: tx, cancellationToken: ct));
+                ids.Add(id);
+            }
+            await tx.CommitAsync(ct);
+            return new InStockDraftSaveResult(cno, ids);
+        }
+        catch
+        {
+            await tx.RollbackAsync(CancellationToken.None);
+            throw;
+        }
+    }
+
+    /// <summary>删除单条暂存行（明细网格删行时同步调用，行已暂存才删）。</summary>
+    public async Task DeleteDraftLineAsync(int smId, CancellationToken ct = default)
+    {
+        if (smId <= 0) return;
+        await using var conn = await factory.OpenAsync(ct);
+        await conn.ExecuteAsync(new CommandDefinition(
+            "DELETE tbistosm WHERE id = @id", new { id = smId }, cancellationToken: ct));
+    }
+
+    /// <summary>删除整张暂存单（恢复选择窗右键删除，2026-11-02 需求；按 cno+dpm 限定本部门单）。</summary>
+    public async Task DeleteDraftAsync(string cno, string dept, CancellationToken ct = default)
+    {
+        await using var conn = await factory.OpenAsync(ct);
+        await conn.ExecuteAsync(new CommandDefinition(
+            "DELETE tbistosm WHERE cno = @cno AND dpm = @dpm",
+            new { cno = Ansi(cno, 15), dpm = Ansi(dept, 10) },
+            cancellationToken: ct));
+    }
+
+    private sealed class SmDraftRow
+    {
+        public int SmId { get; set; }
+        public string Cp { get; set; } = "";
+        public string Nno { get; set; } = "";
+        public string Na1 { get; set; } = "";
+        public string Ty { get; set; } = "";
+        public string Fa { get; set; } = "";
+        public string Dc { get; set; } = "";
+        public string Unit { get; set; } = "";
+        public decimal Jkamount { get; set; }
+        public decimal Iprj { get; set; }
+        public decimal Iprc { get; set; }
+        public decimal Oprc { get; set; }
+        public decimal Oprb { get; set; }
+        public string Posi { get; set; } = "";
+        public string Depotno { get; set; } = "";
+        public string Note { get; set; } = "";
+        public string Gyno { get; set; } = "";
+        public string Gyname { get; set; } = "";
+        public string Pno { get; set; } = "";
+        public string Fkfs { get; set; } = "";
+        public string Ywr { get; set; } = "";
     }
 
     /// <summary>

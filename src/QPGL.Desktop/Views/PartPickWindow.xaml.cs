@@ -13,7 +13,7 @@ namespace QPGL.Desktop.Views;
 /// 配件选择窗口（散件入库「添加配件」入口）：
 /// 三条件查询（编码=内部编号包含 / 名称=拼音码编码名称车型 / 车型），输入即搜 500ms 防抖，
 /// 无限滚动加载（滚到底自动下一页，与 SaleControl 配件列表同机制），
-/// 双击（或 Enter/F4）结果行确认返回 PartItem。
+/// 双击（或 Enter/F4）结果行确认 → 触发 PartPicked 回调，窗口保持打开可连续选件（2026-11-02）。
 /// </summary>
 public partial class PartPickWindow : Window
 {
@@ -31,8 +31,14 @@ public partial class PartPickWindow : Window
 
     public ObservableCollection<PartItem> Parts { get; } = [];
 
-    /// <summary>双击选中的配件（DialogResult=true 时有效）。</summary>
+    /// <summary>双击选中的配件（兼容单选模式：订阅 PartPicked 前的旧用法）。</summary>
     public PartItem? SelectedPart { get; private set; }
+
+    /// <summary>
+    /// 连续选件回调（2026-11-02 需求）：确认一个配件后窗口保持打开，调用方处理后可继续选下一个；
+    /// 取消（Esc/×）仍走 ShowDialog 返回值结束。
+    /// </summary>
+    public event Action<PartItem>? PartPicked;
 
     public PartPickWindow(string dept)
     {
@@ -80,8 +86,12 @@ public partial class PartPickWindow : Window
         _debounce.Start();
     }
 
-    /// <summary>←/→ 方向键在 编码→名称→车型 条件框间流转并全选（光标在边界时才切换，框内移动不受影响）；
-    /// ↓ 方向键切换到配件列表选中第一行（列表为空时先尝试加载）。</summary>
+    /// <summary>
+    /// ↓/↑ 在条件框内直接驱动表格选中行（2026-11-02 修复：此前把焦点切进 DataGrid，其内部导航状态与
+    /// 程序化选中脱节——第二次下键选中行变灰、第三次重选回首行、第四次才正常下移）。
+    /// 焦点留在条件框：首次 ↓ 从无选中跳到第一行，之后逐行移动，↑ 反向，回车确认选中行；
+    /// ←/→ 方向键在 编码→名称→车型 条件框间流转并全选（光标在边界时才切换，框内移动不受影响）。
+    /// </summary>
     private void SearchBox_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (sender is not TextBox box) return;
@@ -90,10 +100,21 @@ public partial class PartPickWindow : Window
             case Key.Down:
                 if (Parts.Count > 0)
                 {
-                    PartGrid.Focus();
-                    PartGrid.SelectedIndex = 0;
+                    PartGrid.SelectedIndex = Math.Min(PartGrid.SelectedIndex + 1, Parts.Count - 1);
                     PartGrid.ScrollIntoView(PartGrid.SelectedItem);
                 }
+                e.Handled = true;
+                break;
+            case Key.Up:
+                if (Parts.Count > 0)
+                {
+                    PartGrid.SelectedIndex = Math.Max(PartGrid.SelectedIndex - 1, 0);
+                    PartGrid.ScrollIntoView(PartGrid.SelectedItem);
+                }
+                e.Handled = true;
+                break;
+            case Key.Enter:
+                if (PartGrid.SelectedItem is not null) Confirm();
                 e.Handled = true;
                 break;
             case Key.Left when box.CaretIndex == 0:
@@ -216,7 +237,9 @@ public partial class PartPickWindow : Window
             return;
         }
         SelectedPart = part;
-        DialogResult = true;
+        // 2026-11-02 需求：确认后窗口保持打开（不设 DialogResult），回调调用方处理后可继续选件
+        TxtStatus.Text = $"已选定：{part.Nno} {part.Na1}（可继续选择，Esc 关闭）";
+        PartPicked?.Invoke(part);
     }
 
     private void PartGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e) => Confirm();
@@ -262,15 +285,16 @@ public partial class PartPickWindow : Window
                 Suttle = r.Suttle, Note = r.Note, Note1 = r.Note1, Oprc_cp = r.Oprc_cp, Oprc_min = r.Oprc_min,
             }, r.Cp, "A");
 
-            // 直接选定新配件返回（属性库新行尚无库存行：id=0、无货位，与列表 includeAttrOnly 属性行同构；
-            // 零售价取属性库统一售价 oprc_cp，进价取录入 iprj）
+            // 直接选定新配件回调（2026-11-02 连续选件：窗口保持打开，属性库新行尚无库存行：
+            // id=0、无货位，与列表 includeAttrOnly 属性行同构；零售价取属性库统一售价 oprc_cp，进价取录入 iprj）
             SelectedPart = new PartItem
             {
                 Id = 0, Dpm = _dept, Cp = r.Cp, Nno = r.Nno, Na1 = r.Na1, Ty = r.Ty,
                 Fa = r.Fa, Dc = r.Dc, Unit = r.Unit, Kcamount = 0,
                 Iprj = r.Iprj, Oprc = r.Oprc_cp ?? 0, Note = r.Note,
             };
-            DialogResult = true;
+            TxtStatus.Text = $"已选定新增配件：{r.Nno} {r.Na1}（可继续选择，Esc 关闭）";
+            PartPicked?.Invoke(SelectedPart);
         }
         catch (Exception ex)
         {

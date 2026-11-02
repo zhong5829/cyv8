@@ -11,7 +11,7 @@ namespace QPGL.Desktop.Printing;
 /// 销货/退货清单票样（对照旧系统打印模板截图复刻）：
 /// 公司抬头（居中）→ 公司信息行（电话/传真/地址）→ 系统信息区（开户银行/账号/税号 + 开票日期/单号）→
 /// 收货单位区（带框）→ 明细表（带框：序/零件编码/名称/车型/出库数/售价/金额/仓位）→
-/// 营业员/制单人 + 合计 → 付款方式/发货方式 + 大写 + 合计 → 票尾声明 → 备注。
+/// 页脚（营业员 付款方式 发货方式 人民币大写 总数 合计，2026-11-02 调整：删制单、加总数）→ 票尾声明 → 备注。
 /// </summary>
 public static class SaleTicketDocument
 {
@@ -107,10 +107,11 @@ public static class SaleTicketDocument
             FixedPage.SetTop(page.Children[^1], tableTop);
         }
 
-        // 营业员/制单 + 付款/发货方式 + 大写 + 合计（单行）
+        // 页脚（2026-11-02 需求）：删"制单"；合计前加配件数量总数；顺序=营业员 付款方式 发货方式 人民币 总数 合计
         y += 6;
-        AddBoxText(page, $"营业员: {doc.Operator}   制单: {doc.DocMaker}   【付款方式: {doc.PayMode}】【发货方式: 自提】", 13, y, 400, x: 26);
-        AddBoxText(page, $"人民币大写:  {doc.AmountUpper}", 13, y, 200, x: 430);
+        AddBoxText(page, $"营业员: {doc.Operator}   【付款方式: {doc.PayMode}】【发货方式: 自提】", 13, y, 315, x: 26);
+        AddBoxText(page, $"人民币大写: {doc.AmountUpper}", 13, y, 210, x: 345);
+        AddBoxText(page, $"总数: {doc.TotalQty:0.##}", 13, y, 70, x: 560);
         AddBoxText(page, $"合 计: ¥ {doc.FinalAmount:N2}", 13, y, 105, x: 634);
         y += 20;
 

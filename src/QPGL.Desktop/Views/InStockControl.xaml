@@ -42,6 +42,9 @@
                 <TextBlock Text="业务员" VerticalAlignment="Center"/>
                 <ComboBox Width="90" ItemsSource="{Binding Operators}" SelectedItem="{Binding Ywr}"
                           IsEditable="True" VerticalAlignment="Center" Margin="4,0,0,0"/>
+                <!-- 切换暂存单（2026-11-02 需求）：重开未生效暂存单选择窗，恢复另一张暂存单 -->
+                <Button Content="暂存单..." Click="SwitchDraftButton_Click" Padding="10,3" Margin="12,0,0,0"
+                        ToolTip="打开未生效暂存单列表，切换恢复另一张暂存单"/>
             </StackPanel>
         </Border>
 
@@ -53,16 +56,20 @@
                 <Button Content="表格导入" Click="ImportButton_Click" Padding="14,3" Margin="0,0,8,0"
                         ToolTip="导入采集器 CSV（列：条码、数量）；按条码合计，属性库带出名称价格（比率推导）"/>
                 <Button Content="删除行" Command="{Binding RemoveLineCommand}" Padding="14,3" Margin="0,0,8,0"/>
+                <!-- 保存暂存（2026-11-02 需求）：明细写 tbistosm 不入库，重开页面可恢复 -->
+                <Button Content="保存暂存" Command="{Binding SaveDraftCommand}" Padding="14,3" Margin="0,0,8,0"
+                        ToolTip="暂存当前明细（不更新库存），重开页面/软件后可恢复继续"/>
                 <Button Content="生效入库" Command="{Binding SaveCommand}" Padding="20,3" FontWeight="Bold" Margin="0,0,12,0"/>
                 <TextBlock Text="{Binding TotalAmount, StringFormat=总进价金额：{0:N2}}" VerticalAlignment="Center" FontWeight="Bold" Foreground="{StaticResource BrandBrush}"/>
                 <TextBlock Text="{Binding Message}" Foreground="#C0392B" VerticalAlignment="Center" Margin="16,0,0,0"/>
             </StackPanel>
         </Border>
 
-        <!-- 明细行（可编辑；2026-10-29 需求：双击行弹入库编辑窗修改该行） -->
+        <!-- 明细行（可编辑；2026-10-29 需求：双击行弹入库编辑窗修改该行；2026-11-02 需求：Del 键删除选中行） -->
         <DataGrid ItemsSource="{Binding Lines}" SelectedItem="{Binding SelectedLine}"
                   AutoGenerateColumns="False" CanUserAddRows="False" GridLinesVisibility="Horizontal"
-                  HeadersVisibility="Column" FontSize="12" MouseDoubleClick="Lines_MouseDoubleClick">
+                  HeadersVisibility="Column" FontSize="12" MouseDoubleClick="Lines_MouseDoubleClick"
+                  PreviewKeyDown="Lines_PreviewKeyDown">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="厂牌" Binding="{Binding Cp, UpdateSourceTrigger=PropertyChanged}" Width="70"/>
                 <DataGridTextColumn Header="零件号*" Binding="{Binding Nno, UpdateSourceTrigger=PropertyChanged}" Width="120"/>

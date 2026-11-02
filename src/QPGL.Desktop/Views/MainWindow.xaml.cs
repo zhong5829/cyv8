@@ -77,6 +77,20 @@ public partial class MainWindow : Window
         };
     }
 
+    /// <summary>软件退出前脏检查（2026-11-02 暂存需求）：任一散件入库页有未暂存改动 → 逐页弹窗，取消则不退出。</summary>
+    protected override async void OnClosing(System.ComponentModel.CancelEventArgs e)
+    {
+        foreach (var instock in _vm.Tabs.Select(t => t.Content).OfType<InStockControl>().ToList())
+        {
+            if (!await instock.ConfirmCloseAsync())
+            {
+                e.Cancel = true;
+                return;
+            }
+        }
+        base.OnClosing(e);
+    }
+
     protected override void OnClosed(EventArgs e)
     {
         _vm.Dispose();
