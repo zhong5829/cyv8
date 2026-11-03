@@ -6,6 +6,7 @@ using System.Windows.Threading;
 using QPGL.Desktop.Services;
 using QPGL.Domain.Common;
 using QPGL.Domain.Parts;
+using QPGL.Infrastructure.Orders;
 
 namespace QPGL.Desktop.Views;
 
@@ -31,6 +32,11 @@ public partial class PartPickWindow : Window
 
     public ObservableCollection<PartItem> Parts { get; } = [];
 
+    /// <summary>历史区（2026-11-03 双区域需求）：选中配件的进货历史与销售历史。</summary>
+    public ObservableCollection<PartInRecordRow> InRecords { get; } = [];
+    public ObservableCollection<PartSaleRecordRow> SaleRecords { get; } = [];
+    private int _histSeq;
+
     /// <summary>双击选中的配件（兼容单选模式：订阅 PartPicked 前的旧用法）。</summary>
     public PartItem? SelectedPart { get; private set; }
 
@@ -45,6 +51,7 @@ public partial class PartPickWindow : Window
         InitializeComponent();
         Owner = Application.Current.MainWindow;
         _dept = dept;
+        DataContext = this;   // 历史区 DataGrid 以 {Binding InRecords/SaleRecords} 绑定，需 DataContext 指向自身
         PartGrid.ItemsSource = Parts;
         _debounce.Tick += async (_, _) =>
         {
@@ -72,6 +79,44 @@ public partial class PartPickWindow : Window
         return null;
     }
 
+    /// <summary>
+    /// 选中指定行并把键盘焦点移入表格（2026-11-03 需求：蓝色选中态要求 DataGrid 持有键盘焦点，
+    /// 否则默认单元格模板渲染灰色）。DataGridRow 自身 Focus 不可靠，焦点落到该行第一个单元格；
+    /// 全部失败再兜底 DataGrid.Focus()。与原生键盘导航同构，不复现旧「程序化选中与内部导航脱节」问题。
+    /// </summary>
+    private void FocusPartRow(int index)
+    {
+        if (index < 0 || Parts.Count == 0) return;
+        PartGrid.SelectedIndex = Math.Clamp(index, 0, Parts.Count - 1);
+        PartGrid.UpdateLayout();
+        PartGrid.ScrollIntoView(PartGrid.SelectedItem);
+        if (PartGrid.ItemContainerGenerator.ContainerFromItem(PartGrid.SelectedItem) is DataGridRow row)
+        {
+            row.ApplyTemplate();
+            var cell = FindFirstCell(row);
+            if (cell is not null) cell.Focus();
+            else row.Focus();
+        }
+        else
+        {
+            PartGrid.Focus();
+        }
+        if (!PartGrid.IsKeyboardFocusWithin) PartGrid.Focus();
+    }
+
+    private static DataGridCell? FindFirstCell(System.Windows.DependencyObject parent)
+    {
+        var count = System.Windows.Media.VisualTreeHelper.GetChildrenCount(parent);
+        for (var i = 0; i < count; i++)
+        {
+            var child = System.Windows.Media.VisualTreeHelper.GetChild(parent, i);
+            if (child is DataGridCell cell) return cell;
+            var found = FindFirstCell(child);
+            if (found is not null) return found;
+        }
+        return null;
+    }
+
     // 滚动到距底部 2 行内即触发加载下一页
     private async void PartGrid_ScrollChanged(object sender, ScrollChangedEventArgs e)
     {
@@ -87,9 +132,9 @@ public partial class PartPickWindow : Window
     }
 
     /// <summary>
-    /// ↓/↑ 在条件框内直接驱动表格选中行（2026-11-02 修复：此前把焦点切进 DataGrid，其内部导航状态与
-    /// 程序化选中脱节——第二次下键选中行变灰、第三次重选回首行、第四次才正常下移）。
-    /// 焦点留在条件框：首次 ↓ 从无选中跳到第一行，之后逐行移动，↑ 反向，回车确认选中行；
+    /// ↓/↑ 在条件框内驱动表格选中行并把焦点移到行容器（2026-11-03：蓝色选中态要求焦点在行上；
+    /// 焦点落在行容器与原生导航同构，不触发旧「程序化选中与内部导航脱节」问题）。
+    /// 首次 ↓ 从无选中跳到第一行，之后逐行移动（表格原生导航），↑ 反向，回车确认选中行；
     /// ←/→ 方向键在 编码→名称→车型 条件框间流转并全选（光标在边界时才切换，框内移动不受影响）。
     /// </summary>
     private void SearchBox_PreviewKeyDown(object sender, KeyEventArgs e)
@@ -99,18 +144,12 @@ public partial class PartPickWindow : Window
         {
             case Key.Down:
                 if (Parts.Count > 0)
-                {
-                    PartGrid.SelectedIndex = Math.Min(PartGrid.SelectedIndex + 1, Parts.Count - 1);
-                    PartGrid.ScrollIntoView(PartGrid.SelectedItem);
-                }
+                    FocusPartRow(PartGrid.SelectedIndex + 1);   // 焦点随选中行移入表格 → 蓝色选中态，后续 ↑/↓ 由表格原生导航
                 e.Handled = true;
                 break;
             case Key.Up:
                 if (Parts.Count > 0)
-                {
-                    PartGrid.SelectedIndex = Math.Max(PartGrid.SelectedIndex - 1, 0);
-                    PartGrid.ScrollIntoView(PartGrid.SelectedItem);
-                }
+                    FocusPartRow(PartGrid.SelectedIndex - 1);
                 e.Handled = true;
                 break;
             case Key.Enter:
@@ -243,6 +282,30 @@ public partial class PartPickWindow : Window
     }
 
     private void PartGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e) => Confirm();
+
+    /// <summary>历史区（2026-11-03 双区域需求）：选中行变化 → 加载该配件的进货/销售历史（复用 Order4 仓储，带竞态守卫）。</summary>
+    private async void PartGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (PartGrid.SelectedItem is not PartItem part) return;
+        var seq = ++_histSeq;
+        InRecords.Clear();
+        SaleRecords.Clear();
+        var cp = (part.Cp ?? "").Trim();
+        var nno = (part.Nno ?? "").Trim();
+        if (nno.Length == 0) return;
+        try
+        {
+            var ins = await Db.Order4.GetInRecordsAsync(cp, nno);
+            var sales = await Db.Order4.GetSaleRecordsAsync(cp, nno);
+            if (seq != _histSeq) return;
+            foreach (var r in ins) InRecords.Add(r);
+            foreach (var r in sales) SaleRecords.Add(r);
+        }
+        catch
+        {
+            // 历史加载失败不阻断选件
+        }
+    }
 
     private void PartGrid_PreviewKeyDown(object sender, KeyEventArgs e)
     {

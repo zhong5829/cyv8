@@ -62,7 +62,13 @@ public sealed class AddOrderInLineCommand
 public sealed class UpdateOrderInLineCommand
 {
     public required int Id { get; set; }
+    /// <summary>厂牌（tbprnoty 联动按 cp+nno，tbprnoty 无 dpm 列）。</summary>
+    public string Cp { get; set; } = "";
     public required string Nno { get; set; }
+    /// <summary>改码前的原编码（旧 C_ISORSM.NNO；Nno != OriginalNno 时触发 tbprnoty 编码联动）。</summary>
+    public string OriginalNno { get; set; } = "";
+    /// <summary>船单号（改码时同船单查重）。</summary>
+    public string Seano { get; set; } = "";
     public decimal Jkamount { get; set; }
     public decimal Iprj { get; set; }
     public string Fa { get; set; } = "";
@@ -101,10 +107,12 @@ public sealed class ConfirmOrderInCommand
     public required string Seano { get; set; }
     /// <summary>提货单号（pno，旧 FRMMAIN.TXTPNO，写入 tbistoed.pno）。</summary>
     public string Pno { get; set; } = "";
-    /// <summary>入库范围（旧 FR_JK OPT1）：1=按箱号 3=全部。MVP 固定按船单全部（=3）。</summary>
+    /// <summary>入库范围（旧 FR_JK OPT1）：1=按箱号 2=勾选行（本地 ISBZ，传 Ids） 3=全部。</summary>
     public int Mode { get; set; } = 3;
     /// <summary>按箱号模式的箱号（Mode=1 时必填）。</summary>
     public string Box { get; set; } = "";
+    /// <summary>勾选行 id 集合（Mode=2 时必填；旧本地游标 ISBZ 语义）。</summary>
+    public List<int>? Ids { get; set; }
     /// <summary>仓位标识后缀（旧 TXT1，非空时 posi=posi+suffix，仅允许 !@#$%^&* ）。</summary>
     public string PosiSuffix { get; set; } = "";
     /// <summary>更新档案进价（旧 CHKIPRJ：UPDATE tbprnoty.iprj）。</summary>
@@ -119,6 +127,50 @@ public sealed class ConfirmOrderInResult
     public List<string> Papers { get; set; } = [];
     public int DirectSaleLines { get; set; }
     public int StockInLines { get; set; }
+}
+
+/// <summary>
+/// 订单直接入库命令（2026-11-03 改版：去掉 tbisorsm 草稿中间态，订单生成页选单 → 改到货数 → 一步确认）。
+/// 写路径与 ConfirmAsync（row220）逐行事务语义一致，仅数据源从草稿表改为 tborder 实时行（到货数由前端传入）。
+/// </summary>
+public sealed class ConfirmByOrderCommand
+{
+    /// <summary>订单号（tborder.cno，即到货单号）。</summary>
+    public required string Cno { get; set; }
+    /// <summary>默认仓库（直发行为代订货库号覆盖）。</summary>
+    public string Depotno { get; set; } = "";
+    /// <summary>提货单号（tbistoed.pno）。</summary>
+    public string Pno { get; set; } = "";
+    /// <summary>箱号（tbistoed.box）。</summary>
+    public string Box { get; set; } = "";
+    /// <summary>更新档案进价（CHKIPRJ）。</summary>
+    public bool UpdateProfileIprj { get; set; }
+    /// <summary>到货行清单（只含勾选且到货数≠0 的行）。</summary>
+    public required List<OrderArrivalLineInput> Lines { get; set; }
+}
+
+/// <summary>订单直接入库行输入（价格/仓位由前端价率换算后可改）。</summary>
+public sealed class OrderArrivalLineInput
+{
+    public required string Cp { get; set; }
+    public required string Nno { get; set; }
+    public required string Na1 { get; set; }
+    public string Ty { get; set; } = "";
+    public string Fa { get; set; } = "";
+    public string Unit { get; set; } = "";
+    public string Dc { get; set; } = "";
+    public required string Orno { get; set; }
+    public int Item { get; set; }
+    /// <summary>本次实际到货数（≤ 缺口，0 跳过）。</summary>
+    public decimal ArriveQty { get; set; }
+    public decimal Iprj { get; set; }
+    public decimal Iprc { get; set; }
+    public decimal Oprc { get; set; }
+    public decimal Oprb { get; set; }
+    /// <summary>仓位（空 = 服务端取现有库存批次任一非废品仓位）。</summary>
+    public string Posi { get; set; } = "";
+    public string Fkfs { get; set; } = "";
+    public string Gyname { get; set; } = "";
 }
 
 /// <summary>待入库订单行（拉单查询，row166 列集）。</summary>

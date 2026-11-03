@@ -300,7 +300,7 @@ public static partial class LegacyReplay
     /// （cp+nno+iprc+posi+depotno+dpm；未命中 INSERT tbisto 新行、命中 UPDATE kcamount+=jk）→
     /// UPDATE tbprnoty → INSERT tbistoed（TYPE='入库'，KCAMOUNT=入库后快照）→ DELETE tbistosm。
     /// </summary>
-    public static void InStock(SqlConnection conn, string dept, string cno, IReadOnlyList<InStockLine> lines, string per)
+    public static void InStock(SqlConnection conn, string dept, string cno, IReadOnlyList<InStockLine> lines, string per, string gyname = "")
     {
         foreach (var l in lines)
         {
@@ -318,14 +318,14 @@ public static partial class LegacyReplay
                     cp = Ansi(l.Cp, 10), dpm = Ansi(dept, 10), nno = Ansi(l.Nno, 18), na1 = Ansi(l.Na1, 40),
                     ty = Ansi(l.Ty, 14), fa = Ansi(l.Fa, 8), dc = Ansi(l.Dc, 8), unit = Ansi(l.Unit, 4),
                     jkamount = l.Jkamount, iprj = l.Iprj, iprc = l.Iprc, oprc = l.Oprc, oprb = l.Oprb,
-                    posi = Ansi(l.Posi, 10), cno = Ansi(cno, 15), gyno = Ansi("", 10), gyname = Ansi("", 60),
+                    posi = Ansi(l.Posi, 10), cno = Ansi(cno, 15), gyno = Ansi("", 10), gyname = Ansi(gyname, 60),
                     pno = Ansi("", 12), note = Ansi(l.Note, 100), fkfs = Ansi("现金", 10),
                     depotno = Ansi(l.Depotno, 10), ywr = Ansi("", 10), freight = 0m,
                 });
         }
 
-        conn.Execute("UPDATE tbistosm SET indate = @indate, per = @per, gyname = '', pno = '', fkfs = N'现金' WHERE cno = @cno",
-            new { indate = DateTime.Today, per = Ansi(per, 6), cno = Ansi(cno, 15) });
+        conn.Execute("UPDATE tbistosm SET indate = @indate, per = @per, gyname = @gyname, pno = '', fkfs = N'现金' WHERE cno = @cno",
+            new { indate = DateTime.Today, per = Ansi(per, 6), cno = Ansi(cno, 15), gyname = Ansi(gyname, 60) });
 
         var item = 0;
         var rows = conn.Query<(int id, string cp, string nno, string na1, string ty, string fa, string dc,
@@ -414,7 +414,7 @@ public static partial class LegacyReplay
                     jkamount = r.jkamount, kcamount = kcAfter, iprj = r.iprj, iprc = r.iprc, oprc = r.oprc,
                     posi = Ansi(r.posi, 10), depotno = Ansi(r.depotno, 10), indate = DateTime.Today, item = item,
                     cno = Ansi(cno, 15), box = Ansi("", 10), seano = Ansi(cno, 15), isord = Ansi("N", 10),
-                    pno = Ansi("", 12), gyno = Ansi("", 10), gyname = Ansi("", 60), per = Ansi(per, 10),
+                    pno = Ansi("", 12), gyno = Ansi("", 10), gyname = Ansi(gyname, 60), per = Ansi(per, 10),
                     note = Ansi(r.note, 100), cxnno = Ansi(r.cxnno, 18), fkfs = Ansi("现金", 10),
                     type = Ansi("入库", 10), ywr = Ansi("", 10), freight = 0m, dpm = Ansi(dept, 10),
                 });
@@ -966,12 +966,13 @@ public static partial class LegacyReplay
 
                 var orderWhere = "cp = @cp AND cno = @cno AND nno = @nno AND dpm = @dpm" +
                                  (string.IsNullOrWhiteSpace(r.orno) ? "" : " AND orno = @orno");
+                var orderArgs = new { cp = Ansi(r.cp, 10), cno = Ansi(r.cno, 15), nno = Ansi(r.nno, 18), dpm = Ansi(dept, 10), orno = Ansi(r.orno, 14) };
                 var order = conn.QueryFirstOrDefault<(int id, decimal oqty, decimal qty)>(
-                    $"SELECT TOP (1) id, oqty, qty FROM tborder WHERE {orderWhere}",
-                    new { cp = Ansi(r.cp, 10), cno = Ansi(r.cno, 15), nno = Ansi(r.nno, 18), dpm = Ansi(dept, 10), orno = Ansi(r.orno, 14) }, tx);
+                    $"SELECT TOP (1) id, oqty, qty FROM tborder WHERE {orderWhere}", orderArgs, tx);
                 if (order.id != 0)
-                    conn.Execute("UPDATE tborder SET qty = @qty WHERE id = @id",
-                        new { qty = Math.Min(order.qty + r.jkamount, order.oqty), id = order.id }, tx);
+                    // row220 L181-183：PASSTH 4 参 update=按条件更新全部匹配行（无 id 限定，2026-11-02 修正）
+                    conn.Execute($"UPDATE tborder SET qty = @qty WHERE {orderWhere}",
+                        new { qty = Math.Min(order.qty + r.jkamount, order.oqty), orderArgs.cp, orderArgs.cno, orderArgs.nno, orderArgs.dpm, orderArgs.orno }, tx);
 
                 conn.Execute("DELETE FROM tbisorsm WHERE id = @id AND dpm = @dpm",
                     new { r.id, dpm = Ansi(dept, 10) }, tx);
@@ -1012,7 +1013,8 @@ public static partial class LegacyReplay
             decimal newIprc, newIprj;
             if (pway == 2 && kcAfter != 0)
             {
-                newIprc = Math.Round((Math.Max(batch.iprc * batch.kc, 0) + iprc * amount) / (Math.Max(batch.kc, 0) + amount), 4);
+                // client L716：iprc 加权 ROUND 2 位硬编码（2026-11-02 修正，此前误写 4）
+                newIprc = Math.Round((Math.Max(batch.iprc * batch.kc, 0) + iprc * amount) / (Math.Max(batch.kc, 0) + amount), 2);
                 newIprj = wbtohs
                     ? Math.Round((batch.iprj * batch.kc + iprj * amount) / (batch.kc + amount), 2)
                     : batch.iprj;
@@ -2071,13 +2073,14 @@ public static partial class LegacyReplay
             });
     }
 
-    /// <summary>场景 15 旧侧：fr_order4 I2/U4 新增计划行（___.row352:L32/L39：同编码已存在相加，否则 INSERT）。</summary>
+    /// <summary>场景 15 旧侧：fr_order4 I2/U4 新增计划行（___.row352:L32/L39：同编码已存在相加，否则 INSERT）。
+    /// dpmusem=登录角色部门串（tbrole.dpmusem，fr_login _0.row12），非厂牌（2026-11-02 修正）。</summary>
     public static void Order4AddLine(SqlConnection conn, string dept, string cp, string per, string cno,
-        Batch part, decimal oqty)
+        Batch part, decimal oqty, string dpmusem)
     {
         var existing = conn.ExecuteScalar<int?>(
             "SELECT TOP 1 id FROM tborder WHERE cno = @cno AND type = '' AND nno = @nno AND cp = @xcp AND @p_dpmusem LIKE '%' + RTRIM(dpm) + '%'",
-            new { cno = Ansi(cno, 15), nno = Ansi(part.Nno, 18), xcp = Ansi(cp, 10), p_dpmusem = Ansi(cp, 50) });
+            new { cno = Ansi(cno, 15), nno = Ansi(part.Nno, 18), xcp = Ansi(cp, 10), p_dpmusem = Ansi(dpmusem, 60) });
         if (existing is { } id)
         {
             // U4（___.row352:L32）：oqty 累加
@@ -2100,12 +2103,12 @@ public static partial class LegacyReplay
     }
 
     /// <summary>场景 15 旧侧：fr_order4 U1 并入在途（燂.row162:L30：type='历史'、orno=原 cno、cno=''、item 重排）。</summary>
-    public static void Order4MergeToTransit(SqlConnection conn, string dept, string cp, string cno)
+    public static void Order4MergeToTransit(SqlConnection conn, string dept, string cp, string cno, string dpmusem)
     {
         if (conn.State != System.Data.ConnectionState.Open) conn.Open();
         var ids = conn.Query<int>(
             "SELECT id FROM tborder WITH (UPDLOCK) WHERE cno = @cno AND type = '' AND cp = @cp AND @p_dpmusem LIKE '%' + RTRIM(dpm) + '%' ORDER BY id",
-            new { cno = Ansi(cno, 15), cp = Ansi(cp, 10), p_dpmusem = Ansi(cp, 50) }).ToList();
+            new { cno = Ansi(cno, 15), cp = Ansi(cp, 10), p_dpmusem = Ansi(dpmusem, 60) }).ToList();
         var n = 0;
         foreach (var id in ids)
         {

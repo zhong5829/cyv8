@@ -97,9 +97,12 @@ public static class IsappeEngine
             var kcAfter = batch.kc + amount;
             if (prm.PWay == 2 && kcAfter != 0)
             {
-                // 主程序 L1644-1646 / client L716-718：加权均价（iprc 4 位=tbisto.iprc scale，iprj 2 位）
+                // 主程序 L1644-1646：ROUND(..., LCXSW=XSW(1,4) 进价小数位，本部署=4)；
+                // client L716-718：ROUND(..., 2) 硬编码——散件入库 fr_isto1 / 订单入库 fr_isor 走 client 库
+                //（2026-11-02 修正：此前恒 4 位与旧 client 库不符；XSW 配置变更属备案，MainProc 暂取部署值 4）
+                var iprcDigits = library == IsappeLibrary.Client ? 2 : 4;
                 iprc = Math.Round((Math.Max(batch.iprc * batch.kc, 0) + src.Iprc * amount) /
-                                  (Math.Max(batch.kc, 0) + amount), 4);
+                                  (Math.Max(batch.kc, 0) + amount), iprcDigits);
                 if (prm.Wbtohs)
                 {
                     iprj = library == IsappeLibrary.MainProc

@@ -297,7 +297,7 @@ public class ContractReplayTests
                 new(seed[0].Cp, seed[0].Nno, seed[0].Na1 + "R", seed[0].Ty, seed[0].Fa, seed[0].Dc, seed[0].Unit,
                     3m, seed[0].Iprj + 1, seed[0].Iprc + 1, seed[0].Oprc + 1, 0m, "RP9", seed[0].Depotno, "回放新批行"),
             ];
-            LegacyReplay.InStock(conn, ReplayConfig.Dept, cno, lines, per);
+            LegacyReplay.InStock(conn, ReplayConfig.Dept, cno, lines, per, "回放供应商");
             return [];
         }, cnoWindow: cno);
 
@@ -310,6 +310,7 @@ public class ContractReplayTests
             {
                 Cno = cno,
                 Fkfs = "现金",
+                Gyname = "回放供应商", // v0.0.93 起供应商必填（旧 X__.row212 校验）
                 Lines =
                 [
                     new InStockLineInput { Cp = seed[0].Cp, Nno = seed[0].Nno, Na1 = seed[0].Na1 + "R", Ty = seed[0].Ty, Fa = seed[0].Fa, Dc = seed[0].Dc, Unit = seed[0].Unit, Jkamount = 5m, Iprj = seed[0].Iprj, Iprc = seed[0].Iprc, Oprc = seed[0].Oprc, Oprb = 0m, Posi = seed[0].Posi, Depotno = seed[0].Depotno, Note = "回放命中行" },
@@ -866,9 +867,9 @@ public class ContractReplayTests
             part = LegacyReplay.GetSeedParts(conn, 1)[0];
             LegacyReplay.SeedOrderContract(conn, dept, cp, per, contractCno, part);
             LegacyReplay.Order3AddLine(conn, dept, cp, per, contractCno, contractCno + "O2", part, 5m);
-            LegacyReplay.Order4AddLine(conn, dept, cp, per, planCno, part, 3m);
-            LegacyReplay.Order4AddLine(conn, dept, cp, per, planCno, part, 2m);
-            LegacyReplay.Order4MergeToTransit(conn, dept, cp, planCno);
+            LegacyReplay.Order4AddLine(conn, dept, cp, per, planCno, part, 3m, dept);
+            LegacyReplay.Order4AddLine(conn, dept, cp, per, planCno, part, 2m, dept);
+            LegacyReplay.Order4MergeToTransit(conn, dept, cp, planCno, dept);
             return new List<string>();
         });
 
@@ -890,14 +891,14 @@ public class ContractReplayTests
                 Cno = planCno, Nno = part.Nno, Na1 = part.Na1, Ty = part.Ty, Fa = part.Fa,
                 Unit = part.Unit, Dc = part.Dc, Oqty = 3m, Iprj = part.Iprj,
                 Bzlx = "", Fkfs = "挂帐", Gyname = "回放供应商", Gname = "",
-            }, dept, cp, per, addQty: false).GetAwaiter().GetResult();
+            }, dept, cp, dept, per, addQty: false).GetAwaiter().GetResult();
             order4.AddLineAsync(new OrderLineAddInput
             {
                 Cno = planCno, Nno = part.Nno, Na1 = part.Na1, Ty = part.Ty, Fa = part.Fa,
                 Unit = part.Unit, Dc = part.Dc, Oqty = 2m, Iprj = part.Iprj,
                 Bzlx = "", Fkfs = "挂帐", Gyname = "回放供应商", Gname = "",
-            }, dept, cp, per, addQty: true).GetAwaiter().GetResult();
-            order4.MergeToTransitAsync(planCno, dept, cp).GetAwaiter().GetResult();
+            }, dept, cp, dept, per, addQty: true).GetAwaiter().GetResult();
+            order4.MergeToTransitAsync(planCno, dept, cp, dept).GetAwaiter().GetResult();
             return new List<string>();
         });
 

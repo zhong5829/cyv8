@@ -32,6 +32,8 @@ public partial class PartAttributeEditWindow : Window
         Row = source is null ? new PrnotyRow { Cp = cp } : CloneRow(source);
         Loaded += async (_, _) => await LoadDictsAsync();
         Loaded += async (_, _) => await LoadPartImageAsync();
+        PreviewKeyDown += Window_PreviewKeyDown;
+        Loaded += (_, _) => { NnoBox.Focus(); NnoBox.SelectAll(); };   // 打开即聚焦首框（键盘流起点）
         FillFields();
         // 构造期赋值完成后再启用联想（FillFields 的预填不触发下拉）
         _na1Suppress = false;
@@ -138,6 +140,64 @@ public partial class PartAttributeEditWindow : Window
         if (isNa1) _na1Suppress = false;
         else _tySuppress = false;
         popup.IsOpen = false;
+    }
+
+    // ==== 键盘导航（2026-11-03 需求）：↓/↑/回车 在输入框间流转，末框回车=确定 ====
+
+    /// <summary>
+    /// 输入框流转顺序（按 Tab 顺序：左列 → 全宽行 → 右列）。
+    /// 不入链：税率（只读带出）、备注（多行，Enter=换行/方向键=移光标，Tab 离开）。
+    /// </summary>
+    private Control[] FieldOrder =>
+        [NnoBox, Na1Box, TyBox, FaBox, DcBox, UnitBox, IprjBox, CodeTsBox,
+         EngBox, Note1Box, NoteBox, NnpBox, NnqBox, XnoBox, TnoBox, UqtyBox, NvolBox, SuttleBox, OprcCpBox];
+
+    private void Window_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Handled) return;
+        var key = e.Key;
+        if (key is not (System.Windows.Input.Key.Down or System.Windows.Input.Key.Up or System.Windows.Input.Key.Enter)) return;
+
+        // 多行备注框不参与导航（Enter=换行、方向键=移光标）
+        if (ReferenceEquals(e.Source, NoteBox)) return;
+
+        // 联想下拉打开时：键归联想框处理（SuggestBox_PreviewKeyDown 的 ↓↑选择/回车填充）
+        if ((ReferenceEquals(e.Source, Na1Box) && Na1Popup.IsOpen) ||
+            (ReferenceEquals(e.Source, TyBox) && TyPopup.IsOpen)) return;
+
+        var fields = FieldOrder;
+        var idx = Array.FindIndex(fields, f => f.IsKeyboardFocusWithin);
+        if (idx < 0) return;
+
+        // 可编辑 ComboBox 下拉展开时：键先由下拉自身处理（选项/收起），下一次回车才流转
+        if (fields[idx] is ComboBox { IsDropDownOpen: true }) return;
+
+        switch (key)
+        {
+            case System.Windows.Input.Key.Down:
+                e.Handled = true;
+                FocusField(fields, Math.Min(idx + 1, fields.Length - 1));
+                break;
+            case System.Windows.Input.Key.Up:
+                e.Handled = true;
+                FocusField(fields, Math.Max(idx - 1, 0));
+                break;
+            case System.Windows.Input.Key.Enter:
+                e.Handled = true;
+                if (idx == fields.Length - 1)
+                    OkButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));   // 末框回车=确定
+                else
+                    FocusField(fields, idx + 1);
+                break;
+        }
+    }
+
+    /// <summary>流转到目标输入框（文本框聚焦即全选）。</summary>
+    private static void FocusField(Control[] fields, int idx)
+    {
+        var f = fields[idx];
+        f.Focus();
+        if (f is TextBox tb) tb.SelectAll();
     }
 
     private static PrnotyRow CloneRow(PrnotyRow r) => new()

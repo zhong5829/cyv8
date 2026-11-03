@@ -147,7 +147,15 @@
                                                 ElementStyle="{StaticResource NumCellRight}"/>
                             <DataGridTextColumn Header="零售价" Binding="{Binding Oprc}" Width="80"
                                                 ElementStyle="{StaticResource NumCellRight}"/>
-                            <DataGridTextColumn Header="备注" Binding="{Binding Note}" Width="*"/>
+                            <!-- 长备注（2026-11-03 需求）：列宽不变，截断显示省略号，悬停气泡看全文 -->
+                            <DataGridTextColumn Header="备注" Binding="{Binding Note}" Width="*">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                                        <Setter Property="ToolTip" Value="{Binding Note}"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
                         </DataGrid.Columns>
                     </DataGrid>
                     </Border>

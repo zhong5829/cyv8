@@ -73,6 +73,7 @@ public class UatChecklistTests
             {
                 Cno = "UATB1CNO1",
                 Fkfs = "现金",
+                Gyname = "回放供应商", // v0.0.93 起供应商必填（旧 X__.row212 校验）
                 Lines =
                 [
                     new InStockLineInput
@@ -91,9 +92,9 @@ public class UatChecklistTests
                 $"[B1] 应命中既有批次 id={seed.Id}，实际 {(line.MatchedBatchId?.ToString() ?? "新建")}（P_WAY 运行时=2 应忽略进价匹配）");
             Assert.True(line.KcamountAfter == seed.Kc + qty, $"[B1] 入库后数量 {line.KcamountAfter} ≠ 期望 {seed.Kc + qty}");
 
-            // 加权均价重算（外币为含税价=1 → iprj 同步加权）
+            // 加权均价重算（外币为含税价=1 → iprj 同步加权；client 库 L716 iprc ROUND 2 位硬编码，2026-11-02 修正）
             var expectIprc = Math.Round(
-                (Math.Max(seed.Iprc * seed.Kc, 0) + newIprc * qty) / (Math.Max(seed.Kc, 0) + qty), 4);
+                (Math.Max(seed.Iprc * seed.Kc, 0) + newIprc * qty) / (Math.Max(seed.Kc, 0) + qty), 2);
             var expectIprj = Math.Round((seed.Iprj * seed.Kc + newIprj * qty) / (seed.Kc + qty), 2);
             var batch = conn.QueryFirst<(decimal kc, decimal iprc, decimal iprj, DateTime kcbhdate)>(
                 "SELECT kcamount, iprc, iprj, kcbhdate FROM tbisto WHERE id = @id",
@@ -131,6 +132,7 @@ public class UatChecklistTests
             {
                 Cno = "UATB2CNO1",
                 Fkfs = "现金",
+                Gyname = "回放供应商", // v0.0.93 起供应商必填（旧 X__.row212 校验）
                 Lines =
                 [
                     new InStockLineInput

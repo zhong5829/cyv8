@@ -101,6 +101,30 @@ public sealed class FormDialog : Window
         return g;
     }
 
+    /// <summary>
+    /// 订货弹窗键盘流：窗口打开即聚焦首框并全选；回车依次跳到下一框并全选；
+    /// 末框回车不处理，交给窗口 IsDefault 确定按钮（回车=确定）。
+    /// </summary>
+    public void ChainEnterFocus(params TextBox[] texts)
+    {
+        for (var i = 0; i < texts.Length; i++)
+        {
+            var idx = i;
+            texts[i].KeyDown += (_, e) =>
+            {
+                if (e.Key != System.Windows.Input.Key.Enter || idx == texts.Length - 1) return;
+                e.Handled = true;
+                texts[idx + 1].Focus();
+                texts[idx + 1].SelectAll();
+            };
+        }
+        texts[0].Loaded += (_, _) => texts[0].Dispatcher.BeginInvoke(new Action(() =>
+        {
+            texts[0].Focus();
+            texts[0].SelectAll();
+        }));
+    }
+
     /// <summary>追加确定/取消按钮并模态显示；返回是否确定。</summary>
     public bool ShowOkCancel()
     {

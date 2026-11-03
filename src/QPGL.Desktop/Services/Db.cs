@@ -142,7 +142,7 @@ public static class Db
         WebStock = new WebStockRepository(Factory);
         OrderBud = new OrderBudRepository(Factory);
         Order3 = new Order3Repository(Factory, Dm);
-        Order4 = new Order4Repository(Factory);
+        Order4 = new Order4Repository(Factory, DocNo);
         Xlsk = new XlskRepository(Factory, DocNo);
         Ysyf = new YsyfRepository(Factory);
         Lsz = new LszRepository(Factory);

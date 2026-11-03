@@ -23,7 +23,7 @@ public sealed class PartsController(IPartRepository repo) : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(dpm))
             throw new AppException("PARAM_MISSING", "缺少部门参数 dpm", 422);
-        var result = await repo.SearchAsync(dpm.Trim(), cp, na1, ty, request, ct);
+        var result = await repo.SearchAsync(dpm.Trim(), cp, na1, ty, request, ct: ct);
         return Ok(ApiResponse<PagedResult<PartItem>>.Success(result));
     }
 }
