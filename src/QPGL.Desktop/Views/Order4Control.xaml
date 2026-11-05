@@ -40,7 +40,7 @@
                           MouseDoubleClick="PlanList_DoubleClick">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="单号" Binding="{Binding Cno}" IsReadOnly="True" Width="110"/>
-                        <DataGridTextColumn Header="金额" Binding="{Binding Iprj, Mode=OneWay}" IsReadOnly="True" Width="70"
+                        <DataGridTextColumn Header="金额" Binding="{Binding Iprj, Mode=OneWay, StringFormat=N2}" IsReadOnly="True" Width="70"
                                             ElementStyle="{StaticResource NumCellRight}"/>
                         <DataGridTextColumn Header="日期" Binding="{Binding Orderdate, Mode=OneWay, StringFormat=yyyy-MM-dd}" IsReadOnly="True" Width="85"/>
                         <DataGridTextColumn Header="备注类型" Binding="{Binding Bzlx}" IsReadOnly="True" Width="70"/>
@@ -92,9 +92,7 @@
                         <DataGridTextColumn Header="单位" Binding="{Binding Unit}" IsReadOnly="True" Width="42"/>
                         <DataGridTextColumn Header="库存" Binding="{Binding Kcamount, Mode=OneWay, StringFormat=N0}" IsReadOnly="True" Width="55"
                                             ElementStyle="{StaticResource NumCellRight}"/>
-                        <DataGridTextColumn Header="外币价" Binding="{Binding Iprj, Mode=OneWay}" IsReadOnly="True" Width="55"
-                                            ElementStyle="{StaticResource NumCellRight}"/>
-                        <DataGridTextColumn Header="进价" Binding="{Binding Iprc, Mode=OneWay}" IsReadOnly="True" Width="55"
+                        <DataGridTextColumn Header="进价" Binding="{Binding Iprc, Mode=OneWay, StringFormat=N2}" IsReadOnly="True" Width="55"
                                             ElementStyle="{StaticResource NumCellRight}"/>
                         <DataGridTextColumn Header="在途" Binding="{Binding Ztqty, Mode=OneWay}" IsReadOnly="True" Width="50"
                                             ElementStyle="{StaticResource NumCellRight}"/>

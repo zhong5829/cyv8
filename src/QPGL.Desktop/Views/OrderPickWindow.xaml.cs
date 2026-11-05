@@ -2,6 +2,8 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Threading;
+using QPGL.Desktop.Services;
+using QPGL.Domain.Common;
 using QPGL.Desktop.ViewModels;
 using QPGL.Infrastructure.Orders;
 
@@ -27,11 +29,6 @@ public partial class OrderPickWindow : Window
         Owner = Application.Current.MainWindow;
         _vm = vm;
         DataContext = vm;
-        // 月均列头随当前月动态变化（近3月→近1月，与仓储 RecentMonthWindows 同规则：不含当月）
-        var m = DateTime.Today.Month;
-        ColMo3.Header = $"{(m + 8) % 12 + 1}月销";   // m-3
-        ColMo2.Header = $"{(m + 9) % 12 + 1}月销";   // m-2
-        ColMo1.Header = $"{(m + 10) % 12 + 1}月销";  // m-1
         _debounce.Tick += async (_, _) =>
         {
             _debounce.Stop();
@@ -104,14 +101,8 @@ public partial class OrderPickWindow : Window
             await _vm.LoadMorePartsAsync(System.Threading.CancellationToken.None);
     }
 
-    /// <summary>条件变化（输入/日期/数量区间）：重置防抖计时。</summary>
+    /// <summary>条件变化（输入）：重置防抖计时。</summary>
     private void Box_TextChanged(object sender, TextChangedEventArgs e)
-    {
-        _debounce.Stop();
-        _debounce.Start();
-    }
-
-    private void Cond_Changed(object? sender, SelectionChangedEventArgs e)
     {
         _debounce.Stop();
         _debounce.Start();
@@ -213,10 +204,89 @@ public partial class OrderPickWindow : Window
         }
     }
 
-    private void PickGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e) => Confirm();
+    private void PickGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        // 双击警戒值列 → 进入单元格编辑（2026-11-04 需求），不触发订货。
+        // 双保险：当前列 + 点击命中列（OriginalSource 向上找 DataGridCell），任一为警戒列即跳过
+        if (PickGrid.CurrentColumn?.Header is "警戒值A" or "警戒值B") return;
+        if (e.OriginalSource is DependencyObject d &&
+            FindAncestorCell(d)?.Column?.Header is "警戒值A" or "警戒值B") return;
+        Confirm();
+    }
+
+    /// <summary>警戒值编辑中标记（PreparingCellForEdit 置位 / CellEditEnding 复位，供回车提交判断）。</summary>
+    private bool _jjEditing;
+
+    /// <summary>进入警戒值编辑自动全选（2026-11-04 需求）：双击进入编辑模式，文本全选便于整体覆盖输入。</summary>
+    private void PickGrid_PreparingCellForEdit(object? sender, DataGridPreparingCellForEditEventArgs e)
+    {
+        var header = e.Column.Header as string;
+        if (header is not ("警戒值A" or "警戒值B")) return;
+        _jjEditing = true;
+        if (e.EditingElement is TextBox tb)
+        {
+            tb.Focus();
+            tb.SelectAll();
+        }
+    }
+
+    /// <summary>警戒值单元格编辑提交（2026-11-04 需求）：校验数字≥0 后单档落库（tbistojj），失败恢复原值。</summary>
+    private async void PickGrid_CellEditEnding(object sender, DataGridCellEditEndingEventArgs e)
+    {
+        _jjEditing = false;
+        if (e.EditAction != DataGridEditAction.Commit) return;
+        var header = e.Column.Header as string;
+        var isA = header == "警戒值A";
+        var isB = header == "警戒值B";
+        if (!isA && !isB) return;
+        if (e.Row.Item is not PartPickRow row) return;
+        if (e.EditingElement is not TextBox tb) return;
+
+        if (!decimal.TryParse(tb.Text.Trim(), out var value) || value < 0)
+        {
+            e.Cancel = true;   // 非法输入：取消本次编辑，单元格回退原值
+            MessageBox.Show("请输入有效的警戒值（≥0 数字）。", "选择配件", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        var oldValue = isA ? row.Amjj : row.Bmjj;
+        if (value == oldValue) return;
+        try
+        {
+            await Db.PriceAdjust.UpdateJjLineAsync(AppSession.DeptNo, row.Cp, row.Nno,
+                isA ? value : null, isA ? null : value);
+            if (isA) row.Amjj = value; else row.Bmjj = value;   // INPC → 行色即时刷新
+        }
+        catch (Exception ex)
+        {
+            if (isA) row.Amjj = oldValue; else row.Bmjj = oldValue;
+            MessageBox.Show("保存警戒值失败：" + ex.Message, "选择配件", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    /// <summary>从事件源向上找所在 DataGridCell。</summary>
+    private static DataGridCell? FindAncestorCell(DependencyObject? current)
+    {
+        while (current is not null)
+        {
+            if (current is DataGridCell cell) return cell;
+            current = System.Windows.Media.VisualTreeHelper.GetParent(current);
+        }
+        return null;
+    }
 
     private void PickGrid_PreviewKeyDown(object sender, KeyEventArgs e)
     {
+        // 警戒值编辑中（2026-11-04 需求）：回车=确定提交（不触发订货），Esc 默认取消，F4 屏蔽
+        if (_jjEditing)
+        {
+            if (e.Key == Key.Enter)
+            {
+                _jjEditing = false;
+                PickGrid.CommitEdit(DataGridEditingUnit.Cell, true);
+            }
+            if (e.Key is Key.Enter or Key.F4) e.Handled = true;
+            return;
+        }
         if (e.Key is Key.Enter or Key.F4)
         {
             Confirm();

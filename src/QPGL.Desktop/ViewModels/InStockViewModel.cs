@@ -56,6 +56,8 @@ public partial class InStockViewModel : ObservableObject
     [ObservableProperty] private string _message = "";
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private decimal _totalAmount;
+    /// <summary>总进货数量（明细 Jkamount 合计，2026-11-03 需求）。</summary>
+    [ObservableProperty] private decimal _totalQty;
     /// <summary>脏标记（2026-11-02 暂存需求）：加/改/删明细后为 true，保存暂存或生效后清零，关闭页面/退出时据此提示。</summary>
     [ObservableProperty] private bool _isDirty;
 
@@ -370,7 +372,11 @@ public partial class InStockViewModel : ObservableObject
         }
     }
 
-    private void RecalcTotal() => TotalAmount = Lines.Sum(l => l.Jkamount * l.Iprj);
+    private void RecalcTotal()
+    {
+        TotalAmount = Lines.Sum(l => l.Jkamount * l.Iprj);
+        TotalQty = Lines.Sum(l => l.Jkamount);
+    }
 
     [RelayCommand]
     private async Task SaveAsync(CancellationToken ct)
@@ -406,12 +412,13 @@ public partial class InStockViewModel : ObservableObject
             };
             command.Validate();
             var result = await Db.InStock.CreateAsync(command, AppSession.DeptNo, AppSession.Operator, allowReentry: false, ct);
+            Services.PartCacheService.Invalidate();   // 新增 tbisto 批次行 → 配件选择缓存失效
             Cno = result.Cno;   // 回显生成的合同单号
             Message = $"入库成功：{result.Cno} 共 {result.LineCount} 行，总进价 {result.TotalIprcAmount:N2}";
             // 清空重开：生效时焦点在网格内会有未提交编辑会话，Clear+AddLine 会产生 ghost 空白行——
             // 这里不再预置空行（用户由「添加配件/表格导入」加行），重进页面时才由 LoadedAsync 预置
             Lines.Clear();
-            TotalAmount = 0;
+            RecalcTotal();
             Cno = "";
             Pno = "";
             IsDirty = false;
@@ -433,10 +440,11 @@ public partial class InStockViewModel : ObservableObject
                 try
                 {
                     var result = await Db.InStock.CreateAsync(cmd, AppSession.DeptNo, AppSession.Operator, allowReentry: true, ct);
+                    Services.PartCacheService.Invalidate();   // 新增 tbisto 批次行 → 配件选择缓存失效
                     Cno = result.Cno;   // 回显生成的合同单号
                     Message = $"重入成功：{result.Cno} 共 {result.LineCount} 行";
                     Lines.Clear();
-                    TotalAmount = 0;
+                    RecalcTotal();
                     Cno = "";
                     IsDirty = false;
                 }

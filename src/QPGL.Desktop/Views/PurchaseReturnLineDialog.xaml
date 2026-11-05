@@ -1,0 +1,74 @@
+<Window x:Class="QPGL.Desktop.Views.PurchaseReturnLineDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="入库退货行" Width="440" Height="360"
+        WindowStartupLocation="CenterOwner" MinWidth="400" MinHeight="320"
+        ShowInTaskbar="False"
+        Background="{StaticResource WindowBackBrush}">
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel>
+            <!-- 配件信息 -->
+            <Grid Margin="0,0,0,4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="配件编号: " VerticalAlignment="Center"/>
+                <TextBlock x:Name="TxtNno" Grid.Column="1" VerticalAlignment="Center" FontWeight="Bold"/>
+            </Grid>
+            <Grid Margin="0,0,0,4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="配件名称: " VerticalAlignment="Center"/>
+                <TextBlock x:Name="TxtNa1" Grid.Column="1" VerticalAlignment="Center" FontWeight="Bold" TextWrapping="Wrap"/>
+            </Grid>
+            <Grid Margin="0,0,0,6">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="厂牌: " VerticalAlignment="Center"/>
+                <TextBlock x:Name="TxtCp" Grid.Column="1" VerticalAlignment="Center"/>
+            </Grid>
+
+            <!-- 退货数量 -->
+            <Grid Margin="0,0,0,4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="退货数量*: " VerticalAlignment="Center"/>
+                <TextBox x:Name="TxtQty" Grid.Column="1" Margin="0,1" KeyDown="Qty_KeyDown"/>
+            </Grid>
+
+            <!-- 进价 -->
+            <Grid Margin="0,0,0,4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="进价: " VerticalAlignment="Center"/>
+                <TextBox x:Name="TxtIprc" Grid.Column="1" Margin="0,1" KeyDown="Price_KeyDown"/>
+            </Grid>
+
+            <!-- 扣库存勾选（2026-11-04 需求）：未勾选=正常扣库存；勾选=不扣库存（只写负数流水） -->
+            <CheckBox x:Name="ChkNoStock" Content="不扣库存（勾选后本行退货不冲减库存）" Margin="0,4,0,4"
+                      VerticalAlignment="Center"/>
+
+            <TextBlock x:Name="TxtStockInfo" TextWrapping="Wrap" Foreground="#555" Margin="0,2,0,0"/>
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,10,0,0">
+            <Button x:Name="BtnOk" Content="确认 (Enter)" Width="100" Height="30" Margin="4,0"
+                    Style="{StaticResource PrimaryButtonStyle}" IsDefault="True" Click="BtnOk_Click"/>
+            <Button Content="取消 (Esc)" Width="90" Height="30" Margin="4,0" IsCancel="True"/>
+        </StackPanel>
+    </Grid>
+</Window>

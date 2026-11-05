@@ -1,0 +1,55 @@
+<Window x:Class="QPGL.Desktop.Views.StockPriceEditWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="修改库存售价" Width="340" SizeToContent="Height"
+        ResizeMode="NoResize" WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        Background="White" FontSize="13">
+    <!-- 复刻旧系统「修改库存售价」弹窗（2026-11-04 需求）：零件编码只读回显，
+         仓位/产地/售价/批发价/最低售价可改，右侧操作员/日期留痕展示，K 确定 / C 取消 -->
+    <StackPanel Margin="14,12">
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="72"/>
+                <ColumnDefinition Width="120"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="30"/>
+                <RowDefinition Height="30"/>
+                <RowDefinition Height="30"/>
+                <RowDefinition Height="30"/>
+                <RowDefinition Height="30"/>
+                <RowDefinition Height="30"/>
+            </Grid.RowDefinitions>
+
+            <TextBlock Grid.Row="0" Text="零件编码:" VerticalAlignment="Center"/>
+            <TextBox x:Name="TxtNno" Grid.Row="0" Grid.Column="1" IsReadOnly="True" Background="#D8E9F8"
+                     VerticalContentAlignment="Center" Padding="4,0"/>
+
+            <TextBlock Grid.Row="1" Text="仓  位:" VerticalAlignment="Center"/>
+            <TextBox x:Name="TxtPosi" Grid.Row="1" Grid.Column="1" VerticalContentAlignment="Center" Padding="4,0"/>
+
+            <TextBlock Grid.Row="2" Text="产  地:" VerticalAlignment="Center"/>
+            <TextBox x:Name="TxtDc" Grid.Row="2" Grid.Column="1" VerticalContentAlignment="Center" Padding="4,0"/>
+
+            <TextBlock Grid.Row="3" Text="售  价:" VerticalAlignment="Center"/>
+            <TextBox x:Name="TxtOprc" Grid.Row="3" Grid.Column="1" TextAlignment="Right"
+                     Background="#FBF6D8" VerticalContentAlignment="Center" Padding="4,0"/>
+            <TextBlock Grid.Row="3" Grid.Column="2" x:Name="LblPer" Margin="12,0,0,0" VerticalAlignment="Center"/>
+
+            <TextBlock Grid.Row="4" Text="批发价:" VerticalAlignment="Center"/>
+            <TextBox x:Name="TxtOprb" Grid.Row="4" Grid.Column="1" TextAlignment="Right"
+                     Background="#FBF6D8" VerticalContentAlignment="Center" Padding="4,0"/>
+            <TextBlock Grid.Row="4" Grid.Column="2" x:Name="LblDate" Margin="12,0,0,0" VerticalAlignment="Center"/>
+
+            <TextBlock Grid.Row="5" Text="最低售价:" VerticalAlignment="Center"/>
+            <TextBox x:Name="TxtOprcMin" Grid.Row="5" Grid.Column="1" TextAlignment="Right"
+                     Background="#FBF6D8" VerticalContentAlignment="Center" Padding="4,0"/>
+        </Grid>
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,14,0,0">
+            <Button Content="K 确定" Width="76" Height="26" Margin="0,0,18,0" IsDefault="True" Click="BtnOk_Click"/>
+            <Button Content="C 取消" Width="76" Height="26" IsCancel="True"/>
+        </StackPanel>
+    </StackPanel>
+</Window>

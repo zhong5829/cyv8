@@ -395,6 +395,7 @@ public partial class SaleReturnViewModel : ObservableObject
         try
         {
             var result = await Db.SaleReturns.CreateAsync(command, AppSession.Operator, ct);
+            Services.PartCacheService.Invalidate();   // 退货回补库存批次 → 配件选择缓存失效
             LastPaper = result.Paper;
             var status = $"退货成功，退货单号 {result.Paper}（{result.LineCount} 行，退款 {result.TotalAmount:N2} 元）";
             // 立即打印（2026-10-31 需求）：勾选时静默发送默认打印机，不弹预览窗；打印失败不阻断退货

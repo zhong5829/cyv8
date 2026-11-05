@@ -1,6 +1,7 @@
 using System.Windows;
 using Microsoft.Extensions.Configuration;
 using QPGL.Desktop.Services;
+using QPGL.Desktop.Views;
 
 namespace QPGL.Desktop;
 
@@ -14,9 +15,58 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        string connectionString;
         try
         {
-            Db.Init();
+            // 多库配置：ConnectionStrings 下配置了多个键时，启动先弹窗选择本次使用的数据库，
+            // 确定后才进入登录流程；仅一条（Default）时保持原有行为。
+            var config = new ConfigurationBuilder()
+                .SetBasePath(AppDomain.CurrentDomain.BaseDirectory)
+                .AddJsonFile("appsettings.json", optional: false)
+                .Build();
+            var connections = config.GetSection("ConnectionStrings").GetChildren()
+                .Where(c => !string.IsNullOrEmpty(c.Value))
+                .Select(c => (Name: c.Key!, ConnectionString: c.Value!))
+                .ToList();
+
+            if (connections.Count > 1)
+            {
+                // WPF 坑：OnStartup 期间该弹窗是应用唯一窗口，点击确定关闭时会触发
+                // ShutdownMode.OnLastWindowClose 的"最后一个窗口已关"判定 → 应用直接退出。
+                // 弹窗期间临时改为显式关闭模式，结束后恢复，登录窗/主窗关闭语义不变。
+                ShutdownMode = ShutdownMode.OnExplicitShutdown;
+                try
+                {
+                    var picker = new DatabaseSelectWindow(connections);
+                    if (picker.ShowDialog() != true)
+                    {
+                        Shutdown(0);
+                        return;
+                    }
+                    connectionString = picker.Selected.ConnectionString;
+                }
+                finally
+                {
+                    ShutdownMode = ShutdownMode.OnLastWindowClose;
+                }
+            }
+            else
+            {
+                connectionString = connections.FirstOrDefault().ConnectionString
+                    ?? throw new InvalidOperationException("缺少连接串配置 ConnectionStrings:Default（appsettings.json）");
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"启动配置错误：{ex.Message}", "QP12",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+            Shutdown(1);
+            return;
+        }
+
+        try
+        {
+            Db.Init(connectionString);
         }
         catch (Exception ex)
         {

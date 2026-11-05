@@ -1,4 +1,4 @@
-﻿﻿using System.Collections.ObjectModel;
+﻿﻿﻿﻿using System.Collections.ObjectModel;
 using System.Net.Http;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -224,7 +224,7 @@ public partial class SaleViewModel : ObservableObject, IDisposable
         try
         {
             var request = new PagedRequest { Page = 1, PageSize = PartPageSize };
-            var result = await Db.Parts.SearchAsync(Dept, PartCp.Trim(), PartNa1.Trim(), PartTy.Trim(), request,
+            var result = await PartCacheService.SearchAsync(Dept, PartCp.Trim(), PartNa1.Trim(), PartTy.Trim(), request,
                 PartNote.Trim(), fillLastIprj: IsLastIprjVisible, brand, ct: ct);
             if (seq != _searchSeq) return;
             var tDb = sw.ElapsedMilliseconds;
@@ -234,13 +234,15 @@ public partial class SaleViewModel : ObservableObject, IDisposable
             _partTotal = result.Total;
             _loadingMore = false;
             _effectiveBrand = brand;
+            if (PartCacheService.LastHint is { Length: > 0 } h1)
+                BrandHint = BrandHint.Length > 0 ? $"{BrandHint} {h1}" : h1;
             DebugLog.Log($"[SaleSearch] 总耗时={sw.ElapsedMilliseconds}ms (DB={tDb}ms UI替换={sw.ElapsedMilliseconds - tDb}ms) rows={result.Items.Count}");
             var hasCondition = PartCp.Trim().Length > 0 || PartNa1.Trim().Length > 0 || PartTy.Trim().Length > 0 || PartNote.Trim().Length > 0;
 
             // 跨厂牌回退（2026-10-29 需求）：当前厂牌无命中且带条件时，查其它厂牌命中数，弹窗确认后临时加载
             if (result.Total == 0 && hasCondition && brand.Length > 0)
             {
-                var others = await Db.Parts.CountOtherBrandsAsync(Dept, brand, PartCp.Trim(), PartNa1.Trim(), PartTy.Trim(), ct, PartNote.Trim());
+                var others = await PartCacheService.CountOtherBrandsAsync(Dept, brand, PartCp.Trim(), PartNa1.Trim(), PartTy.Trim(), ct, PartNote.Trim());
                 if (seq != _searchSeq) return;
                 // 厂牌白名单（角色 usemcp）：非空时仅提示白名单内的厂牌；空 = 无限制
                 var wl = AppSession.BrandWhitelist;
@@ -256,7 +258,7 @@ public partial class SaleViewModel : ObservableObject, IDisposable
                         System.Windows.MessageBoxResult.No);
                     if (answer == System.Windows.MessageBoxResult.Yes)
                     {
-                        var alt = await Db.Parts.SearchAsync(Dept, PartCp.Trim(), PartNa1.Trim(), PartTy.Trim(), request,
+                        var alt = await PartCacheService.SearchAsync(Dept, PartCp.Trim(), PartNa1.Trim(), PartTy.Trim(), request,
                             PartNote.Trim(), fillLastIprj: IsLastIprjVisible, top, ct: ct);
                         if (seq != _searchSeq) return;
                         PartResults.Clear();
@@ -264,6 +266,8 @@ public partial class SaleViewModel : ObservableObject, IDisposable
                         _partTotal = alt.Total;
                         _effectiveBrand = top;
                         BrandHint = $"临时查看：{top}";
+                        if (PartCacheService.LastHint is { Length: > 0 } h2)
+                            BrandHint = $"{BrandHint} {h2}";
                         Message = alt.Total == 0 ? "无匹配配件" : "";
                         DebugLog.Log($"[SaleSearch] 跨厂牌回退 brand='{top}' rows={alt.Items.Count} total={alt.Total}");
                         return;
@@ -360,10 +364,40 @@ public partial class SaleViewModel : ObservableObject, IDisposable
                 Nvol = decimal.TryParse(r.Nvol, out var nv) ? nv : 0,
                 Suttle = r.Suttle, Note = r.Note, Note1 = r.Note1, Oprc_cp = r.Oprc_cp, Oprc_min = r.Oprc_min,
             }, r.Cp, "A");
+            Services.PartCacheService.Invalidate();   // 属性库变更 → 配件选择缓存失效
             Message = $"配件 {r.Nno} 属性已保存";
             await SearchPartsAsync(System.Threading.CancellationToken.None);   // 属性改动（名称/车型/零售价）回刷列表
         }
         catch (Exception ex) { Message = "保存配件属性失败：" + ex.Message; }
+    }
+
+    /// <summary>右键「修改库存售价」（2026-11-04 需求，复刻旧弹窗）：仓位/产地/售价/批发价改 tbisto 该编码全行
+    /// （tbistoch 留痕），最低售价改 tbprnoty.oprc_min；保存后行按索引替换刷新列表。</summary>
+    public async System.Threading.Tasks.Task ChangeStockPriceAsync(PartItem part)
+    {
+        var dlg = new Views.StockPriceEditWindow(part) { Owner = Application.Current.MainWindow };
+        if (dlg.ShowDialog() != true) return;
+        try
+        {
+            IsBusy = true;
+            Message = "";
+            await Db.Order4.ChangeStockPriceAsync(part.Cp, part.Nno, dlg.Posi, dlg.Dc,
+                dlg.Oprc, dlg.Oprb, dlg.OprcMin, AppSession.Operator, Dept);
+            Services.PartCacheService.Invalidate();   // tbisto 售价/货位变更 → 配件选择缓存失效
+            var idx = PartResults.IndexOf(part);
+            if (idx >= 0)
+                PartResults[idx] = part.WithStockPrice(dlg.Posi, dlg.Dc, dlg.Oprc, dlg.Oprb, dlg.OprcMin);
+            Message = "库存售价已更新。";
+        }
+        catch (AppException ex)
+        {
+            Message = ex.Message;
+            MessageBox.Show(ex.Message, "修改库存售价", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
     }
 
     /// <summary>轻量库存刷新（2026-10-30 需求）：按已加载批次 id 点查最新 kcamount，仅替换库存变化的行，
@@ -394,7 +428,7 @@ public partial class SaleViewModel : ObservableObject, IDisposable
         try
         {
             var request = new PagedRequest { Page = _partPage + 1, PageSize = PartPageSize };
-            var result = await Db.Parts.SearchAsync(Dept, PartCp.Trim(), PartNa1.Trim(), PartTy.Trim(), request,
+            var result = await PartCacheService.SearchAsync(Dept, PartCp.Trim(), PartNa1.Trim(), PartTy.Trim(), request,
                 PartNote.Trim(), fillLastIprj: IsLastIprjVisible, _effectiveBrand, ct: ct);
             if (seq != _searchSeq) return;
             _partPage++;
@@ -426,9 +460,12 @@ public partial class SaleViewModel : ObservableObject, IDisposable
             // 已存在 → 弹窗确认后进入修改（2026-10-30 需求：提示当前配件已存在，是否修改）
             if (MessageBox.Show($"当前配件 {part.Nno.Trim()} 已存在，是否修改？", DocType + "管理",
                     MessageBoxButton.OKCancel, MessageBoxImage.Question) == MessageBoxResult.OK)
-                EditExistingLine(dup);
+                EditExistingLineAsync(dup);
             return;
         }
+
+        // 最近进价点查（2026-11-04 需求）：列表默认不回填该列（省远程往返），弹窗前单件补取，供低于进价检测
+        try { await Db.Parts.FillLastIprjAsync(new[] { part }, Dept); } catch { /* 回填失败不阻断开单 */ }
 
         var dialog = new Views.SaleLineEditDialog(part, Dept, customerName: Gname?.Trim());
         if (dialog.ShowDialog() != true) return;
@@ -454,8 +491,8 @@ public partial class SaleViewModel : ObservableObject, IDisposable
         Message = "";
     }
 
-    /// <summary>双击明细行 → 再次弹窗修改车型/数量/单价/备注。</summary>
-    public void EditExistingLine(SaleLineRow row)
+    /// <summary>双击/回车明细行 → 再次弹窗修改车型/数量/单价/备注。</summary>
+    public async System.Threading.Tasks.Task EditExistingLineAsync(SaleLineRow row)
     {
         var part = new PartItem
         {
@@ -472,6 +509,8 @@ public partial class SaleViewModel : ObservableObject, IDisposable
             Oprb = row.Oprb,
             Posi = row.Posi,
         };
+        // 最近进价点查（2026-11-04 需求）：明细行快照无进价，弹窗前单件补取，供低于进价检测
+        try { await Db.Parts.FillLastIprjAsync(new[] { part }, Dept); } catch { /* 回填失败不阻断改行 */ }
         var dialog = new Views.SaleLineEditDialog(part, Dept, row.Qty, row.Price, row.Memo,
             customerName: Gname?.Trim(), ignoreStockCheck: row.IsEditLoad)   // 仅改单回读行放行（上限=库存+原单数量）；
             // 正常开单的已加行保持库存拦截（2026-10-30 修复：改数量超库存被放过）

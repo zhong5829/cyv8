@@ -129,6 +129,7 @@ public partial class PrnotyViewModel : ObservableObject
                 Suttle = r.Suttle, Note = r.Note, Note1 = r.Note1, Oprc_cp = r.Oprc_cp, Oprc_min = r.Oprc_min,
             }, Cp, Dpmusem);
             r.Cxnno = result.Cxnno; r.Xno = result.Xno; r.Tno = result.Tno;
+            Services.PartCacheService.Invalidate();   // 属性库变更 → 配件选择缓存失效（2026-11-04 弱网缓存）
             Message = $"保存成功 id={result.Id}（触发器回填 cxnno={result.Cxnno} xno={result.Xno} tno={result.Tno}）";
             return true;
         }

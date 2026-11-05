@@ -12,7 +12,9 @@
                 <TextBlock Text="{Binding Message}" VerticalAlignment="Center" Foreground="{StaticResource BrandBrush}"/>
             </StackPanel>
         </Border>
-        <TabControl>
+        <!-- 页签行右侧：警戒值 A/B 含义说明（2026-11-04 需求） -->
+        <Grid>
+            <TabControl>
             <TabItem Header="库存调价（B4）">
                 <DockPanel>
                     <Border DockPanel.Dock="Bottom" Background="White" BorderBrush="{StaticResource PanelBorderBrush}"
@@ -57,31 +59,73 @@
                 </DockPanel>
             </TabItem>
             <TabItem Header="警戒线设置（B5）">
-                <StackPanel Margin="16" VerticalAlignment="Center" MaxWidth="560">
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                        <TextBlock Text="最近" VerticalAlignment="Center"/>
-                        <TextBox Width="40" Text="{Binding Months}" Margin="4,0,4,0"/>
-                        <TextBlock Text="月平均（月销售数统计 tbrtsamo）" VerticalAlignment="Center"/>
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                        <CheckBox Content="A 警戒线系数" IsChecked="{Binding SetAmjj}" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                        <TextBox Width="70" Text="{Binding FactorA}" Margin="0,0,16,0"/>
-                        <CheckBox Content="B 警戒线系数" IsChecked="{Binding SetBmjj}" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                        <TextBox Width="70" Text="{Binding FactorB}"/>
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                        <CheckBox Content="所有厂牌（排除急件）" IsChecked="{Binding AllBrand}" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                        <TextBlock Text="厂牌" VerticalAlignment="Center"/>
-                        <TextBox Width="90" Text="{Binding Cp}" Margin="4,0,10,0"/>
-                        <TextBlock Text="产地" VerticalAlignment="Center"/>
-                        <TextBox Width="70" Text="{Binding JjFa}" Margin="4,0,10,0"/>
-                        <TextBlock Text="类型" VerticalAlignment="Center"/>
-                        <TextBox Width="70" Text="{Binding JjTy}"/>
-                    </StackPanel>
-                    <Button Content="执行警戒线设置" Command="{Binding SetJjCommand}" Padding="16,4" HorizontalAlignment="Left"/>
-                    <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Foreground="{StaticResource BrandBrush}" Margin="0,12,0,0"/>
-                </StackPanel>
+                <!-- 2026-11-04 改版（QP11 库存预警同构）：手动逐行编辑双档警戒值，编辑即落库；
+                     清单=未设警戒或已低于警戒的配件（库存升序），低库存行红字 -->
+                <DockPanel Margin="8">
+                    <Border DockPanel.Dock="Top" Background="White" BorderBrush="{StaticResource PanelBorderBrush}"
+                            BorderThickness="1" CornerRadius="3" Padding="10,8" Margin="0,0,0,6">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="厂牌" VerticalAlignment="Center"/>
+                            <TextBox Width="80" Text="{Binding Cp}" VerticalAlignment="Center" Margin="4,0,12,0"/>
+                            <TextBlock Text="编码" VerticalAlignment="Center"/>
+                            <TextBox x:Name="JjCpBox" Width="110" Text="{Binding JjCpFilter, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"
+                                     Margin="4,0,12,0" PreviewKeyDown="JjSearchBox_PreviewKeyDown" GotKeyboardFocus="JjSearchBox_GotFocus"/>
+                            <TextBlock Text="名称" VerticalAlignment="Center"/>
+                            <TextBox x:Name="JjNa1Box" Width="130" Text="{Binding JjNa1Filter, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"
+                                     Margin="4,0,12,0" ToolTip="支持拼音码（tbname0）"
+                                     PreviewKeyDown="JjSearchBox_PreviewKeyDown" GotKeyboardFocus="JjSearchBox_GotFocus"/>
+                            <TextBlock Text="车型" VerticalAlignment="Center"/>
+                            <TextBox x:Name="JjTyBox" Width="100" Text="{Binding JjTyFilter, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"
+                                     Margin="4,0,12,0" PreviewKeyDown="JjSearchBox_PreviewKeyDown" GotKeyboardFocus="JjSearchBox_GotFocus"/>
+                            <Button Content="重新加载" Command="{Binding LoadJjCommand}" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+                    <Border DockPanel.Dock="Bottom" Background="White" BorderBrush="{StaticResource PanelBorderBrush}"
+                            BorderThickness="1" CornerRadius="3" Padding="8,4" Margin="0,6,0,0">
+                        <TextBlock Text="{Binding Message}" VerticalAlignment="Center"/>
+                    </Border>
+                    <DataGrid x:Name="JjGrid" ItemsSource="{Binding JjView}" SelectedItem="{Binding SelectedJjRow}"
+                              IsReadOnly="False"
+                              AutoGenerateColumns="False" CanUserAddRows="False" GridLinesVisibility="Horizontal"
+                              HeadersVisibility="Column" FontSize="12"
+                              CellEditEnding="JjGrid_CellEditEnding"
+                              PreparingCellForEdit="JjGrid_PreparingCellForEdit"
+                              PreviewKeyDown="JjGrid_PreviewKeyDown">
+                        <DataGrid.RowStyle>
+                            <Style TargetType="DataGridRow">
+                                <Style.Triggers>
+                                    <!-- 库存<A 黄字预警；<B 红字告急（红触发器在后覆盖黄） -->
+                                    <DataTrigger Binding="{Binding IsYellow}" Value="True">
+                                        <Setter Property="Foreground" Value="#DAA520"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsRed}" Value="True">
+                                        <Setter Property="Foreground" Value="Red"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </DataGrid.RowStyle>
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="编码" Binding="{Binding Nno}" IsReadOnly="True" Width="110"/>
+                            <DataGridTextColumn Header="名称" Binding="{Binding Na1}" IsReadOnly="True" Width="*"/>
+                            <DataGridTextColumn Header="车型" Binding="{Binding Ty}" IsReadOnly="True" Width="90"/>
+                            <DataGridTextColumn Header="仓位" Binding="{Binding Posi}" IsReadOnly="True" Width="60"/>
+                            <DataGridTextColumn Header="单位" Binding="{Binding Unit}" IsReadOnly="True" Width="45"/>
+                            <DataGridTextColumn Header="库存数量" Binding="{Binding Stock, StringFormat=N0}" IsReadOnly="True" Width="70"
+                                                ElementStyle="{StaticResource NumCellRight}"/>
+                            <DataGridTextColumn Header="警戒值A" Binding="{Binding Amjj, StringFormat=N0, UpdateSourceTrigger=LostFocus}" Width="70"
+                                                ElementStyle="{StaticResource NumCellRight}"/>
+                            <DataGridTextColumn Header="警戒值B" Binding="{Binding Bmjj, StringFormat=N0, UpdateSourceTrigger=LostFocus}" Width="70"
+                                                ElementStyle="{StaticResource NumCellRight}"/>
+                            <DataGridTextColumn Header="零售价" Binding="{Binding Oprc, StringFormat=N2}" IsReadOnly="True" Width="70"
+                                                ElementStyle="{StaticResource NumCellRight}"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
             </TabItem>
-        </TabControl>
+            </TabControl>
+            <TextBlock HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,8,12,0"
+                       TextAlignment="Right" Foreground="#888"
+                       Text="警戒值A＝预警阈值（库存 &lt; A → 黄字）；警戒值B＝告急阈值（库存 &lt; B → 红字，红优先）。两档独立，只填 A、B 留空即可"/>
+        </Grid>
     </DockPanel>
 </UserControl>

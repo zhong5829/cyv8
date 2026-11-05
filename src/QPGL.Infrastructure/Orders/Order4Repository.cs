@@ -2,6 +2,7 @@ using Dapper;
 using Microsoft.Data.SqlClient;
 using QPGL.Domain.Common;
 using QPGL.Infrastructure.Db;
+using QPGL.Infrastructure.Parts;
 
 namespace QPGL.Infrastructure.Orders;
 
@@ -22,7 +23,13 @@ public interface IOrder4Repository
     /// <summary>属性检索（PR_FILT 普通分支 ISOLD=false，契约 §3.2/§3.3）。</summary>
     Task<IReadOnlyList<PartPickRow>> SearchPartsAsync(PartPickQuery query, string dpm, string cp, string dpmusem, string? suggestExp, CancellationToken ct = default);
 
-    /// <summary>参考公式建议订数（契约 §3.8：对单件执行公式返回 oqty；0=不足订。日期区间=选料查询条日期；P02=实时近三月月均）。</summary>
+    /// <summary>选料页批量实时聚合（2026-11-04 弱网缓存）：按本页 nno 集合一次往返取
+    /// 库存汇总（含互配件 mx）/最新批次价/在途/警戒值/区间出库量，键=RTRIM(nno)；
+    /// 同时带回 tbprnoty 增量水位与新增属性行（其他电脑新增配件实时可见）。</summary>
+    Task<PickAggLiveResult> GetPickAggregatesAsync(string cp, string dpm, string dpmusem,
+        IReadOnlyCollection<string> nnos, DateTime date1, DateTime date2, int lastAttrMaxId, CancellationToken ct = default);
+
+    /// <summary>参考公式建议订数（契约 §3.8：对单件执行公式返回 oqty；0=不足订。日期区间=选料查询条日期；P02=区间月均，2026-11-04 起跟随选料条日期不再固定近三月）。</summary>
     Task<decimal> GetSuggestQtyAsync(string cExpress, string nno, string dpm, string cp, string dpmusem,
         DateTime date1, DateTime date2, CancellationToken ct = default);
 
@@ -52,6 +59,11 @@ public interface IOrder4Repository
 
     /// <summary>整行迁移到新单号（U10）。</summary>
     Task MoveLineAsync(int id, string newCno, string dpm, string cp, CancellationToken ct = default);
+
+    /// <summary>修改库存售价（2026-11-04 销售开单右键需求，U7 扩展）：tbisto 该编码全行
+    /// oprc/oprb/posi/dc（null=不改）+ tbprnoty.oprc_min（null=不改）+ tbistoch 日志。</summary>
+    Task ChangeStockPriceAsync(string cp, string nno, string? posi, string? dc,
+        decimal oprc, decimal oprb, decimal? oprcMin, string per, string dpm, CancellationToken ct = default);
 
     /// <summary>售价/批发价修改（U7：该编码库存全行 + I6：tbistoch 日志）。</summary>
     Task ChangeSalePriceAsync(string cp, string nno, decimal oprc, decimal oprb, string per, string dpm, CancellationToken ct = default);
@@ -106,8 +118,14 @@ public sealed class PlanLineRow
     public string Per { get; set; } = "";
 }
 
-public sealed class PartPickRow
+/// <summary>
+/// 选料行（订单生成·选择配件窗）。警戒双档（2026-11-04 需求）：amjj=A 警戒值（黄档）/ bmjj=B 警戒值（红档），
+/// 库存 Kcamount &lt; A → 黄、&lt; B → 红（红优先），编辑警戒值实时刷新行色。
+/// </summary>
+public sealed class PartPickRow : System.ComponentModel.INotifyPropertyChanged
 {
+    /// <summary>序号列（2026-11-04 需求）：VM 按当前列表位置 1..n 编号，不落 SQL。</summary>
+    public int Seq { get; set; }
     public string Nno { get; set; } = "";
     public string Na1 { get; set; } = "";
     public string Ty { get; set; } = "";
@@ -125,18 +143,43 @@ public sealed class PartPickRow
     public string Xno { get; set; } = "";
     public string Dc { get; set; } = "";
     public decimal Uqty { get; set; }
-    public decimal Amjj { get; set; }
-    public decimal Bmjj { get; set; }
+
+    private decimal _amjj;
+    /// <summary>警戒值A（tbistojj，黄档，选料窗可编辑）。</summary>
+    public decimal Amjj { get => _amjj; set { _amjj = value; OnChanged(); RefreshLevel(); } }
+
+    private decimal _bmjj;
+    /// <summary>警戒值B（tbistojj，红档，选料窗可编辑）。</summary>
+    public decimal Bmjj { get => _bmjj; set { _bmjj = value; OnChanged(); RefreshLevel(); } }
+
+    private bool _isYellow;
+    /// <summary>库存 &lt; A 警戒值 → 黄字预警。</summary>
+    public bool IsYellow { get => _isYellow; private set { _isYellow = value; OnChanged(); } }
+
+    private bool _isRed;
+    /// <summary>库存 &lt; B 警戒值 → 红字告急（同时低于双档时红色优先）。</summary>
+    public bool IsRed { get => _isRed; private set { _isRed = value; OnChanged(); } }
+
+    private void RefreshLevel()
+    {
+        var red = Bmjj > 0 && Kcamount < Bmjj;
+        IsRed = red;
+        IsYellow = !red && Amjj > 0 && Kcamount < Amjj;
+    }
+
+    private decimal _num;
+    /// <summary>已订数（c_dhorder 同码合计）。已订（&gt;0）→ 绿档行色，优先于黄/红。</summary>
+    public decimal Num { get => _num; set { _num = value; OnChanged(); } }
+    /// <summary>已订标记（行样式触发器用）。</summary>
+    public bool IsOrdered => Num > 0;
+    public decimal Ckamount { get; set; }
     public string Cp { get; set; } = "";
     public decimal Oprc { get; set; }
     public decimal Oprb { get; set; }
-    /// <summary>已订数（c_dhorder 同码合计）。</summary>
-    public decimal Num { get; set; }
-    /// <summary>近1/2/3月出库（2026-11-03 需求：tbsada 实时按月聚合，不再依赖 tbrtsamo 月末统计）。</summary>
-    public decimal Mo1 { get; set; }
-    public decimal Mo2 { get; set; }
-    public decimal Mo3 { get; set; }
-    public decimal Ckamount { get; set; }
+
+    public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+    private void OnChanged([System.Runtime.CompilerServices.CallerMemberName] string? name = null)
+        => PropertyChanged?.Invoke(this, new(name));
 }
 
 public sealed class PartPickQuery
@@ -158,6 +201,17 @@ public sealed class PartPickQuery
     /// <summary>页大小（0 = 不分页全量，兼容旧口径）。</summary>
     public int PageSize { get; set; } = 100;
 }
+
+/// <summary>选料页单件实时聚合值（2026-11-04 弱网缓存；键=RTRIM(nno)；Kcamount 已含互配件 mx，Iprc=加权进价 CASE 口径）。</summary>
+public sealed record PickAggregate(
+    decimal Kcamount, decimal Iprc, decimal Oprc, decimal Oprb,
+    decimal Ztqty, decimal Amjj, decimal Bmjj, decimal Ckamount);
+
+/// <summary>选料页实时聚合 + tbprnoty 增量（2026-11-04 弱网缓存：其他电脑新增配件实时并入快照）。</summary>
+public sealed record PickAggLiveResult(
+    IReadOnlyDictionary<string, PickAggregate> Aggs,
+    int AttrMaxId,
+    List<PartCacheAttrRow> NewAttrRows);
 
 public sealed class OrderLineAddInput
 {
@@ -465,8 +519,7 @@ public sealed class Order4Repository(SqlConnectionFactory factory, DocNo.IDocNoS
                 ydCol = $"ISNULL((SELECT ({sug.Exp}) FROM ({sug.InnerFrom}) w WHERE ({sug.Exp}) >= 1 AND w.nno = p.nno), 0) AS ydqty";
         }
 
-        // 近1/2/3月窗口（不含当月，与旧 oamou 月序列口径一致：fr_istojj 月序列不含当月）
-        var mw = RecentMonthWindows();
+        // 近1/2/3月取数已随选料窗月销列移除（2026-11-04 需求）；P02 建议公式走 BuildSuggestAsync 独立内层查询，不受影响
         var sql = $"""
             DECLARE @fpcw varchar(10) = ISNULL(NULLIF((SELECT RTRIM(valuec) FROM tbsysset WITH (NOLOCK) WHERE name = N'废品仓位标识' AND type = 'system'), ''), N'废');
             SELECT RTRIM(p.nno) nno, RTRIM(p.na1) na1, RTRIM(p.ty) ty, RTRIM(p.fa) fa, RTRIM(p.unit) unit,
@@ -476,12 +529,8 @@ public sealed class Order4Repository(SqlConnectionFactory factory, DocNo.IDocNoS
                    RTRIM(p.dc) dc, p.uqty, ISNULL(jj.amjj, 0) amjj, ISNULL(jj.bmjj, 0) bmjj, RTRIM(p.cp) cp,
                    CASE WHEN k.kcweight > 0 THEN k.kcweight ELSE ISNULL(i.iprc, 0) END iprc,
                    ISNULL(i.oprc, 0) oprc, ISNULL(i.oprb, 0) oprb, 0 AS num,
-                   ISNULL(m1.ck, 0) mo1, ISNULL(m2.ck, 0) mo2, ISNULL(m3.ck, 0) mo3,
                    ISNULL(ck.ckamount, 0) ckamount
             FROM tbprnoty p WITH (NOLOCK){na1Join}{tyJoin}
-            LEFT JOIN {MonthAgg(mw.s1, mw.e1)} m1 ON p.cp = m1.cp AND p.nno = m1.nno
-            LEFT JOIN {MonthAgg(mw.s2, mw.e2)} m2 ON p.cp = m2.cp AND p.nno = m2.nno
-            LEFT JOIN {MonthAgg(mw.s3, mw.e3)} m3 ON p.cp = m3.cp AND p.nno = m3.nno
             LEFT JOIN (SELECT dpm, cp, nno, MAX(amjj) amjj, MAX(bmjj) bmjj FROM tbistojj WITH (NOLOCK) WHERE dpm = @p_dpm AND cp = @p_cp GROUP BY dpm, cp, nno) jj ON p.cp = jj.cp AND p.nno = jj.nno
             LEFT JOIN (SELECT cp, nno, SUM(kcamount) kcamount, MAX(id) id, SUM(kcamount * iprc) / NULLIF(SUM(kcamount), 0) kcweight FROM tbisto WITH (NOLOCK) WHERE cp = @p_cp AND posi <> @fpcw AND dpm IN (SELECT dpmbh FROM [dbo].[split_dpmusem](@p_dpmusem)) GROUP BY cp, nno) k ON p.cp = k.cp AND p.nno = k.nno
             LEFT JOIN tbisto i WITH (NOLOCK) ON p.cp = i.cp AND p.nno = i.nno AND k.id = i.id
@@ -502,10 +551,94 @@ public sealed class Order4Repository(SqlConnectionFactory factory, DocNo.IDocNoS
         return rows;
     }
 
+    // 批量聚合中间行（列名与 SQL 对齐，Dapper 大小写不敏感映射）
+    private sealed class AggStockRow { public string nno { get; set; } = ""; public decimal kc { get; set; } public decimal kcweight { get; set; } public decimal iprc { get; set; } public decimal oprc { get; set; } public decimal oprb { get; set; } }
+    private sealed class AggMxRow { public string nno { get; set; } = ""; public decimal xam { get; set; } }
+    private sealed class AggZtRow { public string nno { get; set; } = ""; public decimal ztqty { get; set; } }
+    private sealed class AggJjRow { public string nno { get; set; } = ""; public decimal amjj { get; set; } public decimal bmjj { get; set; } }
+    private sealed class AggCkRow { public string nno { get; set; } = ""; public decimal ckamount { get; set; } }
+
+    /// <inheritdoc/>
+    public async Task<PickAggLiveResult> GetPickAggregatesAsync(string cp, string dpm, string dpmusem,
+        IReadOnlyCollection<string> nnos, DateTime date1, DateTime date2, int lastAttrMaxId, CancellationToken ct = default)
+    {
+        // 与 SearchPartsAsync 主查询各聚合 LEFT JOIN 完全同构，仅追加 nno IN 限定（本页 100 行，
+        // 传输量从全厂牌聚合行缩到本页；服务端 ck 子查询带 IN 过滤后扫描也显著减小）；
+        // 末尾两个结果集 = tbprnoty 增量水位 + 新增属性行（其他电脑新增配件实时可见）
+        var list = nnos.Select(n => (n ?? "").Trim()).Where(n => n.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var result = new Dictionary<string, PickAggregate>(StringComparer.OrdinalIgnoreCase);
+
+        var sql = $"""
+            DECLARE @fpcw varchar(10) = ISNULL(NULLIF((SELECT RTRIM(valuec) FROM tbsysset WITH (NOLOCK) WHERE name = N'废品仓位标识' AND type = 'system'), ''), N'废');
+            SELECT RTRIM(k.nno) nno, k.kc, ISNULL(k.kcweight, 0) kcweight, ISNULL(i.iprc, 0) iprc, ISNULL(i.oprc, 0) oprc, ISNULL(i.oprb, 0) oprb
+            FROM (SELECT nno, SUM(kcamount) kc, SUM(kcamount * iprc) / NULLIF(SUM(kcamount), 0) kcweight, MAX(id) id
+                  FROM tbisto WITH (NOLOCK)
+                  WHERE cp = @p_cp AND posi <> @fpcw AND dpm IN (SELECT dpmbh FROM [dbo].[split_dpmusem](@p_dpmusem)) AND nno IN @nnos
+                  GROUP BY nno) k
+            LEFT JOIN tbisto i WITH (NOLOCK) ON i.id = k.id;
+            SELECT RTRIM(x.nno) nno, SUM(v.kcamount) xam
+            FROM tbprnoty x WITH (NOLOCK)
+            LEFT JOIN tbisto v WITH (NOLOCK) ON x.cp = v.cp AND v.cp = @p_cp AND v.posi <> @fpcw AND v.nno IN (CASE WHEN x.nno = x.nnp THEN '' ELSE x.nnp END, CASE WHEN x.nno = x.nnq THEN '' ELSE CASE WHEN x.nnp = x.nnq THEN '' ELSE x.nnq END END)
+            WHERE x.cp = @p_cp AND x.nno IN @nnos
+            GROUP BY x.nno;
+            SELECT RTRIM(nno) nno, SUM(oqty - qty) ztqty
+            FROM tborder WITH (NOLOCK)
+            WHERE type = '历史' AND cp = @p_cp AND dpm IN (SELECT dpmbh FROM [dbo].[split_dpmusem](@p_dpmusem)) AND nno IN @nnos
+            GROUP BY nno;
+            SELECT RTRIM(nno) nno, MAX(amjj) amjj, MAX(bmjj) bmjj
+            FROM tbistojj WITH (NOLOCK)
+            WHERE dpm = @p_dpm AND cp = @p_cp AND nno IN @nnos
+            GROUP BY nno;
+            SELECT RTRIM(p1.nno) nno, SUM(ISNULL(a1.ck, 0) + ISNULL(a2.ck, 0) + ISNULL(a3.ck, 0)) ckamount
+            FROM tbprnoty p1 WITH (NOLOCK)
+            LEFT JOIN (SELECT cp, nno, SUM(ckamount) ck FROM tbsada WITH (NOLOCK) WHERE cp = @p_cp AND outdate >= @m_date1 AND outdate <= @m_date2 AND dpm IN (SELECT dpmbh FROM [dbo].[split_dpmusem](@p_dpmusem)) AND (type = '历史' OR type = '销售') GROUP BY cp, nno UNION ALL SELECT cp, nno, SUM(ckamount) ck FROM tbxlsa WITH (NOLOCK) WHERE cp = @p_cp AND dpm IN (SELECT dpmbh FROM [dbo].[split_dpmusem](@p_dpmusem)) AND outdate >= @m_date1 AND outdate <= @m_date2 GROUP BY cp, nno) a1 ON a1.cp = p1.cp AND a1.nno = p1.nno
+            LEFT JOIN (SELECT cp, nno, SUM(ckamount) ck FROM tbsada WITH (NOLOCK) WHERE cp = @p_cp AND outdate >= @m_date1 AND outdate <= @m_date2 AND dpm IN (SELECT dpmbh FROM [dbo].[split_dpmusem](@p_dpmusem)) AND (type = '历史' OR type = '销售') GROUP BY cp, nno UNION ALL SELECT cp, nno, SUM(ckamount) ck FROM tbxlsa WITH (NOLOCK) WHERE cp = @p_cp AND dpm IN (SELECT dpmbh FROM [dbo].[split_dpmusem](@p_dpmusem)) AND outdate >= @m_date1 AND outdate <= @m_date2 GROUP BY cp, nno) a2 ON a2.cp = p1.cp AND a2.nno = p1.nnp AND p1.nnp <> p1.nno
+            LEFT JOIN (SELECT cp, nno, SUM(ckamount) ck FROM tbsada WITH (NOLOCK) WHERE cp = @p_cp AND outdate >= @m_date1 AND outdate <= @m_date2 AND dpm IN (SELECT dpmbh FROM [dbo].[split_dpmusem](@p_dpmusem)) AND (type = '历史' OR type = '销售') GROUP BY cp, nno UNION ALL SELECT cp, nno, SUM(ckamount) ck FROM tbxlsa WITH (NOLOCK) WHERE cp = @p_cp AND dpm IN (SELECT dpmbh FROM [dbo].[split_dpmusem](@p_dpmusem)) AND outdate >= @m_date1 AND outdate <= @m_date2 GROUP BY cp, nno) a3 ON a3.cp = p1.cp AND a3.nno = p1.nnq AND p1.nnq <> p1.nno AND p1.nnq <> p1.nnp
+            WHERE p1.cp = @p_cp AND p1.nno IN @nnos
+            GROUP BY p1.nno;
+            SELECT ISNULL(MAX(id), 0) FROM tbprnoty WITH (NOLOCK);
+            SELECT TOP 500 id, rtrim(cp) AS Cp, rtrim(nno) AS Nno, rtrim(na1) AS Na1, rtrim(ty) AS Ty, rtrim(fa) AS Fa,
+                   rtrim(dc) AS Dc, rtrim(unit) AS Unit, rtrim(nnp) AS Nnp, rtrim(nnq) AS Nnq,
+                   rtrim(note) AS Note, rtrim(tno) AS Tno, rtrim(xno) AS Xno, rtrim(cxnno) AS Cxnno,
+                   ISNULL(uqty, 0) AS Uqty, ISNULL(iprj, 0) AS Iprj,
+                   ISNULL(oprc_cp, 0) AS OprcCp, ISNULL(oprc_min, 0) AS OprcMin
+            FROM tbprnoty WITH (NOLOCK) WHERE id > @lastAttrMaxId ORDER BY id;
+            """;
+        var args = new DynamicParameters(new
+        {
+            p_cp = Ansi(cp, 10), p_dpm = Ansi(dpm, 10), p_dpmusem = Ansi(dpmusem, 60),
+            m_date1 = date1.Date, m_date2 = date2.Date, lastAttrMaxId,
+        });
+        args.Add("nnos", list);
+
+        await using var conn = await factory.OpenAsync(ct);
+        await using var multi = await conn.QueryMultipleAsync(new CommandDefinition(sql, args, commandTimeout: 60, cancellationToken: ct));
+        var stocks = (await multi.ReadAsync<AggStockRow>()).AsList();
+        var mx = (await multi.ReadAsync<AggMxRow>()).AsList().ToDictionary(r => r.nno, r => r.xam, StringComparer.OrdinalIgnoreCase);
+        var zt = (await multi.ReadAsync<AggZtRow>()).AsList().ToDictionary(r => r.nno, r => r.ztqty, StringComparer.OrdinalIgnoreCase);
+        var jj = (await multi.ReadAsync<AggJjRow>()).AsList().ToDictionary(r => r.nno, r => r, StringComparer.OrdinalIgnoreCase);
+        var ck = (await multi.ReadAsync<AggCkRow>()).AsList().ToDictionary(r => r.nno, r => r.ckamount, StringComparer.OrdinalIgnoreCase);
+        foreach (var s in stocks)
+        {
+            mx.TryGetValue(s.nno, out var xam);
+            zt.TryGetValue(s.nno, out var ztqty);
+            ck.TryGetValue(s.nno, out var ckamount);
+            var amjj = jj.TryGetValue(s.nno, out var j) ? j.amjj : 0;
+            var bmjj = jj.TryGetValue(s.nno, out var j2) ? j2.bmjj : 0;
+            result[s.nno] = new PickAggregate(
+                s.kc + xam,
+                s.kcweight > 0 ? s.kcweight : s.iprc,   // 与主查询 iprc CASE 同口径
+                s.oprc, s.oprb, ztqty, amjj, bmjj, ckamount);
+        }
+        var attrMaxId = await multi.ReadFirstAsync<int>();
+        var newAttrRows = (await multi.ReadAsync<PartCacheAttrRow>()).AsList();
+        return new PickAggLiveResult(result, attrMaxId, newAttrRows);
+    }
+
     /// <summary>
     /// 建议公式构造（___.row589 L16-93：P01..P12 列名替换 + P07/P08 参数替换 → 内层 w 子查询，外层公式求值）。
-    /// P02 月均（2026-11-03）：旧口径为 P_MONTHAVGSTRING 宏（tbrtsamo 月序列平均），因 tbrtsamo 依赖月末
-    /// 处理且该库历史数据缺失，改为与选料窗口月均列同源的 tbsada 实时近三月平均 (mo1+mo2+mo3)/3。
+    /// P02 月均（2026-11-04 改）：区间月均 = 区间总出库 ÷ 区间月数，跟随选料查询条日期（默认全部）；
+    /// 旧口径先后为 P_MONTHAVGSTRING 宏（tbrtsamo，月末统计缺失）、tbsada 实时近三月 (mo1+mo2+mo3)/3（已随月销列移除）。
     /// 日期区间备案：旧为公式窗独立日期 TXTBDATE/TXTEDATE，新系统统一用选料查询条日期。
     /// </summary>
     private async Task<(string Exp, string InnerFrom)> BuildSuggestAsync(string cExpress, DateTime date1, DateTime date2, CancellationToken ct)
@@ -520,24 +653,21 @@ public sealed class Order4Repository(SqlConnectionFactory factory, DocNo.IDocNoS
         foreach (var (paraid, nvalue) in paras)
             exp = exp.Replace(paraid, nvalue.ToString("0.##"));
         if (exp.Contains("P02"))
-            exp = exp.Replace("P02", "((ISNULL(mo1,0)+ISNULL(mo2,0)+ISNULL(mo3,0))/3.0)");
+            // P02 月均（2026-11-04 改）：不再固定近三月窗口，跟随选料查询条日期区间（出货日期默认全部）——
+            // 区间月均 = 区间总出库（ck 同码合计，与 P09 同源）÷ 区间月数
+            exp = exp.Replace("P02", "(ISNULL(ckamount,0) / NULLIF(DATEDIFF(month, @m_date1, @m_date2) + 1, 0))");
         var p12Select = hasP12 ? " ,ISNULL(xqcs,0) xqcs " : "";
         var p12Join = hasP12
             ? " left join (select cp,nno,count(nno) xqcs from (select cp,nno from tbsada with(nolock) where outdate>=@m_date1 and outdate<=@m_date2 and dpm in (select dpmbh from [dbo].[split_dpmusem](@p_dpmusem)) and type='需求') xx group by xx.cp,xx.nno) aaxq on p.cp=aaxq.cp and p.nno=aaxq.nno"
             : "";
         var mDstr = "outdate>=@m_date1 and outdate<=@m_date2";
-        var mw = RecentMonthWindows();
         var inner = $"""
               select p.nno, isnull(k.kcamount,0) kcamount, isnull(p.uqty-k.kcamount-z.oqty,0) ydqty,
                      ISNULL(z.ztqty,0) ztqty,
                      ISNULL(s.amjj,0) amjj, ISNULL(s.bmjj,0) bmjj, ISNULL(y.coeffict,1) coeffict,
-                     ISNULL(m1.ck,0) mo1, ISNULL(m2.ck,0) mo2, ISNULL(m3.ck,0) mo3,
                      ISNULL(ck.ckamount,0) ckamount, ISNULL(ys.ysamount,0) ysamount, ISNULL(dbzt.dbztamount,0) dbztamount{p12Select}
               from tbprnoty p
               left join tbistojj s on s.cp=@p_cp and s.nno=p.nno and s.dpm=@p_dpm
-              left join {MonthAgg(mw.s1, mw.e1)} m1 on p.cp=m1.cp and p.nno=m1.nno
-              left join {MonthAgg(mw.s2, mw.e2)} m2 on p.cp=m2.cp and p.nno=m2.nno
-              left join {MonthAgg(mw.s3, mw.e3)} m3 on p.cp=m3.cp and p.nno=m3.nno
               left join tbdccoef y on p.dc=y.dc
               left join (select cp,nno,sum(kcamount) kcamount,max(id) id from tbisto with(nolock) group by cp,nno) k on p.cp=k.cp and p.nno=k.nno
               left join tbisto i with(nolock) on p.cp=i.cp and p.nno=i.nno and k.id=i.id
@@ -831,34 +961,64 @@ public sealed class Order4Repository(SqlConnectionFactory factory, DocNo.IDocNoS
         }
     }
 
+    /// <summary>售价/批发价修改（U7：该编码库存全行 + I6：tbistoch 日志）。</summary>
     public async Task ChangeSalePriceAsync(string cp, string nno, decimal oprc, decimal oprb, string per, string dpm, CancellationToken ct = default)
+        => await ChangeStockPriceAsync(cp, nno, null, null, oprc, oprb, null, per, dpm, ct);
+
+    /// <summary>
+    /// 修改库存售价（2026-11-04 销售开单右键需求；U7 扩展 + A1 最低售价落库）：
+    /// tbisto 该编码全行 oprc/oprb/posi/dc（ISNULL 保留不改项）+ tbprnoty.oprc_min + tbistoch 日志（I6 同格式）。
+    /// 无库存批次行（tbisto 无记录）时不改库存档只改属性最低售价，不写日志。
+    /// </summary>
+    public async Task ChangeStockPriceAsync(string cp, string nno, string? posi, string? dc,
+        decimal oprc, decimal oprb, decimal? oprcMin, string per, string dpm, CancellationToken ct = default)
     {
-        // U7（L__.row497:L24）+ I6（L36）：更新 tbisto 售价/批发价 + tbistoch 日志
         await using var conn = await factory.OpenAsync(ct);
         await using var tx = (SqlTransaction)await conn.BeginTransactionAsync(ct);
         try
         {
-            var old = await conn.QueryFirstOrDefaultAsync<(decimal oprc, decimal oprb)>(new CommandDefinition(
-                "SELECT TOP (1) oprc, oprb FROM tbisto WITH (UPDLOCK) WHERE cp = @cp AND nno = @nno ORDER BY id DESC",
-                new { cp = Ansi(cp, 10), nno = Ansi(nno, 18) }, transaction: tx, cancellationToken: ct));
-            await conn.ExecuteAsync(new CommandDefinition(
-                "UPDATE tbisto SET oprc = @oprc, oprb = @oprb WHERE cp = @cp AND nno = @nno",
-                new { oprc, oprb, cp = Ansi(cp, 10), nno = Ansi(nno, 18) }, transaction: tx, cancellationToken: ct));
-
-            var note = (oprc != old.oprc ? $"  售价:{old.oprc}-->{oprc}" : "") +
-                       (oprb != old.oprb ? $"  批发价:{old.oprb}-->{oprb}" : "");
-            if (note.Length > 0)
+            var old = await conn.QueryFirstOrDefaultAsync<(int id, decimal oprc, decimal oprb, string posi, string dc)>(
+                new CommandDefinition(
+                    "SELECT TOP (1) id, oprc, oprb, RTRIM(ISNULL(posi,'')) posi, RTRIM(ISNULL(dc,'')) dc " +
+                    "FROM tbisto WITH (UPDLOCK) WHERE cp = @cp AND nno = @nno ORDER BY id DESC",
+                    new { cp = Ansi(cp, 10), nno = Ansi(nno, 18) }, transaction: tx, cancellationToken: ct));
+            var note = "";
+            if (old.id != 0)
             {
                 await conn.ExecuteAsync(new CommandDefinition(
-                    "INSERT INTO tbistoch (CP, NNO, NA1, XGDATE, per, note, dpm) VALUES (@cp, @nno, @na1, @xgdate, @per, @note, @dpm)",
+                    "UPDATE tbisto SET oprc = @oprc, oprb = @oprb, " +
+                    "posi = ISNULL(@posi, posi), dc = ISNULL(@dc, dc) WHERE cp = @cp AND nno = @nno",
                     new
                     {
+                        oprc, oprb,
+                        posi = posi is null ? null : Ansi(posi, 10),
+                        dc = dc is null ? null : Ansi(dc, 8),
                         cp = Ansi(cp, 10), nno = Ansi(nno, 18),
-                        na1 = await conn.ExecuteScalarAsync<string?>(new CommandDefinition(
-                            "SELECT TOP (1) RTRIM(na1) FROM tbisto WHERE cp = @cp AND nno = @nno",
-                            new { cp = Ansi(cp, 10), nno = Ansi(nno, 18) }, transaction: tx, cancellationToken: ct)) ?? "",
-                        xgdate = DateTime.Now, per = Ansi(per, 6), note = Ansi(note, 100), dpm = Ansi(dpm, 10),
                     }, transaction: tx, cancellationToken: ct));
+
+                note = (oprc != old.oprc ? $"  售价:{old.oprc}-->{oprc}" : "") +
+                       (oprb != old.oprb ? $"  批发价:{old.oprb}-->{oprb}" : "") +
+                       (posi is not null && posi.Trim() != old.posi ? $"  仓位:{old.posi}-->{posi.Trim()}" : "") +
+                       (dc is not null && dc.Trim() != old.dc ? $"  产地:{old.dc}-->{dc.Trim()}" : "");
+                if (note.Length > 0)
+                {
+                    await conn.ExecuteAsync(new CommandDefinition(
+                        "INSERT INTO tbistoch (CP, NNO, NA1, XGDATE, per, note, dpm) VALUES (@cp, @nno, @na1, @xgdate, @per, @note, @dpm)",
+                        new
+                        {
+                            cp = Ansi(cp, 10), nno = Ansi(nno, 18),
+                            na1 = await conn.ExecuteScalarAsync<string?>(new CommandDefinition(
+                                "SELECT TOP (1) RTRIM(na1) FROM tbisto WHERE cp = @cp AND nno = @nno",
+                                new { cp = Ansi(cp, 10), nno = Ansi(nno, 18) }, transaction: tx, cancellationToken: ct)) ?? "",
+                            xgdate = DateTime.Now, per = Ansi(per, 6), note = Ansi(note, 100), dpm = Ansi(dpm, 10),
+                        }, transaction: tx, cancellationToken: ct));
+                }
+            }
+            if (oprcMin is { } min)
+            {
+                await conn.ExecuteAsync(new CommandDefinition(
+                    "UPDATE tbprnoty SET oprc_min = @min WHERE RTRIM(cp) = @cp AND RTRIM(nno) = @nno",
+                    new { min, cp = cp.Trim(), nno = nno.Trim() }, transaction: tx, cancellationToken: ct));
             }
             await tx.CommitAsync(ct);
         }
@@ -984,30 +1144,6 @@ public sealed class Order4Repository(SqlConnectionFactory factory, DocNo.IDocNoS
     }
 
     // ---------- 私有 ----------
-
-    /// <summary>近1/2/3月自然月窗口（不含当月）：s1..e1=上月，s2..e2=上上月，s3..e3=三个月前。</summary>
-    internal static (DateTime s1, DateTime e1, DateTime s2, DateTime e2, DateTime s3, DateTime e3) RecentMonthWindows()
-    {
-        var e1 = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
-        var s1 = e1.AddMonths(-1);
-        var s2 = s1.AddMonths(-1);
-        var s3 = s2.AddMonths(-1);
-        return (s1, e1, s2, s1, s3, s2);   // 位置：s1,e1,s2,e2(=s1),s3,e3(=s2)
-    }
-
-    /// <summary>
-    /// 单月出库聚合派生表（tbsada+tbxlsa，type 销售/历史，与月末处理 D4 口径一致；月份边界为 C# 计算的字面量）。
-    /// </summary>
-    private static string MonthAgg(DateTime start, DateTime end)
-    {
-        var b = start.ToString("yyyy-MM-dd");
-        var e = end.ToString("yyyy-MM-dd");
-        return "(SELECT u.cp, u.nno, SUM(u.ckamount) ck FROM (" +
-               "SELECT cp, nno, ckamount FROM tbsada WITH (NOLOCK) WHERE cp = @p_cp AND outdate >= '" + b + "' AND outdate < '" + e + "' AND dpm IN (SELECT dpmbh FROM [dbo].[split_dpmusem](@p_dpmusem)) AND (type = '历史' OR type = '销售') " +
-               "UNION ALL " +
-               "SELECT cp, nno, ckamount FROM tbxlsa WITH (NOLOCK) WHERE cp = @p_cp AND outdate >= '" + b + "' AND outdate < '" + e + "' AND dpm IN (SELECT dpmbh FROM [dbo].[split_dpmusem](@p_dpmusem))" +
-               ") u GROUP BY u.cp, u.nno)";
-    }
 
     private async Task<string> GetFpcwCoreAsync(CancellationToken ct)
     {

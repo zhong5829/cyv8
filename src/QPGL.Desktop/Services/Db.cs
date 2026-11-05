@@ -92,7 +92,10 @@ public static class Db
 
     public static bool Initialized { get; private set; }
 
-    public static void Init()
+    /// <param name="connectionString">
+    /// 外部指定的连接串（多库选择窗确认后传入）；null 时回退读 ConnectionStrings:Default。
+    /// </param>
+    public static void Init(string? connectionString = null)
     {
         if (Initialized) return;
 
@@ -100,7 +103,7 @@ public static class Db
             .SetBasePath(AppDomain.CurrentDomain.BaseDirectory)
             .AddJsonFile("appsettings.json", optional: false)
             .Build();
-        var connectionString = config.GetConnectionString("Default")
+        connectionString ??= config.GetConnectionString("Default")
             ?? throw new InvalidOperationException("缺少连接串配置 ConnectionStrings:Default（appsettings.json）");
 
         var provider = new StaticConnectionStringProvider(connectionString);

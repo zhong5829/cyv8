@@ -217,18 +217,23 @@ public partial class SaleControl : UserControl
     }
 
     // 双击明细行 → 再次弹窗修改数量/单价/备注
-    private void LineGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    private async void LineGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
         if (LineGrid.SelectedItem is ViewModels.SaleLineRow row)
-            _vm.EditExistingLine(row);
+            await _vm.EditExistingLineAsync(row);
     }
 
-    // 明细行 Delete 键删除选中行
-    private void LineGrid_PreviewKeyDown(object sender, KeyEventArgs e)
+    // 明细行 Delete 键删除选中行；回车（2026-11-04 需求）打开销售编辑窗口（与双击同路径）
+    private async void LineGrid_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.Delete && LineGrid.SelectedItem is ViewModels.SaleLineRow row)
         {
             _vm.RemoveLineCommand.Execute(row);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Enter && LineGrid.SelectedItem is ViewModels.SaleLineRow row2)
+        {
+            await _vm.EditExistingLineAsync(row2);
             e.Handled = true;
         }
     }
@@ -573,6 +578,19 @@ public partial class SaleControl : UserControl
     {
         if (PartGrid.SelectedItem is Domain.Parts.PartItem part)
             await _vm.EditPartAttributeAsync(part);
+    }
+
+    /// <summary>右键菜单「修改库存售价」（2026-11-04 需求）：复刻旧「修改库存售价」弹窗。</summary>
+    private async void ChangeStockPrice_Click(object sender, RoutedEventArgs e)
+        => await OpenStockPriceEditorAsync();
+
+    /// <summary>F8 / 右键菜单共用入口：对选中配件打开「修改库存售价」窗。</summary>
+    public async System.Threading.Tasks.Task OpenStockPriceEditorAsync()
+    {
+        if (PartGrid.SelectedItem is Domain.Parts.PartItem part)
+            await _vm.ChangeStockPriceAsync(part);
+        else
+            MessageBox.Show("请先选中配件行。", "修改库存售价", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 }
 

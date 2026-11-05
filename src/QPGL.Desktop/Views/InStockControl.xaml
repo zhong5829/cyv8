@@ -61,6 +61,7 @@
                         ToolTip="暂存当前明细（不更新库存），重开页面/软件后可恢复继续"/>
                 <Button Content="生效入库" Command="{Binding SaveCommand}" Padding="20,3" FontWeight="Bold" Margin="0,0,12,0"/>
                 <TextBlock Text="{Binding TotalAmount, StringFormat=总进价金额：{0:N2}}" VerticalAlignment="Center" FontWeight="Bold" Foreground="{StaticResource BrandBrush}"/>
+                <TextBlock Text="{Binding TotalQty, StringFormat=总进货数量：{0:N2}}" VerticalAlignment="Center" FontWeight="Bold" Foreground="{StaticResource BrandBrush}" Margin="16,0,0,0"/>
                 <TextBlock Text="{Binding Message}" Foreground="#C0392B" VerticalAlignment="Center" Margin="16,0,0,0"/>
             </StackPanel>
         </Border>

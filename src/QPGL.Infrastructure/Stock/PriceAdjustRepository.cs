@@ -10,7 +10,8 @@ namespace QPGL.Infrastructure.Stock;
 // 库存第十批（B4 库存调价 / B5 警戒线设置）—— 契约：开发文档/契约摘录/库存第十批契约.md
 // B4：tbisto 整批 UPDATE（目标字段 oprc/oprb/iprc/iprj = 基准表达式±*/系数，CONVERT(int,x+0.5/+0.99) 取整；
 //     库存基准价 / 供应商基准价（tbgys.iprj，nno+cp 关联 + READXZB 数据权限）。
-// B5：tbistojj 警戒线（数据源 tbrtsamo 月销售数 × 系数 / 月 → ROUND(,0)；UPDATE 有行 / INSERT 双系数>0；尾部清 0 行）。
+// B5：2026-11-04 改版（QP11 库存预警同构）——废弃 tbrtsamo×系数公式批量，改为手动逐行编辑
+//     tbistojj 双档警戒值（amjj/bmjj），列表=未设警戒或已低于警戒的配件，编辑即落库。
 // =====================================================================================
 
 /// <summary>库存调价行（tbisto 展示列）。</summary>
@@ -47,26 +48,65 @@ public sealed class PriceAdjustCommand
     public string ExtraWhere { get; set; } = "";
 }
 
-/// <summary>警戒线设置命令（fr_istojj V_.row20）。</summary>
-public sealed class JjLineCommand
+/// <summary>
+/// 警戒线行（B5 手动编辑，2026-11-04 改版）。tbistojj 双档：amjj=A 警戒值 / bmjj=B 警戒值，
+/// 库存=k.camount（tbisto 按分店+配件汇总，排除废品仓位）。
+/// 分级提示（2026-11-04）：库存&lt;A → 黄字预警；&lt;B → 红字告急（红优先）。
+/// </summary>
+public sealed class JjLineRow : System.ComponentModel.INotifyPropertyChanged
 {
-    public int Months { get; set; }           // 最近 N 月
-    public decimal FactorA { get; set; }      // MS0（CHK2 启用 amjj）
-    public decimal FactorB { get; set; }      // MS1（CHK3 启用 bmjj）
-    public bool SetAmjj { get; set; }
-    public bool SetBmjj { get; set; }
-    public bool AllBrand { get; set; }        // 所有厂牌（cp<>'急件'）
-    public string Cp { get; set; } = "";      // 当前厂牌（AllBrand=false 时启用）
-    public string? Fa { get; set; }
-    public string? Dc { get; set; }
-    public string? Ty { get; set; }
+    public string Cp { get; set; } = "";
+    public string Nno { get; set; } = "";
+    public string Na1 { get; set; } = "";
+    public string Ty { get; set; } = "";
+    public string Unit { get; set; } = "";
+    public string Posi { get; set; } = "";
+    public decimal Oprc { get; set; }
+
+    private decimal _stock;
+    /// <summary>当前库存（汇总）。</summary>
+    public decimal Stock { get => _stock; set { _stock = value; OnChanged(); RefreshLevel(); } }
+
+    private decimal _amjj;
+    /// <summary>A 警戒值（可编辑，黄档）。</summary>
+    public decimal Amjj { get => _amjj; set { _amjj = value; OnChanged(); RefreshLevel(); } }
+
+    private decimal _bmjj;
+    /// <summary>B 警戒值（可编辑，红档）。</summary>
+    public decimal Bmjj { get => _bmjj; set { _bmjj = value; OnChanged(); RefreshLevel(); } }
+
+    private bool _isYellow;
+    /// <summary>库存 &lt; A 警戒值 → 黄字预警。</summary>
+    public bool IsYellow { get => _isYellow; private set { _isYellow = value; OnChanged(); } }
+
+    private bool _isRed;
+    /// <summary>库存 &lt; B 警戒值 → 红字告急（同时低于双档时红色优先）。</summary>
+    public bool IsRed { get => _isRed; private set { _isRed = value; OnChanged(); } }
+
+    private void RefreshLevel()
+    {
+        var red = Bmjj > 0 && Stock < Bmjj;
+        IsRed = red;
+        IsYellow = !red && Amjj > 0 && Stock < Amjj;
+    }
+
+    public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+    private void OnChanged([System.Runtime.CompilerServices.CallerMemberName] string? name = null)
+        => PropertyChanged?.Invoke(this, new(name));
 }
 
 public interface IPriceAdjustRepository
 {
     Task<IReadOnlyList<IstoTjRow>> GetIstoAsync(string? depotno, string? dcFilter, CancellationToken ct = default);
     Task<int> AdjustAsync(PriceAdjustCommand cmd, string cp, string dpm, CancellationToken ct = default);
-    Task<int> SetJjLinesAsync(JjLineCommand cmd, string dpm, CancellationToken ct = default);
+
+    /// <summary>警戒线清单（B5，2026-11-04 改手动编辑）：当前厂牌配件 + 汇总库存 + 双档警戒值，
+    /// 仅列 未设警戒 或 库存≤警戒值 的行（库存升序，QP11 库存预警同语义）。</summary>
+    Task<IReadOnlyList<JjLineRow>> GetJjLinesAsync(string cp, string dpm, CancellationToken ct = default);
+
+    /// <summary>保存单行警戒值（null=不改该档）；有行 UPDATE / 无行 INSERT（任一档>0）；
+    /// 双档都为 0 → 删行（旧 fr_istojj 收尾语义）。</summary>
+    Task<int> UpdateJjLineAsync(string dpm, string cp, string nno, decimal? amjj, decimal? bmjj, CancellationToken ct = default);
 }
 
 public sealed class PriceAdjustRepository(SqlConnectionFactory factory) : IPriceAdjustRepository
@@ -143,75 +183,82 @@ public sealed class PriceAdjustRepository(SqlConnectionFactory factory) : IPrice
             new { cp = Ansi(cp, 10), dpm = Ansi(dpm, 10) }, cancellationToken: ct));
     }
 
-    /// <summary>警戒线设置（V_.row20）：tbrtsamo × 系数 → tbistojj UPDATE/INSERT + 尾部清 0 行。</summary>
-    public async Task<int> SetJjLinesAsync(JjLineCommand cmd, string dpm, CancellationToken ct = default)
+    /// <summary>
+    /// 警戒线清单（B5 手动编辑，2026-11-04 改版；QP11 GetStockAlertItemsAsync 同语义）：
+    /// tbprnoty（当前厂牌）LEFT JOIN tbisto 汇总库存（排除废品仓位）/ tbistojj 双档警戒值（depotno='' 行），
+    /// 仅列 未设警戒（双 0）或 库存≤任一已设警戒值 的行，库存升序。
+    /// </summary>
+    public async Task<IReadOnlyList<JjLineRow>> GetJjLinesAsync(string cp, string dpm, CancellationToken ct = default)
     {
         await using var conn = await factory.OpenAsync(ct);
-        // 数据源（fr_istojj：tbrtsamo LEFT JOIN tbprnoty，厂牌/产地/类型过滤）
-        var cpCond = cmd.AllBrand ? "rtrim(a.cp) <> '急件'" : "rtrim(a.cp) = @cp0";
-        var extra = "";
-        if (!string.IsNullOrWhiteSpace(cmd.Fa)) extra += $" AND rtrim(ISNULL(b.fa,'')) = '{cmd.Fa!.Trim().Replace("'", "''")}'";
-        if (!string.IsNullOrWhiteSpace(cmd.Dc)) extra += $" AND rtrim(ISNULL(b.dc,'')) = '{cmd.Dc!.Trim().Replace("'", "''")}'";
-        if (!string.IsNullOrWhiteSpace(cmd.Ty)) extra += $" AND ISNULL(b.ty,'') + ISNULL(b.note,'') LIKE '%{cmd.Ty!.Trim().Replace("'", "''")}%'";
-        var months = cmd.Months;
-        // oamou{m} 连加字段（最近 N 月，超 12 减 12——与旧码一致按当前月推算）
-        var fields = "";
-        for (var i = 0; i < months; i++)
+        // 120s：tbprnoty 全厂牌清单 × tbisto 汇总/最新批次聚合，大数据量下默认 30s 会超时
+        var rows = (await conn.QueryAsync<JjLineRow>(new CommandDefinition(
+            """
+            DECLARE @fpcw varchar(10) = ISNULL(NULLIF((SELECT RTRIM(valuec) FROM tbsysset WITH (NOLOCK) WHERE name = N'废品仓位标识' AND type = 'system'), ''), N'废');
+            SELECT rtrim(p.cp) cp, rtrim(p.nno) nno, rtrim(p.na1) na1, rtrim(ISNULL(p.ty,'')) ty, rtrim(ISNULL(p.unit,'')) unit,
+                   ISNULL(k.kcamount, 0) stock, ISNULL(j.amjj, 0) amjj, ISNULL(j.bmjj, 0) bmjj,
+                   ISNULL(i.oprc, 0) oprc, rtrim(ISNULL(i.posi,'')) posi
+            FROM tbprnoty p WITH (NOLOCK)
+            LEFT JOIN (SELECT cp, nno, SUM(kcamount) kcamount FROM tbisto WITH (NOLOCK)
+                       WHERE dpm = @dpm AND rtrim(ISNULL(posi,'')) <> @fpcw GROUP BY cp, nno) k
+                   ON rtrim(k.cp) = rtrim(p.cp) AND rtrim(k.nno) = rtrim(p.nno)
+            LEFT JOIN tbistojj j WITH (NOLOCK)
+                   ON rtrim(j.cp) = rtrim(p.cp) AND rtrim(j.nno) = rtrim(p.nno) AND j.dpm = @dpm AND rtrim(ISNULL(j.depotno,'')) = ''
+            LEFT JOIN (SELECT cp, nno, MAX(id) maxid FROM tbisto WITH (NOLOCK) WHERE dpm = @dpm GROUP BY cp, nno) im
+                   ON rtrim(im.cp) = rtrim(p.cp) AND rtrim(im.nno) = rtrim(p.nno)
+            LEFT JOIN tbisto i WITH (NOLOCK) ON i.id = im.maxid
+            WHERE rtrim(p.cp) = @cp
+              AND ((ISNULL(j.amjj,0) = 0 AND ISNULL(j.bmjj,0) = 0)
+                   OR (ISNULL(j.amjj,0) > 0 AND ISNULL(k.kcamount,0) <= j.amjj)
+                   OR (ISNULL(j.bmjj,0) > 0 AND ISNULL(k.kcamount,0) <= j.bmjj))
+            ORDER BY ISNULL(k.kcamount, 0)
+            """, new { cp = Ansi(cp, 10), dpm = Ansi(dpm, 10) }, commandTimeout: 120, cancellationToken: ct))).AsList();
+        return rows;
+    }
+
+    /// <summary>
+    /// 保存单行警戒值（B5 手动编辑，2026-11-04 改版）：有 tbistojj 行（depotno=''）→ UPDATE（双 0 删行）；
+    /// 无行且任一档 >0 → INSERT（na1/ty 取 tbprnoty，旧 V_.row20 INSERT 字段口径）。
+    /// </summary>
+    public async Task<int> UpdateJjLineAsync(string dpm, string cp, string nno, decimal? amjj, decimal? bmjj, CancellationToken ct = default)
+    {
+        await using var conn = await factory.OpenAsync(ct);
+        await using var tx = (SqlTransaction)await conn.BeginTransactionAsync(ct);
+        try
         {
-            var m = DateTime.Today.Month + 12 - (months - i);
-            if (m > 12) m -= 12;
-            fields += (fields.Length > 0 ? "+" : "") + $"ISNULL(oamou{m},0)";
+            var existing = await conn.QueryFirstOrDefaultAsync<(int id, decimal amjj, decimal bmjj)>(new CommandDefinition(
+                "SELECT TOP (1) id, ISNULL(amjj,0) amjj, ISNULL(bmjj,0) bmjj FROM tbistojj WITH (UPDLOCK) " +
+                "WHERE dpm = @dpm AND rtrim(cp) = @cp AND rtrim(nno) = @nno AND rtrim(ISNULL(depotno,'')) = ''",
+                new { dpm = Ansi(dpm, 10), cp = Ansi(cp, 10), nno = Ansi(nno, 18) }, transaction: tx, cancellationToken: ct));
+            var newA = amjj ?? existing.amjj;
+            var newB = bmjj ?? existing.bmjj;
+            var affected = 0;
+            if (existing.id != 0)
+            {
+                affected = newA == 0 && newB == 0
+                    ? await conn.ExecuteAsync(new CommandDefinition("DELETE FROM tbistojj WHERE id = @id",
+                        new { id = existing.id }, transaction: tx, cancellationToken: ct))
+                    : await conn.ExecuteAsync(new CommandDefinition("UPDATE tbistojj SET amjj = @a, bmjj = @b WHERE id = @id",
+                        new { a = newA, b = newB, id = existing.id }, transaction: tx, cancellationToken: ct));
+            }
+            else if (newA > 0 || newB > 0)
+            {
+                affected = await conn.ExecuteAsync(new CommandDefinition(
+                    """
+                    INSERT INTO tbistojj (dpm, cp, nno, na1, ty, amjj, bmjj)
+                    SELECT @dpm, @cp, @nno, rtrim(ISNULL(p.na1,'')), rtrim(ISNULL(p.ty,'')), @a, @b
+                    FROM tbprnoty p WITH (NOLOCK) WHERE rtrim(p.cp) = @cp AND rtrim(p.nno) = @nno
+                    """, new { dpm = Ansi(dpm, 10), cp = Ansi(cp, 10), nno = Ansi(nno, 18), a = newA, b = newB },
+                    transaction: tx, cancellationToken: ct));
+            }
+            await tx.CommitAsync(ct);
+            return affected;
         }
-        var source = (await conn.QueryAsync<(string dpm, string cp, string nno, string na1, string ty)>(new CommandDefinition(
-            $"""
-            SELECT rtrim(a.dpm), rtrim(a.cp), rtrim(a.nno), rtrim(a.na1), rtrim(ISNULL(b.ty,''))
-            FROM tbrtsamo a WITH (NOLOCK) LEFT JOIN tbprnoty b WITH (NOLOCK) ON rtrim(a.nno) = rtrim(b.nno) AND rtrim(a.cp) = rtrim(b.cp)
-            WHERE {(string.IsNullOrWhiteSpace(dpm) ? "" : "a.dpm = @dpm AND ")}{cpCond} AND rtrim(a.nno) <> ''{extra}
-            """, new { dpm = Ansi(dpm, 10), cp0 = Ansi(cmd.Cp, 10) }, cancellationToken: ct))).AsList();
-        var affected = 0;
-        foreach (var s in source)
+        catch
         {
-            var sumSql = $"SELECT ISNULL(ROUND(SUM({fields}) / @months * @factor, 0), 0) FROM tbrtsamo WITH (NOLOCK) WHERE rtrim(nno) = @nno AND rtrim(cp) = @cp AND dpm = @dpm";
-            var exists = await conn.ExecuteScalarAsync<int>(new CommandDefinition(
-                "SELECT COUNT(1) FROM tbistojj WITH (NOLOCK) WHERE rtrim(nno) = @nno AND rtrim(cp) = @cp AND dpm = @dpm",
-                new { nno = Ansi(s.nno, 18), cp = Ansi(s.cp, 10), dpm = Ansi(s.dpm, 10) }, cancellationToken: ct));
-            if (exists > 0)
-            {
-                var set = "";
-                if (cmd.SetAmjj)
-                    set += "amjj = (SELECT ISNULL(ROUND(SUM(" + fields + ") / @months * @factorA, 0), 0) FROM tbrtsamo WITH (NOLOCK) WHERE rtrim(nno) = @nno AND rtrim(cp) = @cp AND dpm = @dpm)";
-                if (cmd.SetBmjj)
-                    set += (set.Length > 0 ? ", " : "") + "bmjj = (SELECT ISNULL(ROUND(SUM(" + fields + ") / @months * @factorB, 0), 0) FROM tbrtsamo WITH (NOLOCK) WHERE rtrim(nno) = @nno AND rtrim(cp) = @cp AND dpm = @dpm)";
-                if (set.Length == 0) continue;
-                affected += await conn.ExecuteAsync(new CommandDefinition(
-                    $"UPDATE tbistojj SET {set} WHERE rtrim(nno) = @nno AND rtrim(cp) = @cp AND dpm = @dpm AND rtrim(ISNULL(depotno,'')) = ''",
-                    new { nno = Ansi(s.nno, 18), cp = Ansi(s.cp, 10), dpm = Ansi(s.dpm, 10), months, factorA = (double)cmd.FactorA, factorB = (double)cmd.FactorB },
-                    cancellationToken: ct));
-            }
-            else
-            {
-                var amjj = cmd.SetAmjj
-                    ? await conn.ExecuteScalarAsync<decimal>(new CommandDefinition(sumSql,
-                        new { nno = Ansi(s.nno, 18), cp = Ansi(s.cp, 10), dpm = Ansi(s.dpm, 10), months, factor = (double)cmd.FactorA }, cancellationToken: ct))
-                    : 0m;
-                var bmjj = cmd.SetBmjj
-                    ? await conn.ExecuteScalarAsync<decimal>(new CommandDefinition(sumSql,
-                        new { nno = Ansi(s.nno, 18), cp = Ansi(s.cp, 10), dpm = Ansi(s.dpm, 10), months, factor = (double)cmd.FactorB }, cancellationToken: ct))
-                    : 0m;
-                if (amjj > 0 && bmjj > 0)
-                    affected += await conn.ExecuteAsync(new CommandDefinition(
-                        "INSERT INTO tbistojj (dpm, cp, nno, na1, ty, amjj, bmjj) VALUES (@dpm, @cp, @nno, @na1, @ty, @amjj, @bmjj)",
-                        new
-                        {
-                            dpm = Ansi(s.dpm, 10), cp = Ansi(s.cp, 10), nno = Ansi(s.nno, 18),
-                            na1 = Ansi(s.na1, 40), ty = Ansi(s.ty, 14), amjj, bmjj,
-                        }, cancellationToken: ct));
-            }
+            await tx.RollbackAsync(CancellationToken.None);
+            throw;
         }
-        // 尾部清 0 行（旧码全表）
-        await conn.ExecuteAsync(new CommandDefinition(
-            "DELETE FROM tbistojj WHERE ISNULL(amjj,0) = 0 AND ISNULL(bmjj,0) = 0", cancellationToken: ct));
-        return affected;
     }
 
     private static DbString Ansi(string value, int length = 30) =>

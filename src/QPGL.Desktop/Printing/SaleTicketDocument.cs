@@ -84,7 +84,9 @@ public static class SaleTicketDocument
                 line.Price.ToString("N2"),
                 line.Amount.ToString("N2"),
                 line.Posi,
-            }, ref y);
+            }, ref y,
+            // 零件编码列打标记（2026-11-05 需求）：打印预览双击可临时改票面编号（仅本次打印生效，数据不动）
+            tagColumn: 1, tag: $"SaleNno:{line.Seq}");
         }
         // 表格外框（表头到最后一行）
         page.Children.Add(new Rectangle
@@ -231,7 +233,8 @@ public static class SaleTicketDocument
         y += 3;
     }
 
-    private static void DrawTableRow(FixedPage page, double[] widths, string[] cells, ref double y)
+    private static void DrawTableRow(FixedPage page, double[] widths, string[] cells, ref double y,
+        int tagColumn = -1, string? tag = null)
     {
         double x = 22;
         for (var i = 0; i < widths.Length; i++)
@@ -253,6 +256,7 @@ public static class SaleTicketDocument
                 TextAlignment = i >= 4 ? TextAlignment.Center : TextAlignment.Left,
                 FontWeight = FontWeights.Normal,
             };
+            if (i == tagColumn && tag is not null) tb.Tag = tag;
             FixedPage.SetTop(tb, y);
             FixedPage.SetLeft(tb, x + pad);
             page.Children.Add(tb);

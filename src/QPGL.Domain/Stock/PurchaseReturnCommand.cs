@@ -14,6 +14,9 @@ public sealed class ConfirmPurchaseReturnCommand
     /// <summary>退货原因（tbsysset type='退货原因'；非空时追加至行 NOTE '[退货原因：X]'）。</summary>
     public string ReturnReason { get; set; } = "";
 
+    /// <summary>退货日期（2026-11-04 需求：写入负数流水 indate；空 = 当天）。</summary>
+    public DateTime? ReturnDate { get; set; }
+
     public required List<PurchaseReturnLineInput> Lines { get; set; } = [];
 
     public void Validate()
@@ -47,6 +50,9 @@ public sealed class PurchaseReturnLineInput
 
     /// <summary>库号（depotno，可编辑；须与入库时一致才能退）。</summary>
     public string Depotno { get; set; } = "";
+
+    /// <summary>不扣库存（2026-11-04 需求：弹窗勾选）：true 时只写负数流水不冲减库存（跳过库存校验与 ISAPPE）。</summary>
+    public bool NoStock { get; set; }
 }
 
 /// <summary>确认退货结果。</summary>

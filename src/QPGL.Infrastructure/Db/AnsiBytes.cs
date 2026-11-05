@@ -26,4 +26,11 @@ public static class AnsiBytes
         if (unpaired % 2 == 1) cut--;
         return Gbk.GetString(bytes, 0, cut);
     }
+
+    /// <summary>GBK 字节宽（汉字/全角 2 字节，ASCII 1 字节）；为预留后缀计算可用宽度用。</summary>
+    public static int ByteCount(string value)
+    {
+        value ??= "";
+        return Gbk.GetByteCount(value);
+    }
 }

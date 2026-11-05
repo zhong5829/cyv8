@@ -12,6 +12,12 @@ public interface IPurchaseReturnRepository
     /// <summary>拉单：可退入库流水（契约 §2）。</summary>
     Task<IReadOnlyList<ReturnableLine>> SearchReturnableAsync(PurchaseReturnQuery query, string dpm, CancellationToken ct = default);
 
+    /// <summary>单据查询（2026-11-04 需求）：历史退货单据（按 cno 汇总负数流水）。</summary>
+    Task<IReadOnlyList<ReturnDocRow>> SearchReturnDocsAsync(ReturnDocQuery query, string dpm, CancellationToken ct = default);
+
+    /// <summary>单据查询（2026-11-04 需求）：指定退货单的明细（负数流水行）。</summary>
+    Task<IReadOnlyList<ReturnDocLine>> GetReturnDocLinesAsync(string cno, string dpm, CancellationToken ct = default);
+
     /// <summary>批量添加前的宽松库存试算（契约 §4：按 cp+nno 汇总，无 dpm/depotno 条件——旧系统原样）。</summary>
     Task<decimal> GetLooseStockAsync(string cp, string nno, CancellationToken ct = default);
 
@@ -28,6 +34,8 @@ public sealed class PurchaseReturnQuery
     public string Cno { get; set; } = "";
     public string NnoPrefix { get; set; } = "";
     public string Na1Prefix { get; set; } = "";
+    /// <summary>车型关键词（2026-11-04 需求）：包含匹配 + tbty0 车型拼音码。</summary>
+    public string Ty { get; set; } = "";
     public string Gyname { get; set; } = "";
     public DateTime? InDateFrom { get; set; }
     public DateTime? InDateTo { get; set; }
@@ -70,6 +78,47 @@ public sealed class ReturnableLine
     public string Dpm { get; set; } = "";
 }
 
+/// <summary>单据查询条件（2026-11-04 需求：入库退货单查询模式）。</summary>
+public sealed class ReturnDocQuery
+{
+    /// <summary>退库单号（前缀匹配）。</summary>
+    public string Cno { get; set; } = "";
+    /// <summary>供应商（包含匹配）。</summary>
+    public string Gyname { get; set; } = "";
+    public DateTime? DateFrom { get; set; }
+    public DateTime? DateTo { get; set; }
+}
+
+/// <summary>退货单据行（按 cno 汇总负数流水）。</summary>
+public sealed class ReturnDocRow
+{
+    public string Cno { get; set; } = "";
+    public DateTime Indate { get; set; }
+    public string Gyname { get; set; } = "";
+    public string Fkfs { get; set; } = "";
+    public string Per { get; set; } = "";
+    /// <summary>明细行数。</summary>
+    public int LineCount { get; set; }
+    /// <summary>退货数量合计（负数）。</summary>
+    public decimal TotalAmount { get; set; }
+}
+
+/// <summary>退货单明细行（负数流水行）。</summary>
+public sealed class ReturnDocLine
+{
+    public int Id { get; set; }
+    public string Nno { get; set; } = "";
+    public string Na1 { get; set; } = "";
+    public string Ty { get; set; } = "";
+    /// <summary>退库数（负数流水 jkamount）。</summary>
+    public decimal Amount { get; set; }
+    public decimal Iprj { get; set; }
+    public decimal Iprc { get; set; }
+    public string Depotno { get; set; } = "";
+    public string Posi { get; set; } = "";
+    public string Note { get; set; } = "";
+}
+
 /// <summary>
 /// 入库退货仓储（菜单 B.A，权限码 BA）。
 /// 旧实现出处：fr_istk（嗟.row132 确认 / _9.row49 拉单 / 洘.row118 编辑校验）。
@@ -97,18 +146,35 @@ public sealed class PurchaseReturnRepository(SqlConnectionFactory factory, IDocN
         }
         if (!string.IsNullOrWhiteSpace(query.NnoPrefix))
         {
-            where += " AND a.nno LIKE @nno";
-            args.Add("nno", new DbString { Value = query.NnoPrefix.Trim() + "%", IsAnsi = true, Length = 19 });
+            // 编码框双模式（同开单页 PartRepository）：首字符 / → 包含匹配；否则前缀匹配
+            var nnoKw = query.NnoPrefix.Trim();
+            var nnoContains = nnoKw.StartsWith("/");
+            var nnoWord = nnoContains ? nnoKw[1..].Trim() : nnoKw;
+            if (nnoWord.Length > 0)
+            {
+                where += nnoContains ? " AND a.nno LIKE '%' + @nno + '%'" : " AND a.nno LIKE @nno + '%'";
+                args.Add("nno", new DbString { Value = nnoWord, IsAnsi = true, Length = 19 });
+            }
         }
-        if (!string.IsNullOrWhiteSpace(query.Na1Prefix))
+        var na1Kw = query.Na1Prefix.Trim();
+        var tyKw = query.Ty.Trim();
+        if (na1Kw.Length > 0)
         {
-            where += " AND a.na1 LIKE @na1";
-            args.Add("na1", new DbString { Value = query.Na1Prefix.Trim() + "%", IsAnsi = true, Length = 41 });
+            // 名称框：名称包含 + tbname0 拼音码（code→name 等值半连接，2026-11-04 需求：实时检索可中文/拼音部分命中）
+            where += " AND (a.na1 LIKE '%' + @na1 + '%' OR nb.name IS NOT NULL)";
+            args.Add("na1", new DbString { Value = na1Kw, IsAnsi = false, Length = 40 });
+        }
+        if (tyKw.Length > 0)
+        {
+            // 车型框：车型包含 + tbty0 车型拼音码（同开单页 PartRepository 车型框语义）
+            where += " AND (a.ty LIKE '%' + @ty + '%' OR tb2.ty IS NOT NULL)";
+            args.Add("ty", new DbString { Value = tyKw, IsAnsi = false, Length = 40 });
         }
         if (!string.IsNullOrWhiteSpace(query.Gyname))
         {
-            where += " AND a.gyname = @gyname";
-            args.Add("gyname", new DbString { Value = query.Gyname.Trim(), IsAnsi = true, Length = 60 });
+            // 供应商：包含匹配（拼音码由 cmm_class 联想框回填全名后自然命中）
+            where += " AND a.gyname LIKE '%' + @gyname + '%'";
+            args.Add("gyname", new DbString { Value = query.Gyname.Trim(), IsAnsi = false, Length = 60 });
         }
         if (query.InDateFrom is { } from)
         {
@@ -120,6 +186,15 @@ public sealed class PurchaseReturnRepository(SqlConnectionFactory factory, IDocN
             where += " AND a.indate < @to";
             args.Add("to", to.Date.AddDays(1));
         }
+
+        // 拼音码 LEFT JOIN 派生表（仅有关键词时拼入；同 PartRepository：显式 JOIN + HASH JOIN 提示防嵌套循环劣化）
+        var na1Join = na1Kw.Length > 0
+            ? "\nLEFT JOIN (SELECT DISTINCT rtrim(name) AS name FROM tbname0 WITH (NOLOCK) WHERE code LIKE '%' + @na1 + '%') nb ON rtrim(a.na1) = nb.name"
+            : "";
+        var tyJoin = tyKw.Length > 0
+            ? "\nLEFT JOIN (SELECT DISTINCT rtrim(ty) AS ty FROM tbty0 WITH (NOLOCK) WHERE code LIKE '%' + @ty + '%') tb2 ON rtrim(a.ty) = tb2.ty"
+            : "";
+        var hint = na1Kw.Length > 0 || tyKw.Length > 0 ? " OPTION (HASH JOIN)" : "";
 
         // kshu 子查询（契约 §2）：cp+nno+dpm+depotno 汇总，P_WAY=1 加 iprc；进价展示 CASE freight
         var kshuWhere = prm.PWay == 1 ? " AND b.iprc = a.iprc" : "";
@@ -134,11 +209,75 @@ public sealed class PurchaseReturnRepository(SqlConnectionFactory factory, IDocN
                    RTRIM(a.pno) pno, RTRIM(a.gyname) gyname, RTRIM(a.depotno) depotno, a.ro,
                    RTRIM(a.fkfs) fkfs, RTRIM(a.note) note, RTRIM(a.cxnno) cxnno, RTRIM(a.ywr) ywr,
                    a.iprc AS iprcOld, RTRIM(a.dpm) dpm
-            FROM tbistoed a WITH (NOLOCK)
+            FROM tbistoed a WITH (NOLOCK){na1Join}{tyJoin}
             WHERE {where}
-            ORDER BY a.indate DESC, a.id DESC
+            ORDER BY a.indate DESC, a.id DESC{hint}
             """;
         var rows = await conn.QueryAsync<ReturnableLine>(new CommandDefinition(sql, args, cancellationToken: ct));
+        return rows.AsList();
+    }
+
+    /// <summary>单据查询：历史退货单据（按 cno 汇总负数流水，2026-11-04 需求）。实时防抖单号前缀/供应商包含 + 日期范围。</summary>
+    public async Task<IReadOnlyList<ReturnDocRow>> SearchReturnDocsAsync(ReturnDocQuery query, string dpm, CancellationToken ct = default)
+    {
+        await using var conn = await factory.OpenAsync(ct);
+
+        var where = "a.jkamount < 0 AND a.dpm = @dpm";
+        var args = new DynamicParameters(new
+        {
+            dpm = new DbString { Value = dpm.Trim(), IsAnsi = true, Length = 10 },
+        });
+        if (!string.IsNullOrWhiteSpace(query.Cno))
+        {
+            where += " AND a.cno LIKE @cno + '%'";
+            args.Add("cno", new DbString { Value = query.Cno.Trim(), IsAnsi = true, Length = 15 });
+        }
+        if (!string.IsNullOrWhiteSpace(query.Gyname))
+        {
+            where += " AND a.gyname LIKE '%' + @gyname + '%'";
+            args.Add("gyname", new DbString { Value = query.Gyname.Trim(), IsAnsi = false, Length = 60 });
+        }
+        if (query.DateFrom is { } from)
+        {
+            where += " AND a.indate >= @from";
+            args.Add("from", from.Date);
+        }
+        if (query.DateTo is { } to)
+        {
+            where += " AND a.indate < @to";
+            args.Add("to", to.Date.AddDays(1));
+        }
+
+        var sql = $"""
+            SELECT RTRIM(a.cno) cno, MAX(a.indate) indate, MAX(RTRIM(a.gyname)) gyname,
+                   MAX(RTRIM(a.fkfs)) fkfs, MAX(RTRIM(a.per)) per,
+                   COUNT(*) AS lineCount, SUM(a.jkamount) AS totalAmount
+            FROM tbistoed a WITH (NOLOCK)
+            WHERE {where}
+            GROUP BY a.cno
+            ORDER BY MAX(a.indate) DESC, a.cno DESC
+            """;
+        var rows = await conn.QueryAsync<ReturnDocRow>(new CommandDefinition(sql, args, cancellationToken: ct));
+        return rows.AsList();
+    }
+
+    /// <summary>单据查询：指定退货单的明细（负数流水行，2026-11-04 需求）。</summary>
+    public async Task<IReadOnlyList<ReturnDocLine>> GetReturnDocLinesAsync(string cno, string dpm, CancellationToken ct = default)
+    {
+        await using var conn = await factory.OpenAsync(ct);
+        var sql = """
+            SELECT a.id, RTRIM(a.nno) nno, RTRIM(a.na1) na1, RTRIM(a.ty) ty, a.jkamount AS amount,
+                   a.iprj, CASE WHEN a.freight = 0 THEN a.iprc ELSE a.Freight END AS iprc,
+                   RTRIM(a.depotno) depotno, RTRIM(a.posi) posi, RTRIM(a.note) note
+            FROM tbistoed a WITH (NOLOCK)
+            WHERE a.cno = @cno AND a.jkamount < 0 AND a.dpm = @dpm
+            ORDER BY a.id
+            """;
+        var rows = await conn.QueryAsync<ReturnDocLine>(new CommandDefinition(sql, new
+        {
+            cno = new DbString { Value = cno.Trim(), IsAnsi = true, Length = 15 },
+            dpm = new DbString { Value = dpm.Trim(), IsAnsi = true, Length = 10 },
+        }, cancellationToken: ct));
         return rows.AsList();
     }
 
@@ -166,7 +305,8 @@ public sealed class PurchaseReturnRepository(SqlConnectionFactory factory, IDocN
     {
         command.Validate();
         var deptTrim = dpm.Trim();
-        var today = DateTime.Today;
+        // 退货日期（2026-11-04 需求）：写入负数流水 indate，默认当天
+        var today = (command.ReturnDate?.Date) ?? DateTime.Today;
         var reasonSuffix = string.IsNullOrWhiteSpace(command.ReturnReason) ? "" : $"[退货原因：{command.ReturnReason.Trim()}]";
 
         await using var conn = await factory.OpenAsync(ct);
@@ -195,8 +335,9 @@ public sealed class PurchaseReturnRepository(SqlConnectionFactory factory, IDocN
             await probe.RollbackAsync(CancellationToken.None);
         }
 
-        // 逐件库存校验（旧 max(kcamount) 口径）
+        // 逐件库存校验（旧 max(kcamount) 口径；不扣库存行跳过——不冲减库存无占用）
         var groups = command.Lines
+            .Where(l => !l.NoStock)
             .Select(l => (Line: l, Src: sourceRows[l.SourceId]))
             .GroupBy(x => new { x.Src.Cp, x.Src.Nno, Depotno = x.Line.Depotno.Trim(), Iprc = prm.PWay == 1 ? x.Src.IprcOld : (decimal?)null });
         foreach (var g in groups)
@@ -246,7 +387,12 @@ public sealed class PurchaseReturnRepository(SqlConnectionFactory factory, IDocN
 
                 // 3) 插入负数退货流水（旧 L843 列集；ro 列=原入库行 id）
                 var insertIprc = prm.PWay == 1 ? src.IprcOld : line.Iprc;
-                var note = src.Note + reasonSuffix;
+                // 备注=入库备注+退货原因后缀；NOTE char(100) 按字节预留后缀宽度截断（防"将截断字符串"）
+                var note = AnsiBytes.Truncate(
+                    AnsiBytes.Truncate(src.Note, Math.Max(0, 100 - AnsiBytes.ByteCount(reasonSuffix))) + reasonSuffix, 100);
+                // 不扣库存行（2026-11-04 需求）：车型前自动加"未扣"标记——
+                // "未扣"占 4 字节，TY char(14) 只剩 10 字节，超宽按 GBK 字节截断车型尾部（否则 SQL 报将截断字符串）
+                var insertTy = line.NoStock ? AnsiBytes.Truncate("未扣" + src.Ty, 14) : src.Ty;
                 var newId = await conn.ExecuteScalarAsync<int>(new CommandDefinition(
                     """
                     INSERT INTO tbistoed
@@ -260,7 +406,7 @@ public sealed class PurchaseReturnRepository(SqlConnectionFactory factory, IDocN
                     new
                     {
                         cp = Ansi(src.Cp, 10), nno = Ansi(src.Nno, 18), na1 = Ansi(src.Na1, 40),
-                        ty = Ansi(src.Ty, 14), fa = Ansi(src.Fa, 8), dc = Ansi(src.Dc, 8), unit = Ansi(src.Unit, 4),
+                        ty = Ansi(insertTy, 14), fa = Ansi(src.Fa, 8), dc = Ansi(src.Dc, 8), unit = Ansi(src.Unit, 4),
                         jkamount = -line.Amount, iprj = line.Iprj, iprc = insertIprc, oprc = src.Oprc,
                         posi = Ansi(finalPosi, 10), indate = today, item = src.Item,
                         cno = Ansi(cno, 15), box = Ansi(src.Box, 10), seano = Ansi(cno, 15),
@@ -271,25 +417,45 @@ public sealed class PurchaseReturnRepository(SqlConnectionFactory factory, IDocN
                         dpm = Ansi(deptTrim, 10),
                     }, transaction: tx, cancellationToken: ct));
 
-                // 4) ISAPPE 冲减（主程序库版语义；M_NOUPOPRC=.T. 无可观察差异——oprc/oprb 本就取库内原值）
-                var (_, kcBefore, _, inserted) = await IsappeEngine.ApplyAsync(
-                    conn, tx,
-                    new IsappeSource(deptTrim, src.Cp, src.Nno, src.Na1, src.Ty, src.Fa, src.Unit,
-                        line.Iprj, insertIprc, src.Oprc, 0, 0, finalPosi, line.Depotno, note, 0, src.Dc),
-                    -line.Amount, prm, IsappeLibrary.MainProc, today, ct);
-                if (inserted || kcBefore is null)
-                    throw new AppException("CONTRACT_VIOLATION", $"退货冲减未命中批次（cp={src.Cp} nno={src.Nno}，已回滚）", 500);
+                // 4) ISAPPE 冲减（主程序库版语义；M_NOUPOPRC=.T. 无可观察差异——oprc/oprb 本就取库内原值）。
+                //    不扣库存行（NoStock，2026-11-04 需求）跳过冲减，只写负数流水。
+                decimal? kcBefore;
+                if (line.NoStock)
+                {
+                    kcBefore = null;
+                }
+                else
+                {
+                    var (_, kb, _, inserted) = await IsappeEngine.ApplyAsync(
+                        conn, tx,
+                        new IsappeSource(deptTrim, src.Cp, src.Nno, src.Na1, src.Ty, src.Fa, src.Unit,
+                            line.Iprj, insertIprc, src.Oprc, 0, 0, finalPosi, line.Depotno, note, 0, src.Dc),
+                        -line.Amount, prm, IsappeLibrary.MainProc, today, ct);
+                    if (inserted || kb is null)
+                        throw new AppException("CONTRACT_VIOLATION", $"退货冲减未命中批次（cp={src.Cp} nno={src.Nno}，已回滚）", 500);
+                    kcBefore = kb;
+                }
 
-                // 5) 回写 kcamount=冲减前批次库存（实证语义）、iprc=用户编辑值（旧 L845-846）
-                await conn.ExecuteAsync(new CommandDefinition(
-                    "UPDATE tbistoed SET kcamount = @kc, iprc = @iprc WHERE id = @id",
-                    new { kc = kcBefore.Value, iprc = line.Iprc, id = newId },
-                    transaction: tx, cancellationToken: ct));
+                // 5) 回写 kcamount=冲减前批次库存（实证语义）、iprc=用户编辑值（旧 L845-846）；不扣库存行无冲减仅回写 iprc
+                if (kcBefore is { } kc)
+                {
+                    await conn.ExecuteAsync(new CommandDefinition(
+                        "UPDATE tbistoed SET kcamount = @kc, iprc = @iprc WHERE id = @id",
+                        new { kc, iprc = line.Iprc, id = newId },
+                        transaction: tx, cancellationToken: ct));
+                }
+                else
+                {
+                    await conn.ExecuteAsync(new CommandDefinition(
+                        "UPDATE tbistoed SET iprc = @iprc WHERE id = @id",
+                        new { iprc = line.Iprc, id = newId },
+                        transaction: tx, cancellationToken: ct));
+                }
 
                 await tx.CommitAsync(ct);
                 result.Lines.Add(new PurchaseReturnLineResult
                 {
-                    SourceId = line.SourceId, NewRowId = newId, Amount = line.Amount, KcBefore = kcBefore.Value,
+                    SourceId = line.SourceId, NewRowId = newId, Amount = line.Amount, KcBefore = kcBefore ?? 0,
                 });
             }
             catch

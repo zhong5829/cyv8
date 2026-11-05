@@ -1,14 +1,10 @@
 <Window x:Class="QPGL.Desktop.Views.OrderPickWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:vm="clr-namespace:QPGL.Desktop.ViewModels"
         Title="选择配件" Width="1200" Height="750"
         WindowStartupLocation="CenterOwner" MinWidth="950" MinHeight="560"
         ShowInTaskbar="False"
         Background="{StaticResource WindowBackBrush}">
-    <Window.Resources>
-        <vm:PartPickBrushConverter x:Key="PickBrush"/>
-    </Window.Resources>
     <Grid Margin="8">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -38,34 +34,36 @@
                              ToolTip="支持车型拼音码/车型/名称；←/→ 切换条件框"/>
                     <TextBlock Text="输入即搜（0.5 秒），←/→ 切换条件框，↓/↑ 选行，回车/双击订货" Foreground="#888" VerticalAlignment="Center"/>
                 </WrapPanel>
-                <WrapPanel Margin="0,5,0,0">
-                    <TextBlock Text="出货起止" VerticalAlignment="Center"/>
-                    <DatePicker Width="100" SelectedDate="{Binding QDate1}" VerticalAlignment="Center" Margin="4,0,4,0" SelectedDateChanged="Cond_Changed"/>
-                    <DatePicker Width="100" SelectedDate="{Binding QDate2}" VerticalAlignment="Center" Margin="0,0,10,0" SelectedDateChanged="Cond_Changed"/>
-                    <TextBlock Text="出货量" VerticalAlignment="Center"/>
-                    <TextBox Width="55" Text="{Binding QNum1, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center" Margin="4,0,2,0" TextChanged="Box_TextChanged"/>
-                    <TextBlock Text="~" VerticalAlignment="Center"/>
-                    <TextBox Width="55" Text="{Binding QNum2, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center" Margin="2,0,10,0" TextChanged="Box_TextChanged"/>
-                    <TextBlock Text="库存区间" VerticalAlignment="Center"/>
-                    <TextBox Width="55" Text="{Binding QKc1, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center" Margin="4,0,2,0" TextChanged="Box_TextChanged"/>
-                    <TextBlock Text="~" VerticalAlignment="Center"/>
-                    <TextBox Width="55" Text="{Binding QKc2, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center" Margin="2,0,0,0" TextChanged="Box_TextChanged"/>
-                </WrapPanel>
             </StackPanel>
         </Border>
 
         <!-- 上：配件列表（无限滑动加载，滚到底自动下一页） -->
         <Border Grid.Row="1" Background="White" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" CornerRadius="3">
             <DataGrid x:Name="PickGrid" ItemsSource="{Binding PickRows}" SelectedItem="{Binding SelectedPick}"
+                      IsReadOnly="False"
                       AutoGenerateColumns="False" CanUserAddRows="False" GridLinesVisibility="Horizontal"
                       HeadersVisibility="Column" FontSize="12" Margin="1"
-                      MouseDoubleClick="PickGrid_MouseDoubleClick" PreviewKeyDown="PickGrid_PreviewKeyDown">
+                      MouseDoubleClick="PickGrid_MouseDoubleClick" PreviewKeyDown="PickGrid_PreviewKeyDown"
+                      CellEditEnding="PickGrid_CellEditEnding" PreparingCellForEdit="PickGrid_PreparingCellForEdit">
                 <DataGrid.RowStyle>
                     <Style TargetType="DataGridRow">
-                        <Setter Property="Foreground" Value="{Binding Converter={StaticResource PickBrush}}"/>
+                        <Style.Triggers>
+                            <!-- 库存<A 黄 → 库存<B 红 → 已订绿（绿最后覆盖：已订配件始终绿色，不受警戒级别影响） -->
+                            <DataTrigger Binding="{Binding IsYellow}" Value="True">
+                                <Setter Property="Foreground" Value="#DAA520"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsRed}" Value="True">
+                                <Setter Property="Foreground" Value="Red"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsOrdered}" Value="True">
+                                <Setter Property="Foreground" Value="#1E8449"/>
+                            </DataTrigger>
+                        </Style.Triggers>
                     </Style>
                 </DataGrid.RowStyle>
                 <DataGrid.Columns>
+                    <DataGridTextColumn Header="序号" Binding="{Binding Seq, Mode=OneWay}" IsReadOnly="True" Width="40"
+                                        ElementStyle="{StaticResource NumCellRight}"/>
                     <DataGridTextColumn Header="编号" Binding="{Binding Nno}" IsReadOnly="True" Width="110"/>
                     <DataGridTextColumn Header="名称" Binding="{Binding Na1}" IsReadOnly="True" Width="140"/>
                     <DataGridTextColumn Header="车型" Binding="{Binding Ty}" IsReadOnly="True" Width="70"/>
@@ -77,15 +75,13 @@
                                         ElementStyle="{StaticResource NumCellRight}"/>
                     <DataGridTextColumn Header="建议" Binding="{Binding Ydqty, Mode=OneWay}" IsReadOnly="True" Width="50"
                                         ElementStyle="{StaticResource NumCellRight}"/>
-                    <DataGridTextColumn Header="已订" Binding="{Binding Num, Mode=OneWay}" IsReadOnly="True" Width="50"
-                                        ElementStyle="{StaticResource NumCellRight}"/>
-                    <DataGridTextColumn x:Name="ColMo3" Binding="{Binding Mo3, Mode=OneWay, StringFormat=N0}" IsReadOnly="True" Width="55"
-                                        ElementStyle="{StaticResource NumCellRight}"/>
-                    <DataGridTextColumn x:Name="ColMo2" Binding="{Binding Mo2, Mode=OneWay, StringFormat=N0}" IsReadOnly="True" Width="55"
-                                        ElementStyle="{StaticResource NumCellRight}"/>
-                    <DataGridTextColumn x:Name="ColMo1" Binding="{Binding Mo1, Mode=OneWay, StringFormat=N0}" IsReadOnly="True" Width="55"
+                    <DataGridTextColumn Header="已订" Binding="{Binding Num, Mode=OneWay, StringFormat=N0}" IsReadOnly="True" Width="50"
                                         ElementStyle="{StaticResource NumCellRight}"/>
                     <DataGridTextColumn Header="出货" Binding="{Binding Ckamount, Mode=OneWay, StringFormat=N0}" IsReadOnly="True" Width="55"
+                                        ElementStyle="{StaticResource NumCellRight}"/>
+                    <DataGridTextColumn Header="警戒值A" Binding="{Binding Amjj, StringFormat=N0, UpdateSourceTrigger=LostFocus}" Width="70"
+                                        ElementStyle="{StaticResource NumCellRight}"/>
+                    <DataGridTextColumn Header="警戒值B" Binding="{Binding Bmjj, StringFormat=N0, UpdateSourceTrigger=LostFocus}" Width="70"
                                         ElementStyle="{StaticResource NumCellRight}"/>
                     <DataGridTextColumn Header="产地" Binding="{Binding Dc}" IsReadOnly="True" Width="55"/>
                     <DataGridTextColumn Header="单位" Binding="{Binding Unit}" IsReadOnly="True" Width="42"/>

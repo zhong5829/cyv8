@@ -854,7 +854,7 @@ public class ContractReplayTests
     {
         var factory = new SqlConnectionFactory(new StaticCs(ReplayConfig.ConnectionString));
         var order3 = new Order3Repository(factory, new DmService());
-        var order4 = new Order4Repository(factory);
+        var order4 = new Order4Repository(factory, new DocNoService(factory));
         var per = ReplayConfig.Operator;
         var dept = ReplayConfig.Dept;
         const string contractCno = "REPLAYCNO15", planCno = "REPLAYPLAN15";
@@ -1899,9 +1899,10 @@ public class ContractReplayTests
 
     /// <summary>
     /// 场景 25：B4 库存调价 + B5 警戒线设置（第十批，手动快照流程）。
-    /// 种子：tbisto 回放批次 2 行（RKR25 厂牌）+ tbrtsamo 月销售数 2 行 + tbprnoty 1 行。
-    /// B4：旧侧 UPDATE SQL 原样重放 vs 新 AdjustAsync（oprc=oprc*1.1 取整 int+0.5；供应商基准价 iprj）→ tbisto diff；
-    /// B5：旧侧循环重放（UPDATE 有行/INSERT 双系数>0/清 0 行）vs 新 SetJjLinesAsync → tbistojj diff。
+    /// 种子：tbisto 回放批次 2 行（RKR25 厂牌）+ tbprnoty 1 行。
+    /// B4：旧侧 UPDATE SQL 原样重放 vs 新 AdjustAsync（oprc=oprc*1.1 取整 int+0.5）→ tbisto diff；
+    /// B5：2026-11-04 改手动编辑（QP11 库存预警同构）——旧公式批量不再复刻，改为新侧行为断言：
+    /// UpdateJjLineAsync INSERT（任一档>0，na1/ty 取 tbprnoty）→ 单档 UPDATE → 双 0 删行。
     /// </summary>
     [Fact]
     public void Scenario25_PriceAdjustJj_LegacyVsModern()
@@ -1927,25 +1928,6 @@ public class ContractReplayTests
                     VALUES (@cp, @nno, @na1, N'', N'个', @kc, @iprc, @iprj, @oprc, @oprb, N'A1', @depotno, @dpm, N'')
                 """,
                 new { nno = "RN25B", cp = "回放厂牌R", na1 = "回放配件R2", kc = 50m, iprc = 20m, iprj = 25m, oprc = 30m, oprb = 28m, depotno = "01", dpm = Ansi(dept, 10) });
-            // tbrtsamo 月销售数（最近 3 月 = oamou{M-3}~{M-1}；tbrtsamo 一行 12 列——首月 INSERT 后续月 UPDATE 同行）
-            var m1 = DateTime.Today.Month + 12 - 3; if (m1 > 12) m1 -= 12;
-            var m2 = DateTime.Today.Month + 12 - 2; if (m2 > 12) m2 -= 12;
-            var m3 = DateTime.Today.Month + 12 - 1; if (m3 > 12) m3 -= 12;
-            conn.Execute(
-                "IF NOT EXISTS (SELECT 1 FROM tbrtsamo WHERE rtrim(nno) = @nno AND rtrim(cp) = @cp AND dpm = @dpm) " +
-                $"INSERT INTO tbrtsamo (dpm, cp, nno, na1, oamou{m1}) VALUES (@dpm, @cp, @nno, @na1, @oamou)",
-                new { dpm = Ansi(dept, 10), cp = "回放厂牌R", nno = "RN25A", na1 = "回放配件R", oamou = 30m });
-            conn.Execute(
-                "IF NOT EXISTS (SELECT 1 FROM tbrtsamo WHERE rtrim(nno) = @nno AND rtrim(cp) = @cp AND dpm = @dpm) " +
-                $"INSERT INTO tbrtsamo (dpm, cp, nno, na1, oamou{m1}) VALUES (@dpm, @cp, @nno, @na1, @oamou)",
-                new { dpm = Ansi(dept, 10), cp = "回放厂牌R", nno = "RN25B", na1 = "回放配件R2", oamou = 20m });
-            foreach (var m in new[] { m2, m3 })
-            {
-                conn.Execute($"UPDATE tbrtsamo SET oamou{m} = @oamou WHERE rtrim(nno) = @nno AND rtrim(cp) = @cp AND dpm = @dpm",
-                    new { oamou = 30m, nno = "RN25A", cp = Ansi("回放厂牌R", 10), dpm = Ansi(dept, 10) });
-                conn.Execute($"UPDATE tbrtsamo SET oamou{m} = @oamou WHERE rtrim(nno) = @nno AND rtrim(cp) = @cp AND dpm = @dpm",
-                    new { oamou = 20m, nno = "RN25B", cp = Ansi("回放厂牌R", 10), dpm = Ansi(dept, 10) });
-            }
             conn.Execute(
                 "IF NOT EXISTS (SELECT 1 FROM tbprnoty WHERE rtrim(nno) = @nno AND rtrim(cp) = @cp) " +
                 "INSERT INTO tbprnoty (nno, cp, na1, fa, dc, ty) VALUES (@nno, @cp, @na1, N'回放产地', N'A', N'回放类型')",
@@ -1966,21 +1948,11 @@ public class ContractReplayTests
                 FROM tbisto isto WHERE rtrim(isto.cp) = @cp AND rtrim(isto.depotno) = '01' AND isto.dpm = @dpm
                 """, new { cp = Ansi("回放厂牌R", 10), dpm = Ansi(dept, 10) });
             // B4 旧侧：iprj = gys.iprj * 1（供应商基准价——tbgys 无回放行=不更新，两侧同空）
-            // B5 旧侧：月均 SUM=90（3 月×30）→ /3*1.2=36、*1.5=45；RN25B SUM=60 → 24/30（ROUND(,0)）
-            // RN25B 无 tbprnoty 行 → source_temp.ty 为空（INSERT ty=''）
-            conn.Execute(
-                "INSERT INTO tbistojj (dpm, cp, nno, na1, ty, amjj, bmjj) VALUES (@dpm, @cp, @nno, @na1, @ty, @amjj, @bmjj)",
-                new { dpm = Ansi(dept, 10), cp = "回放厂牌R", nno = "RN25A", na1 = "回放配件R", ty = "回放类型", amjj = 36m, bmjj = 45m });
-            conn.Execute(
-                "INSERT INTO tbistojj (dpm, cp, nno, na1, ty, amjj, bmjj) VALUES (@dpm, @cp, @nno, @na1, @ty, @amjj, @bmjj)",
-                new { dpm = Ansi(dept, 10), cp = "回放厂牌R", nno = "RN25B", na1 = "回放配件R2", ty = "", amjj = 24m, bmjj = 30m });
-            conn.Execute("DELETE FROM tbistojj WHERE ISNULL(amjj,0) = 0 AND ISNULL(bmjj,0) = 0");
         }
         using (var conn = ReplayEnv.Open())
         {
             conn.Open();
             legacyTables["tbisto"] = ReplayEnv.SnapshotTable(conn, "tbisto", "id", "rtrim(nno) LIKE 'RN25%'");
-            legacyTables["tbistojj"] = ReplayEnv.SnapshotTable(conn, "tbistojj", "id");
         }
 
         ReplayEnv.ResetToSnapshot();
@@ -1993,18 +1965,24 @@ public class ContractReplayTests
             {
                 FieldKind = 1, BaseKind = 1, Oper = "*", Factor = 1.1m, RoundMode = 2, Depotno = "01",
             }, "回放厂牌R", dept).GetAwaiter().GetResult();
-            // B5 新侧（等价旧 INSERT 双系数结果——factors 由旧 INSERT 反推：30/3*1.2=12、*1.5=15）
-            repo.SetJjLinesAsync(new JjLineCommand
-            {
-                Months = 3, FactorA = 1.2m, FactorB = 1.5m, SetAmjj = true, SetBmjj = true, AllBrand = false, Cp = "回放厂牌R",
-            }, dept).GetAwaiter().GetResult();
+            // B5 新侧（2026-11-04 手动编辑）：INSERT（na1/ty 取 tbprnoty）→ 单档 UPDATE → 双 0 删行
+            repo.UpdateJjLineAsync(dept, "回放厂牌R", "RN25A", 10m, 20m).GetAwaiter().GetResult();
+            repo.UpdateJjLineAsync(dept, "回放厂牌R", "RN25A", null, 25m).GetAwaiter().GetResult();
+            var jj = conn.QuerySingleOrDefault<(decimal amjj, decimal bmjj, string na1, string ty)>(
+                "SELECT amjj, bmjj, rtrim(na1) na1, rtrim(ty) ty FROM tbistojj WHERE rtrim(nno) = 'RN25A' AND dpm = @dpm",
+                new { dpm = Ansi(dept, 10) });
+            Assert.True(jj.amjj == 10m && jj.bmjj == 25m, $"警戒值单档更新失败：{jj.amjj}/{jj.bmjj}");
+            Assert.True(jj.na1 == "回放配件R" && jj.ty == "回放类型", "INSERT 应取 tbprnoty 的 na1/ty");
+            repo.UpdateJjLineAsync(dept, "回放厂牌R", "RN25A", 0m, 0m).GetAwaiter().GetResult();
+            var gone = conn.ExecuteScalar<int>(
+                "SELECT COUNT(1) FROM tbistojj WHERE rtrim(nno) = 'RN25A' AND dpm = @dpm", new { dpm = Ansi(dept, 10) });
+            Assert.True(gone == 0, "双 0 警戒值应删行");
         }
         var modernTables = new Dictionary<string, List<Dictionary<string, object>>>();
         using (var conn = ReplayEnv.Open())
         {
             conn.Open();
             modernTables["tbisto"] = ReplayEnv.SnapshotTable(conn, "tbisto", "id", "rtrim(nno) LIKE 'RN25%'");
-            modernTables["tbistojj"] = ReplayEnv.SnapshotTable(conn, "tbistojj", "id");
         }
 
         foreach (var key in legacyTables.Keys)

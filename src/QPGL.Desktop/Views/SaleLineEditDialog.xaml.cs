@@ -35,6 +35,9 @@ public partial class SaleLineEditDialog : Window
     private string _lastValidQty = "1";
     /// <summary>数量回退写回时屏蔽 TextChanged 递归。</summary>
     private bool _qtyGuard;
+    /// <summary>编辑已有明细行（传入初始价）：历史成交价不自动覆盖单价框（2026-11-04 修复），
+    /// 仅新开行保留"自动带出该客户最近成交价"。</summary>
+    private readonly bool _isEditLine;
 
     /// <summary>确认后的结果（车型/数量/单价/备注）。</summary>
     public string LineTy { get; private set; } = "";
@@ -70,6 +73,7 @@ public partial class SaleLineEditDialog : Window
             TxtEditLimit.Visibility = Visibility.Visible;
         }
         // 默认价：编辑时用原价；新增时按零售/批发单选给默认
+        _isEditLine = initPrice.HasValue;
         RbRetail.IsChecked = true;
         TxtPrice.Text = (initPrice ?? part.Oprc).ToString("N2");
         TxtMemo.Text = initMemo ?? "";
@@ -149,8 +153,9 @@ public partial class SaleLineEditDialog : Window
             var history = await Db.Parts.GetSaleHistoryAsync(_part.Nno, _dept, 0, keyword);   // 0 = 全部记录
             DgSellHistory.ItemsSource = history;
             // 筛选后自动匹配最近价格填充单价框（2026-10-31 需求）：取筛选结果第一条（按日期倒序的最近成交价）。
-            // 打开弹窗时已按客户名筛选（含先输入客户名称再打开的场景），同样自动带出该客户最近成交价
-            if (history.Count > 0)
+            // 打开弹窗时已按客户名筛选（含先输入客户名称再打开的场景），同样自动带出该客户最近成交价；
+            // 编辑已有行不回填（2026-11-04 修复）：保持用户已填单价，不被历史价覆盖
+            if (history.Count > 0 && !_isEditLine)
                 TxtPrice.Text = history[0].Price.ToString("N2");
         }
         catch
@@ -291,6 +296,14 @@ public partial class SaleLineEditDialog : Window
         {
             MessageBox.Show("单价不能为负", "销售编辑", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
+        }
+        // 最近一次进价检测（2026-11-04 需求）：售价低于最近进价 → 弹窗确认，用户确认后才写入
+        if (_part.LastIprj > 0 && price < _part.LastIprj)
+        {
+            var r = MessageBox.Show(
+                $"销售单价 {price:N2} 低于最近一次进价 {_part.LastIprj:N2}，确定按 {price:N2} 写入吗？",
+                "销售编辑", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
+            if (r != MessageBoxResult.Yes) return;
         }
 
         Qty = qty;

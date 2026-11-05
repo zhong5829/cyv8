@@ -13,16 +13,6 @@ using QPGL.Infrastructure.Parts;
 
 namespace QPGL.Desktop.ViewModels;
 
-/// <summary>选料行着色转换器：已订数 Num &gt; 0 → 红字 #C0392B。</summary>
-public sealed class PartPickBrushConverter : IValueConverter
-{
-    private static readonly Brush Ordered = new SolidColorBrush(Color.FromRgb(0xC0, 0x39, 0x2B));
-    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
-        => value is PartPickRow r && r.Num > 0 ? Ordered : Brushes.Black;
-    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
-        => throw new NotSupportedException();
-}
-
 /// <summary>
 /// 订单生成 VM（菜单 F.1，权限码 F1；fr_order4 契约）。
 /// 左=计划单列表 + 选料检索；右=当前计划单明细；行写路径 I1/I2/U5/D1/I5/U9/U10/U7/U1/D3。
@@ -50,7 +40,7 @@ public partial class Order4ViewModel : ObservableObject
     [ObservableProperty] private string _qNno = "";
     [ObservableProperty] private string _qNa1 = "";
     [ObservableProperty] private string _qTy = "";
-    [ObservableProperty] private DateTime _qDate1 = DateTime.Today.AddMonths(-1);
+    [ObservableProperty] private DateTime _qDate1 = new(1900, 1, 1);   // 出货日期默认全部（2026-11-04 需求，选料窗日期框已移除）
     [ObservableProperty] private DateTime _qDate2 = DateTime.Today;
     [ObservableProperty] private decimal _qNum1;
     [ObservableProperty] private decimal _qNum2 = 9999;
@@ -125,7 +115,7 @@ public partial class Order4ViewModel : ObservableObject
             sugExp, QDate1, QDate2, ct)) Lines.Add(r);
     }
 
-    /// <summary>选中公式的表达式（2026-11-03 起 P02=实时近三月月均，全部公式可执行）。</summary>
+    /// <summary>选中公式的表达式（P02=区间月均，2026-11-04 起跟随选料条日期/默认全部，全部公式可执行）。</summary>
     private string? SuggestExpOrNull() => SelectedFormula?.Cexpress;
 
     // 新建计划单默认单头（2026-11-03 需求：新建时录入供应商/订货日期；tborder 行式存储，
@@ -329,7 +319,8 @@ public partial class Order4ViewModel : ObservableObject
             IsBusy = true;
             Message = "";
             // 旧 __.row2 PR_FILT：SETEXP（选中公式）→ ydqty 列批量公式求值；无公式=0
-            var rows = await Db.Order4.SearchPartsAsync(new PartPickQuery
+            // （2026-11-04 弱网缓存：经 PartCacheService——快照内存过滤 + 本页批量实时聚合 1.5s 超时降级）
+            var rows = await PartCacheService.PickSearchAsync(new PartPickQuery
             {
                 Nno = QNno, Na1 = QNa1, Ty = QTy,
                 Date1 = QDate1, Date2 = QDate2, Num1 = QNum1, Num2 = QNum2, Kc1 = QKc1, Kc2 = QKc2,
@@ -338,9 +329,12 @@ public partial class Order4ViewModel : ObservableObject
             if (seq != _pickSeq) return;
             ApplyOrderedNums(rows);
             PickRows.Clear();
+            for (var i = 0; i < rows.Count; i++) rows[i].Seq = i + 1;   // 序号列：每次检索重新从 1 编
             foreach (var r in rows) PickRows.Add(r);
             _pickPage = 1;
             _pickHasMore = rows.Count >= PickPageSize;
+            if (PartCacheService.LastHint is { Length: > 0 } hint1)
+                Message = hint1;
             if (rows.Count == 0)
             {
                 Message = "未找到符合条件的配件";
@@ -365,7 +359,8 @@ public partial class Order4ViewModel : ObservableObject
                             Suttle = w.Row.Suttle, Note = w.Row.Note, Note1 = w.Row.Note1,
                             Oprc_cp = w.Row.Oprc_cp, Oprc_min = w.Row.Oprc_min,
                         }, Cp.Trim(), AppSession.DeptPermissions);
-                }
+                        Services.PartCacheService.Invalidate();   // 属性库新增 → 配件选择缓存失效
+                    }
             }
         }
         catch (AppException ex)
@@ -386,7 +381,7 @@ public partial class Order4ViewModel : ObservableObject
         try
         {
             IsBusy = true;
-            var rows = await Db.Order4.SearchPartsAsync(new PartPickQuery
+            var rows = await PartCacheService.PickSearchAsync(new PartPickQuery
             {
                 Nno = QNno, Na1 = QNa1, Ty = QTy,
                 Date1 = QDate1, Date2 = QDate2, Num1 = QNum1, Num2 = QNum2, Kc1 = QKc1, Kc2 = QKc2,
@@ -396,6 +391,8 @@ public partial class Order4ViewModel : ObservableObject
             _pickPage++;
             _pickHasMore = rows.Count >= PickPageSize;
             ApplyOrderedNums(rows);
+            var start = PickRows.Count;
+            for (var i = 0; i < rows.Count; i++) rows[i].Seq = start + i + 1;   // 序号列：翻页接续编号
             foreach (var r in rows) PickRows.Add(r);
         }
         catch (AppException ex)
@@ -757,7 +754,7 @@ public partial class Order4ViewModel : ObservableObject
                 : $"供应商价 {sup.Count} 家，最低 {sup[0].Iprc:N2}（{sup[0].Gyname.Trim()}）";
             if (SelectedFormula is { } f && SelectedPick is not null)
             {
-                // 公式执行日期区间=选料查询条（备案：旧为公式窗独立日期）；P02=实时近三月月均
+                // 公式执行日期区间=选料查询条（备案：旧为公式窗独立日期）；P02=区间月均（2026-11-04 改，默认全部日期）
                 var q = await Db.Order4.GetSuggestQtyAsync(f.Cexpress, SelectedPick.Nno, AppSession.DeptNo, cp,
                     AppSession.DeptPermissions, QDate1, QDate2);
                 SuggestInfo = $"公式「{f.Expna.Trim()}」建议订数：{q:N0}";

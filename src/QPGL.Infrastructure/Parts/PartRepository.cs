@@ -60,6 +60,17 @@ public interface IPartRepository
     /// tbisto 为批次表，同 nno 多行 GROUP BY 合并：库存 SUM(kcamount)、货位取首个非空值。</summary>
     Task<IReadOnlyList<LabelStockItem>> GetLabelItemsAsync(string dpm, string brand,
         string? nno = null, string? na1 = null, string? ty = null, CancellationToken ct = default);
+
+    /// <summary>缓存快照全量（tbisto 本部门 + tbprnoty 全厂牌 + tbname0/tbty0，一次往返；2026-11-04 弱网缓存）。</summary>
+    Task<PartCacheSnapshot> GetCacheSnapshotAsync(string dpm, CancellationToken ct = default);
+
+    /// <summary>仅库存侧快照（tbisto 本部门窄列；PartCacheService 定时刷新 tbisto 用，属性/拼音表不重拉）。</summary>
+    Task<List<PartCacheStockRow>> GetStockCacheAsync(string dpm, CancellationToken ct = default);
+
+    /// <summary>快照路径单页实时刷新（2026-11-04 弱网缓存）：一次往返同时取 本页批次 id 最新库存 +
+    /// tbisto 最大 id（增量水位）+ 水位后新批次行（TOP 500）+ tbprnoty 最大 id + 水位后新增属性行（TOP 500），
+    /// 超限由调用方触发全量刷新。</summary>
+    Task<StockLiveResult> GetStockLiveAsync(string dpm, IReadOnlyCollection<int> ids, int lastMaxId, int lastAttrMaxId, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -510,6 +521,85 @@ public sealed class PartRepository(SqlConnectionFactory factory) : IPartReposito
         var map = rows.ToDictionary(r => $"{r.cp}|{r.nno}", r => r.oprc_min, StringComparer.OrdinalIgnoreCase);
         foreach (var p in items)
             p.OprcMin = map.GetValueOrDefault($"{p.Cp.Trim()}|{p.Nno.Trim()}");
+    }
+
+    /// <summary>
+    /// 缓存快照全量（2026-11-04 弱网缓存）：tbisto 本部门 + tbprnoty 全厂牌 + tbname0/tbty0，
+    /// 单次 QueryMultiple 一次往返拉回。tbprnoty nno RTRIM（与销售补集/订单检索 SQL 输出口径一致）；
+    /// tbty0 未初始化（新系统建表前）时整体失败由调用方降级直查。
+    /// </summary>
+    public async Task<PartCacheSnapshot> GetCacheSnapshotAsync(string dpm, CancellationToken ct = default)
+    {
+        await using var conn = await factory.OpenAsync(ct);
+        await using var multi = await conn.QueryMultipleAsync(new CommandDefinition(
+            """
+            SELECT id, dpm, cp, nno, na1, ty, fa, dc, unit, kcamount, iprj, iprc, oprc, oprb, posi, depotno, note
+            FROM tbisto WITH (NOLOCK) WHERE dpm = @dpm;
+            SELECT id, rtrim(cp) AS Cp, rtrim(nno) AS Nno, rtrim(na1) AS Na1, rtrim(ty) AS Ty, rtrim(fa) AS Fa,
+                   rtrim(dc) AS Dc, rtrim(unit) AS Unit, rtrim(nnp) AS Nnp, rtrim(nnq) AS Nnq,
+                   rtrim(note) AS Note, rtrim(tno) AS Tno, rtrim(xno) AS Xno, rtrim(cxnno) AS Cxnno,
+                   ISNULL(uqty, 0) AS Uqty, ISNULL(iprj, 0) AS Iprj,
+                   ISNULL(oprc_cp, 0) AS OprcCp, ISNULL(oprc_min, 0) AS OprcMin
+            FROM tbprnoty WITH (NOLOCK);
+            SELECT rtrim(name) AS Name, rtrim(code) AS Code FROM tbname0 WITH (NOLOCK);
+            SELECT rtrim(ty) AS Ty, rtrim(code) AS Code FROM tbty0 WITH (NOLOCK);
+            """,
+            new { dpm = new DbString { Value = dpm.Trim(), IsAnsi = true, Length = 10 } }, cancellationToken: ct));
+        return new PartCacheSnapshot
+        {
+            StockRows = (await multi.ReadAsync<PartCacheStockRow>()).AsList(),
+            AttrRows = (await multi.ReadAsync<PartCacheAttrRow>()).AsList(),
+            Name0 = (await multi.ReadAsync<PartCacheNameRow>()).AsList(),
+            Ty0 = (await multi.ReadAsync<PartCacheTyRow>()).AsList(),
+        };
+    }
+
+    /// <summary>仅库存侧快照（tbisto 本部门窄列；定时刷新用，属性/拼音表不重拉，省往返与传输）。</summary>
+    public async Task<List<PartCacheStockRow>> GetStockCacheAsync(string dpm, CancellationToken ct = default)
+    {
+        await using var conn = await factory.OpenAsync(ct);
+        var rows = await conn.QueryAsync<PartCacheStockRow>(new CommandDefinition(
+            """
+            SELECT id, dpm, cp, nno, na1, ty, fa, dc, unit, kcamount, iprj, iprc, oprc, oprb, posi, depotno, note
+            FROM tbisto WITH (NOLOCK) WHERE dpm = @dpm
+            """,
+            new { dpm = new DbString { Value = dpm.Trim(), IsAnsi = true, Length = 10 } }, cancellationToken: ct));
+        return rows.AsList();
+    }
+
+    /// <summary>快照路径单页实时刷新：本页库存 + tbisto/tbprnoty 增量水位与新行，一次 QueryMultiple 一次往返。</summary>
+    public async Task<StockLiveResult> GetStockLiveAsync(string dpm, IReadOnlyCollection<int> ids, int lastMaxId, int lastAttrMaxId, CancellationToken ct = default)
+    {
+        var idList = ids.Where(id => id > 0).Distinct().ToList();
+        await using var conn = await factory.OpenAsync(ct);
+        await using var multi = await conn.QueryMultipleAsync(new CommandDefinition(
+            """
+            SELECT id, kcamount FROM tbisto WITH (NOLOCK) WHERE dpm = @dpm AND id IN @ids;
+            SELECT ISNULL(MAX(id), 0) FROM tbisto WITH (NOLOCK) WHERE dpm = @dpm;
+            SELECT TOP 500 id, dpm, cp, nno, na1, ty, fa, dc, unit, kcamount, iprj, iprc, oprc, oprb, posi, depotno, note
+            FROM tbisto WITH (NOLOCK) WHERE dpm = @dpm AND id > @lastMaxId ORDER BY id;
+            SELECT ISNULL(MAX(id), 0) FROM tbprnoty WITH (NOLOCK);
+            SELECT TOP 500 id, rtrim(cp) AS Cp, rtrim(nno) AS Nno, rtrim(na1) AS Na1, rtrim(ty) AS Ty, rtrim(fa) AS Fa,
+                   rtrim(dc) AS Dc, rtrim(unit) AS Unit, rtrim(nnp) AS Nnp, rtrim(nnq) AS Nnq,
+                   rtrim(note) AS Note, rtrim(tno) AS Tno, rtrim(xno) AS Xno, rtrim(cxnno) AS Cxnno,
+                   ISNULL(uqty, 0) AS Uqty, ISNULL(iprj, 0) AS Iprj,
+                   ISNULL(oprc_cp, 0) AS OprcCp, ISNULL(oprc_min, 0) AS OprcMin
+            FROM tbprnoty WITH (NOLOCK) WHERE id > @lastAttrMaxId ORDER BY id
+            """,
+            new
+            {
+                dpm = new DbString { Value = dpm.Trim(), IsAnsi = true, Length = 10 },
+                ids = idList,
+                lastMaxId,
+                lastAttrMaxId,
+            }, cancellationToken: ct));
+        var stockByIds = (await multi.ReadAsync<(int id, decimal kcamount)>()).AsList()
+            .ToDictionary(r => r.id, r => r.kcamount);
+        var maxId = await multi.ReadFirstAsync<int>();
+        var newRows = (await multi.ReadAsync<PartCacheStockRow>()).AsList();
+        var attrMaxId = await multi.ReadFirstAsync<int>();
+        var newAttrRows = (await multi.ReadAsync<PartCacheAttrRow>()).AsList();
+        return new StockLiveResult(stockByIds, maxId, newRows, attrMaxId, newAttrRows);
     }
 
     /// <summary>

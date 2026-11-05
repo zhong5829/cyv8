@@ -111,6 +111,8 @@
                             <ContextMenu>
                                 <MenuItem Header="编辑配件属性" Click="EditPartAttribute_Click"
                                           ToolTip="打开零件属性编辑窗修改该配件的编码/名称/车型/价格等属性"/>
+                                <MenuItem Header="修改库存售价" Click="ChangeStockPrice_Click"
+                                          ToolTip="修改该配件的仓位/产地/售价/批发价/最低售价（tbistoch 留痕）"/>
                             </ContextMenu>
                         </DataGrid.ContextMenu>
                         <DataGrid.RowStyle>

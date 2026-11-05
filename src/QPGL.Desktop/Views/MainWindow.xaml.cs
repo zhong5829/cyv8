@@ -65,6 +65,15 @@ public partial class MainWindow : Window
                     _ = sale7.ReprintSelectedAsync();
                 }
             }
+            else if (e.Key == System.Windows.Input.Key.F8)
+            {
+                // F8：修改库存售价（选中配件，2026-11-04 需求）
+                if (_vm.ActiveTab?.Content is SaleControl sale8)
+                {
+                    e.Handled = true;
+                    _ = sale8.OpenStockPriceEditorAsync();
+                }
+            }
         };
         // 双击 Shift：销售开单页光标定位到客户名称框并全选（旧 VFP ON KEY LABEL SHIFT 习惯）
         KeyUp += (_, e) =>
@@ -77,9 +86,24 @@ public partial class MainWindow : Window
         };
     }
 
-    /// <summary>软件退出前脏检查（2026-11-02 暂存需求）：任一散件入库页有未暂存改动 → 逐页弹窗，取消则不退出。</summary>
+    /// <summary>退出确认标记：确认框通过一次后置位，避免脏检查循环里重复弹窗。</summary>
+    private bool _exitConfirmed;
+
+    /// <summary>软件退出前：先弹退出确认（2026-11-04 需求，防误点直接退出）；
+    /// 确认后再做脏检查（2026-11-02 暂存需求）：任一散件入库页有未暂存改动 → 逐页弹窗，取消则不退出。
+    /// 窗口 X 与菜单「退出」两条路径均经过此方法。</summary>
     protected override async void OnClosing(System.ComponentModel.CancelEventArgs e)
     {
+        if (!_exitConfirmed)
+        {
+            e.Cancel = true;
+            if (MessageBox.Show(this, "确定要退出软件吗？", "退出确认",
+                    MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+                return;
+            _exitConfirmed = true;
+            Close();
+            return;
+        }
         foreach (var instock in _vm.Tabs.Select(t => t.Content).OfType<InStockControl>().ToList())
         {
             if (!await instock.ConfirmCloseAsync())

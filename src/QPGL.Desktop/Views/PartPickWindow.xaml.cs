@@ -193,14 +193,14 @@ public partial class PartPickWindow : Window
             var brand = AppSession.Brand.Trim();
             _hasCondition = cp.Length > 0 || na1.Length > 0 || ty.Length > 0;
             var request = new PagedRequest { Page = 1, PageSize = PageSize };
-            var result = await Db.Parts.SearchAsync(_dept, cp, na1, ty, request, note: null, fillLastIprj: false, brand, includeAttrOnly: true);
+            var result = await Services.PartCacheService.SearchAsync(_dept, cp, na1, ty, request, note: null, fillLastIprj: false, brand, includeAttrOnly: true);
             if (seq != _searchSeq) return;
 
             // 跨厂牌回退（2026-10-29，与 SaleViewModel 同构）：当前厂牌无命中且带条件时，
             // 查其它厂牌命中数（含属性库独有行——属性定义新增配件可能挂错厂牌），弹窗确认后临时加载
             if (result.Total == 0 && _hasCondition && brand.Length > 0)
             {
-                var others = await Db.Parts.CountOtherBrandsAsync(_dept, brand, cp, na1, ty);
+                var others = await Services.PartCacheService.CountOtherBrandsAsync(_dept, brand, cp, na1, ty);
                 if (seq != _searchSeq) return;
                 // 厂牌白名单（角色 usemcp）：非空时仅提示白名单内的厂牌；空 = 无限制
                 var wl = AppSession.BrandWhitelist;
@@ -214,7 +214,7 @@ public partial class PartPickWindow : Window
                         "跨厂牌检索", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No);
                     if (answer == MessageBoxResult.Yes)
                     {
-                        var alt = await Db.Parts.SearchAsync(_dept, cp, na1, ty, request, note: null, fillLastIprj: false, top, includeAttrOnly: true);
+                        var alt = await Services.PartCacheService.SearchAsync(_dept, cp, na1, ty, request, note: null, fillLastIprj: false, top, includeAttrOnly: true);
                         if (seq != _searchSeq) return;
                         Parts.Clear();
                         foreach (var p in alt.Items) Parts.Add(p);
@@ -222,7 +222,7 @@ public partial class PartPickWindow : Window
                         _total = alt.Total;
                         _effectiveBrand = top;
                         _loadingMore = false;
-                        TxtStatus.Text = $"临时查看：{top}（共 {alt.Total} 条）";
+                        TxtStatus.Text = $"临时查看：{top}（共 {alt.Total} 条）{(Services.PartCacheService.LastHint is { Length: > 0 } hAlt ? " " + hAlt : "")}";
                         QPGL.Infrastructure.DebugLog.Log($"[PartPick] 跨厂牌回退 brand='{top}' rows={alt.Items.Count} total={alt.Total}");
                         return;
                     }
@@ -235,7 +235,9 @@ public partial class PartPickWindow : Window
             _total = result.Total;
             _effectiveBrand = brand;
             _loadingMore = false;
-            TxtStatus.Text = result.Total == 0 && _hasCondition ? "无匹配配件" : $"共 {result.Total} 条";
+            TxtStatus.Text = result.Total == 0 && _hasCondition
+                ? "无匹配配件"
+                : $"共 {result.Total} 条{(Services.PartCacheService.LastHint is { Length: > 0 } h ? " " + h : "")}";
         }
         catch (Exception ex)
         {
@@ -252,7 +254,7 @@ public partial class PartPickWindow : Window
         try
         {
             var request = new PagedRequest { Page = _page + 1, PageSize = PageSize };
-            var result = await Db.Parts.SearchAsync(_dept, CpBox.Text.Trim(), Na1Box.Text.Trim(), TyBox.Text.Trim(), request, note: null, fillLastIprj: false, _effectiveBrand, includeAttrOnly: true);
+            var result = await Services.PartCacheService.SearchAsync(_dept, CpBox.Text.Trim(), Na1Box.Text.Trim(), TyBox.Text.Trim(), request, note: null, fillLastIprj: false, _effectiveBrand, includeAttrOnly: true);
             if (seq != _searchSeq) return;
             _page++;
             _total = result.Total;
@@ -283,7 +285,11 @@ public partial class PartPickWindow : Window
 
     private void PartGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e) => Confirm();
 
-    /// <summary>历史区（2026-11-03 双区域需求）：选中行变化 → 加载该配件的进货/销售历史（复用 Order4 仓储，带竞态守卫）。</summary>
+    /// <summary>
+    /// 历史区（2026-11-03 双区域需求）：选中行变化 → 加载该配件的进货/销售历史（复用 Order4 仓储，带竞态守卫）。
+    /// 2026-11-04 弱网缓存：先秒显会话内缓存（如有），随即后台重查最新数据回填——
+    /// 其他电脑新开的单据约 1 次往返后自动出现（用户确认口径：缓存秒显+后台刷新）。
+    /// </summary>
     private async void PartGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (PartGrid.SelectedItem is not PartItem part) return;
@@ -293,17 +299,26 @@ public partial class PartPickWindow : Window
         var cp = (part.Cp ?? "").Trim();
         var nno = (part.Nno ?? "").Trim();
         if (nno.Length == 0) return;
+        // 秒显缓存（命中时网格立即有数据，下方重查覆盖为最新）
+        if (Services.PartCacheService.TryGetHistory(cp, nno, out var cachedIns, out var cachedSales))
+        {
+            foreach (var r in cachedIns) InRecords.Add(r);
+            foreach (var r in cachedSales) SaleRecords.Add(r);
+        }
         try
         {
             var ins = await Db.Order4.GetInRecordsAsync(cp, nno);
             var sales = await Db.Order4.GetSaleRecordsAsync(cp, nno);
             if (seq != _histSeq) return;
+            InRecords.Clear();
+            SaleRecords.Clear();
             foreach (var r in ins) InRecords.Add(r);
             foreach (var r in sales) SaleRecords.Add(r);
+            Services.PartCacheService.SetHistory(cp, nno, ins.ToList(), sales.ToList());
         }
         catch
         {
-            // 历史加载失败不阻断选件
+            // 历史加载失败不阻断选件（有缓存秒显数据时保留显示）
         }
     }
 
@@ -347,6 +362,7 @@ public partial class PartPickWindow : Window
                 Nvol = decimal.TryParse(r.Nvol, out var nv) ? nv : 0,
                 Suttle = r.Suttle, Note = r.Note, Note1 = r.Note1, Oprc_cp = r.Oprc_cp, Oprc_min = r.Oprc_min,
             }, r.Cp, "A");
+            Services.PartCacheService.Invalidate();   // 属性库新增 → 配件选择缓存失效
 
             // 直接选定新配件回调（2026-11-02 连续选件：窗口保持打开，属性库新行尚无库存行：
             // id=0、无货位，与列表 includeAttrOnly 属性行同构；零售价取属性库统一售价 oprc_cp，进价取录入 iprj）

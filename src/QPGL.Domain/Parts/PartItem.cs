@@ -41,4 +41,12 @@ public sealed class PartItem
         Unit = Unit, Kcamount = Kcamount, Iprj = Iprj, Iprc = Iprc, Oprc = Oprc, Oprb = Oprb,
         Posi = Posi, Depotno = Depotno, Note = Note, LastIprj = lastIprj, OprcMin = OprcMin,
     };
+
+    /// <summary>「修改库存售价」保存后刷新用副本（2026-11-04 需求，同 WithStock 索引替换模式）。</summary>
+    public PartItem WithStockPrice(string posi, string dc, decimal oprc, decimal oprb, decimal oprcMin) => new()
+    {
+        Id = Id, Dpm = Dpm, Cp = Cp, Nno = Nno, Na1 = Na1, Ty = Ty, Fa = Fa, Dc = dc,
+        Unit = Unit, Kcamount = Kcamount, Iprj = Iprj, Iprc = Iprc, Oprc = oprc, Oprb = oprb,
+        Posi = posi, Depotno = Depotno, Note = Note, LastIprj = LastIprj, OprcMin = oprcMin,
+    };
 }

@@ -56,7 +56,7 @@
                     <Separator/>
                     <MenuItem Header="库存盘点" Command="{Binding OpenStocktakeCommand}"/>
                     <MenuItem Header="库存调价" Command="{Binding OpenPriceAdjustCommand}" ToolTip="B.4（fr_istotj：整批调价，库存/供应商基准价）"/>
-                    <MenuItem Header="警戒线设置" Command="{Binding OpenJjLineCommand}" ToolTip="B.5（fr_istojj：月销售数×系数→tbistojj）"/>
+                    <MenuItem Header="警戒线设置" Command="{Binding OpenJjLineCommand}" ToolTip="B.5（tbistojj 双档警戒值，手动逐行编辑，低库存行红字）"/>
                     <MenuItem Header="入库退货管理" Command="{Binding OpenPurchaseReturnCommand}"/>
                     <MenuItem Header="提货管理" Command="{Binding OpenDeliveryCommand}"/>
                     <MenuItem Header="每日动态盘点表" Command="{Binding OpenDailyStocktakeCommand}"/>
