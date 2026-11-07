@@ -32,6 +32,19 @@
     </None>
   </ItemGroup>
 
+  <!-- 发布时排除被引用 QPGL.Api 工程自带的 appsettings.json：
+       它与本工程 appsettings.json 的发布相对路径重名，会触发 NETSDK1152。
+       Web 端配置已通过上面的 appsettings.web.json 链接单独随包发布。 -->
+  <PropertyGroup>
+    <ApiAppSettingsFullPath>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\..\QPGL.Api\appsettings.json'))</ApiAppSettingsFullPath>
+  </PropertyGroup>
+
+  <Target Name="ExcludeReferencedApiAppSettings" AfterTargets="ComputeFilesToPublish">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(ResolvedFileToPublish.FullPath)' == '$(ApiAppSettingsFullPath)' and '%(ResolvedFileToPublish.RelativePath)' == 'appsettings.json'" />
+    </ItemGroup>
+  </Target>
+
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
