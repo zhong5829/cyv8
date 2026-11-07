@@ -201,7 +201,7 @@ public partial class InStockControl : UserControl
         GysPopup.IsOpen = true;
     }
 
-    private void GynameBox_PreviewKeyDown(object sender, KeyEventArgs e)
+    private async void GynameBox_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         switch (e.Key)
         {
@@ -223,6 +223,9 @@ public partial class InStockControl : UserControl
                 e.Handled = true;
                 break;
             case Key.Enter:
+                // 回车冲突处理（2026-11-07 需求）：联想下拉「有高亮项」时回车仍为选中该项（完全保持原行为）；
+                // 下拉未展开，或已展开但无高亮（用户只用鼠标点了输入框、没按 ↑/↓ 定位，SelectedIndex 仍为 -1）时，
+                // 才进入供应商名称检测。这样不会出现"想选中联想项却弹出新增询问"。
                 if (GysPopup.IsOpen && GysList.SelectedItem is Domain.Partners.SupplierRow s)
                 {
                     VM.ApplySupplier(s);
@@ -231,6 +234,7 @@ public partial class InStockControl : UserControl
                 else
                 {
                     GysPopup.IsOpen = false;
+                    await CheckSupplierNameAsync();
                 }
                 e.Handled = true;
                 break;
@@ -239,6 +243,47 @@ public partial class InStockControl : UserControl
                 e.Handled = true;
                 break;
         }
+    }
+
+    /// <summary>
+    /// 供应商名称检测（2026-11-07 需求，回车触发）：按名称精确比对（Trim + 忽略大小写，不做忽略中间空格宽松匹配，
+    /// 输入编号不算命中）；命中 → 回填名称+编号（等同联想选中，避免编号与名称不匹配）；
+    /// 未命中 → 清空残留编号并询问「是否新增供应商」，确认后打开统一 SupplierEditWindow，
+    /// 保存成功直接把新供应商的名称+编号回填（与联想选中效果一致）。
+    /// </summary>
+    private async System.Threading.Tasks.Task CheckSupplierNameAsync()
+    {
+        var name = VM.Gyname.Trim();
+        if (name.Length == 0) return;
+        Domain.Partners.SupplierRow? hit;
+        try
+        {
+            hit = await VM.FindExactSupplierAsync(name);
+        }
+        catch (Exception ex)
+        {
+            VM.Message = "供应商校验失败：" + ex.Message;
+            return;
+        }
+        if (hit is not null)
+        {
+            VM.ApplySupplier(hit);
+            return;
+        }
+
+        VM.Gyno = "";   // 名称没有对应供应商：清掉可能残留的编号，避免编号与名称错配
+        if (System.Windows.MessageBox.Show(
+                $"供应商「{name}」不存在，是否新增？", "供应商",
+                System.Windows.MessageBoxButton.YesNo, System.Windows.MessageBoxImage.Question)
+            != System.Windows.MessageBoxResult.Yes)
+            return;   // 选「否」：保留输入，但入库时会被供应商存在性校验拦下
+
+        var w = new SupplierEditWindow(null, name) { Owner = Window.GetWindow(this) };
+        w.ShowDialog();          // 必须真正以模态方式显示；此前漏掉本调用，导致选"是"后窗口不出现
+        if (!w.Saved) return;
+        VM.ApplySupplier(new Domain.Partners.SupplierRow { Gyno = w.SavedGyno, Gyname = w.SavedGyname });
+        GynameBox.Focus();
+        GynameBox.CaretIndex = GynameBox.Text.Length;
     }
 
     private async void GysList_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)

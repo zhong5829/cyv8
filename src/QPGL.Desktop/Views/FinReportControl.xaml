@@ -20,7 +20,7 @@
                 <DockPanel>
                     <Button DockPanel.Dock="Bottom" Content="查询试算平衡" Command="{Binding SearchTrialCommand}" HorizontalAlignment="Left" Margin="0,6,0,0"/>
                     <DataGrid ItemsSource="{Binding TrialRows}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
-                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                               HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="科目代码" Binding="{Binding Subcode}" Width="110"/>
                             <DataGridTextColumn Header="科目名称" Binding="{Binding Subname}" Width="*"/>
@@ -53,7 +53,7 @@
                         <Button Content="查询汇总" Command="{Binding SearchSummaryCommand}"/>
                     </StackPanel>
                     <DataGrid ItemsSource="{Binding SummaryRows}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
-                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                               HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="科目代码" Binding="{Binding Subcode}" Width="110"/>
                             <DataGridTextColumn Header="科目名称" Binding="{Binding Subname}" Width="*"/>
@@ -70,7 +70,7 @@
                         <Button Content="保存（finprol 重写）" Command="{Binding SaveProlCommand}"/>
                     </StackPanel>
                     <DataGrid ItemsSource="{Binding ProlRows}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
-                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                               HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="行号" Binding="{Binding Reid}" Width="50"/>
                             <DataGridTextColumn Header="项目" Binding="{Binding Itemna}" Width="*"/>
@@ -89,7 +89,7 @@
                         <Button Content="保存（finbs 重写）" Command="{Binding SaveBsCommand}"/>
                     </StackPanel>
                     <DataGrid ItemsSource="{Binding BsRows}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
-                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                               HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="行" Binding="{Binding Reno}" Width="40"/>
                             <DataGridTextColumn Header="资产" Binding="{Binding Asset}" Width="*"/>
@@ -109,7 +109,7 @@
                         <Button Content="保存（fincash 重写）" Command="{Binding SaveCashCommand}"/>
                     </StackPanel>
                     <DataGrid ItemsSource="{Binding CashRows}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
-                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                               HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="项目号" Binding="{Binding Cashid}" Width="80"/>
                             <DataGridTextColumn Header="项目名称" Binding="{Binding Cashna}" Width="*"/>

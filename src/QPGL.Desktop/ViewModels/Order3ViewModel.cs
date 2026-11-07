@@ -93,7 +93,7 @@ public sealed class FormDialog : Window
         var g = new DataGrid
         {
             AutoGenerateColumns = false, CanUserAddRows = false, Height = height,
-            GridLinesVisibility = DataGridGridLinesVisibility.Horizontal, HeadersVisibility = DataGridHeadersVisibility.Column, FontSize = 12,
+            HeadersVisibility = DataGridHeadersVisibility.Column, FontSize = 12,
         };
         buildColumns(g);
         g.ItemsSource = rows.ToList();
@@ -217,6 +217,7 @@ public partial class Order3ViewModel : ObservableObject
         var tNno = d.AddText("编号");
         var tNa1 = d.AddText("名称");
         var tOqty = d.AddText("订货数", "1");
+        IntegerInput.Restrict(tOqty);
         var tIprj = d.AddText("外币价", "0");
         var tOprc = d.AddText("售价", "0");
         var tTy = d.AddText("车型");
@@ -237,6 +238,11 @@ public partial class Order3ViewModel : ObservableObject
             headerInfo.Text = $"供应商={h.Gyname.Trim()} 日期={h.Orderdate:yyyy-MM-dd} 备注类型={h.Bzlx.Trim()}";
         };
         if (!d.ShowOkCancel()) return;
+        if (!IntegerInput.IsInteger(tOqty.Text, out var oqty))
+        {
+            MessageBox.Show("订货数必须是整数（不能带小数）", "订货库管理", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
 
         try
         {
@@ -251,7 +257,7 @@ public partial class Order3ViewModel : ObservableObject
             var input = new OrderLineInput
             {
                 Cno = tCno.Text.Trim(), Orno = tOrno.Text.Trim(), Nno = tNno.Text.Trim(), Na1 = tNa1.Text.Trim(),
-                Oqty = ParseDec(tOqty.Text), Iprj = ParseDec(tIprj.Text), Oprc = ParseDec(tOprc.Text),
+                Oqty = oqty, Iprj = ParseDec(tIprj.Text), Oprc = ParseDec(tOprc.Text),
                 Orderdate = header.Orderdate, Ty = tTy.Text.Trim(), Fa = tFa.Text.Trim(), Unit = tUnit.Text.Trim(),
                 Dc = tDc.Text.Trim(), Note = tNote.Text.Trim(), Gyname = header.Gyname.Trim(),
                 Gname = tGname.Text.Trim(), Fkfs = cbFkfs.SelectedItem?.ToString() ?? "", Bzlx = header.Bzlx.Trim(),
@@ -281,6 +287,7 @@ public partial class Order3ViewModel : ObservableObject
         d.AddText("编号", s.Nno).IsEnabled = false;
         var tNa1 = d.AddText("名称", s.Na1);
         var tOqty = d.AddText("订货数", s.Oqty.ToString("0.##"));
+        IntegerInput.Restrict(tOqty);
         var tIprj = d.AddText("外币价", s.Iprj.ToString("0.##"));
         var tOprc = d.AddText("售价", s.Oprc.ToString("0.##"));
         var tTy = d.AddText("车型", s.Ty);
@@ -291,6 +298,11 @@ public partial class Order3ViewModel : ObservableObject
         var tGname = d.AddText("客户", s.Gname);
         var cbFkfs = d.AddCombo("付款方式", FkfsOptions, s.Fkfs);
         if (!d.ShowOkCancel()) return;
+        if (!IntegerInput.IsInteger(tOqty.Text, out var oqty))
+        {
+            MessageBox.Show("订货数必须是整数（不能带小数）", "订货库管理", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
 
         try
         {
@@ -299,7 +311,7 @@ public partial class Order3ViewModel : ObservableObject
             var input = new OrderLineInput
             {
                 Cno = tCno.Text.Trim(), Orno = tOrno.Text.Trim(), Item = s.Item, Nno = s.Nno, Na1 = tNa1.Text.Trim(),
-                Oqty = ParseDec(tOqty.Text), Iprj = ParseDec(tIprj.Text), Oprc = ParseDec(tOprc.Text),
+                Oqty = oqty, Iprj = ParseDec(tIprj.Text), Oprc = ParseDec(tOprc.Text),
                 Orderdate = s.Orderdate, Ty = tTy.Text.Trim(), Fa = tFa.Text.Trim(), Unit = tUnit.Text.Trim(),
                 Dc = tDc.Text.Trim(), Note = tNote.Text.Trim(), Gyname = s.Gyname,
                 Gname = tGname.Text.Trim(), Fkfs = cbFkfs.SelectedItem?.ToString() ?? "", Bzlx = s.Bzlx,

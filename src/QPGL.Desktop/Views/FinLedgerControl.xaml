@@ -23,7 +23,7 @@
                 <DockPanel>
                     <Button DockPanel.Dock="Bottom" Content="查询总账" Command="{Binding SearchAlegerCommand}" HorizontalAlignment="Left" Margin="0,6,0,0"/>
                     <DataGrid ItemsSource="{Binding AlegerRows}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
-                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                               HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="科目代码" Binding="{Binding Subcode}" Width="110"/>
                             <DataGridTextColumn Header="科目名称" Binding="{Binding Name}" Width="*"/>
@@ -45,7 +45,7 @@
                         <Button Content="查询明细账" Command="{Binding SearchAledetCommand}"/>
                     </StackPanel>
                     <DataGrid ItemsSource="{Binding AledetRows}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
-                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                               HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="日期" Binding="{Binding Date, StringFormat=yyyy-MM-dd}" Width="90"/>
                             <DataGridTextColumn Header="凭证字号" Binding="{Binding Vouword}" Width="90"/>
@@ -67,20 +67,20 @@
                         <Button Content="查询数量金额账" Command="{Binding SearchAmsumCommand}"/>
                     </StackPanel>
                     <DataGrid ItemsSource="{Binding AmsumRows}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
-                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                               HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="科目代码" Binding="{Binding Subcode}" Width="110"/>
                             <DataGridTextColumn Header="科目名称" Binding="{Binding Subname}" Width="*"/>
                             <DataGridTextColumn Header="期间" Binding="{Binding Period}" Width="70"/>
                             <DataGridTextColumn Header="期初方向" Binding="{Binding Bdcdir}" Width="70"/>
-                            <DataGridTextColumn Header="期初数量" Binding="{Binding Bamount, StringFormat=N2}" Width="80"/>
+                            <DataGridTextColumn Header="期初数量" Binding="{Binding Bamount, Converter={StaticResource QtyInt}}" Width="80"/>
                             <DataGridTextColumn Header="期初结存" Binding="{Binding Bbalance, StringFormat=N2}" Width="90"/>
-                            <DataGridTextColumn Header="本期收数量" Binding="{Binding Cdeamou, StringFormat=N2}" Width="80"/>
+                            <DataGridTextColumn Header="本期收数量" Binding="{Binding Cdeamou, Converter={StaticResource QtyInt}}" Width="80"/>
                             <DataGridTextColumn Header="本期收金额" Binding="{Binding Cdesum, StringFormat=N2}" Width="90"/>
-                            <DataGridTextColumn Header="本期发数量" Binding="{Binding Ccreamou, StringFormat=N2}" Width="80"/>
+                            <DataGridTextColumn Header="本期发数量" Binding="{Binding Ccreamou, Converter={StaticResource QtyInt}}" Width="80"/>
                             <DataGridTextColumn Header="本期发金额" Binding="{Binding Ccresum, StringFormat=N2}" Width="90"/>
                             <DataGridTextColumn Header="期末方向" Binding="{Binding Edcdir}" Width="70"/>
-                            <DataGridTextColumn Header="期末数量" Binding="{Binding Eamount, StringFormat=N2}" Width="80"/>
+                            <DataGridTextColumn Header="期末数量" Binding="{Binding Eamount, Converter={StaticResource QtyInt}}" Width="80"/>
                             <DataGridTextColumn Header="期末结存" Binding="{Binding Ebalance, StringFormat=N2}" Width="90"/>
                         </DataGrid.Columns>
                     </DataGrid>
@@ -96,7 +96,7 @@
                         <Button Content="查询核算项目账" Command="{Binding SearchItsubCommand}"/>
                     </StackPanel>
                     <DataGrid ItemsSource="{Binding ItsubRows}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
-                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                               HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="类别" Binding="{Binding Itemty}" Width="50"/>
                             <DataGridTextColumn Header="项目" Binding="{Binding Itemna}" Width="140"/>
@@ -121,7 +121,7 @@
                         <Button Content="查询多栏账" Command="{Binding SearchColumnCommand}"/>
                     </StackPanel>
                     <DataGrid ItemsSource="{Binding ColumnRows}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
-                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                               HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="日期" Binding="{Binding Date, StringFormat=yyyy-MM-dd}" Width="90"/>
                             <DataGridTextColumn Header="凭证字号" Binding="{Binding Vword}" Width="90"/>

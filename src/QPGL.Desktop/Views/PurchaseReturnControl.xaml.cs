@@ -38,7 +38,7 @@ public partial class PurchaseReturnControl : UserControl
         _ = _vm.ToggleModeAsync(System.Threading.CancellationToken.None);
     }
 
-    /// <summary>供应商联想搜索：tbgugys（MAKER 配置则 tbgu）按 拼音码 code/数字码 code1/名称/编号 匹配，取 200 条。</summary>
+    /// <summary>供应商联想搜索：合并 tbgu + tbgugys（tbgu 优先）按 拼音码 code/数字码 code1/名称/编号 匹配，取 200 条。</summary>
     private async System.Threading.Tasks.Task SearchSuppliersAsync()
     {
         if (_suppressGySearch) { _suppressGySearch = false; return; }
@@ -46,7 +46,7 @@ public partial class PurchaseReturnControl : UserControl
         try
         {
             var request = new PagedRequest { Page = 1, PageSize = 200, Sort = "partName", Order = "asc", Keyword = kw };
-            var result = await Db.Suppliers.SearchAsync(request);
+            var result = await Db.Suppliers.SearchMergedAsync(request);
             GyList.ItemsSource = result.Items;
             GyPopup.IsOpen = result.Items.Count > 0;
             if (GyList.Items.Count > 0) GyList.SelectedIndex = 0;

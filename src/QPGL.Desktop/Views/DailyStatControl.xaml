@@ -14,7 +14,7 @@
             <DataGrid.Columns>
                 <DataGridTextColumn Header="日期" Binding="{Binding Outdate, StringFormat=yyyy-MM-dd}" Width="90"/>
                 <DataGridTextColumn Header="单数" Binding="{Binding PaperCount}" Width="50"/>
-                <DataGridTextColumn Header="销售数量" Binding="{Binding Ckamount}" Width="80"/>
+                <DataGridTextColumn Header="销售数量" Binding="{Binding Ckamount, Converter={StaticResource QtyInt}}" Width="80"/>
                 <DataGridTextColumn Header="销售收入" Binding="{Binding Iprj}" Width="90"/>
                 <DataGridTextColumn Header="销售成本" Binding="{Binding Iprc}" Width="90"/>
                 <DataGridTextColumn Header="销售额" Binding="{Binding Oprc}" Width="90"/>
@@ -22,7 +22,7 @@
                 <DataGridTextColumn Header="毛利" Binding="{Binding Ml}" Width="90"/>
                 <DataGridTextColumn Header="状态" Binding="{Binding Mark}" Width="70"/>
                 <DataGridTextColumn Header="入库单数" Binding="{Binding Rccno}" Width="70"/>
-                <DataGridTextColumn Header="入库数量" Binding="{Binding Rcamt}" Width="80"/>
+                <DataGridTextColumn Header="入库数量" Binding="{Binding Rcamt, Converter={StaticResource QtyInt}}" Width="80"/>
                 <DataGridTextColumn Header="入库金额" Binding="{Binding Rciprj}" Width="90"/>
                 <DataGridTextColumn Header="入库成本" Binding="{Binding Rciprc}" Width="90"/>
             </DataGrid.Columns>

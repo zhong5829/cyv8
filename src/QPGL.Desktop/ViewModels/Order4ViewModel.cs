@@ -6,8 +6,10 @@ using System.Windows.Media;
 using ClosedXML.Excel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using QPGL.Desktop.Converters;
 using QPGL.Desktop.Services;
 using QPGL.Domain.Common;
+using QPGL.Domain.Parts;
 using QPGL.Infrastructure.Orders;
 using QPGL.Infrastructure.Parts;
 
@@ -24,6 +26,8 @@ public partial class Order4ViewModel : ObservableObject
     public ObservableCollection<PartPickRow> PickRows { get; } = [];
     public ObservableCollection<PartInRecordRow> InRecords { get; } = [];
     public ObservableCollection<PartSaleRecordRow> SaleRecords { get; } = [];
+    /// <summary>进货历史（2026-11-06 需求）：选中明细行对应配件的 tbistoed 入库/历史记录。</summary>
+    public ObservableCollection<PartPurchaseHistory> PurchaseHistory { get; } = [];
     public ObservableCollection<PlanLineRow> Lines { get; } = [];
     public ObservableCollection<OrderExpRow> Formulas { get; } = [];
 
@@ -35,6 +39,8 @@ public partial class Order4ViewModel : ObservableObject
     [ObservableProperty] private OrderExpRow? _selectedFormula;
     [ObservableProperty] private string _message = "";
     [ObservableProperty] private bool _isBusy;
+    /// <summary>进货历史区状态/空态提示（空字符串时隐藏提示文本）。</summary>
+    [ObservableProperty] private string _purchaseHistoryHint = NoLinePurchaseHistoryHint;
 
     // 选料查询条（2026-11-03 需求：编码/名称/车型三条件实时+防抖；名称/车型支持拼音码）
     [ObservableProperty] private string _qNno = "";
@@ -53,7 +59,11 @@ public partial class Order4ViewModel : ObservableObject
     [ObservableProperty] private string _supplyInfo = "";
     [ObservableProperty] private string _suggestInfo = "";
 
-    partial void OnSelectedLineChanged(PlanLineRow? value) => _ = RefreshLinkAsync();
+    partial void OnSelectedLineChanged(PlanLineRow? value)
+    {
+        _ = RefreshLinkAsync();
+        _ = LoadPurchaseHistoryDebouncedAsync();
+    }
     partial void OnSelectedPickChanged(PartPickRow? value)
     {
         _ = RefreshLinkAsync();
@@ -130,6 +140,11 @@ public partial class Order4ViewModel : ObservableObject
     private bool _pickHasMore;
     /// <summary>历史区竞态序号（快速切换选中行时旧请求晚到丢弃）。</summary>
     private int _histSeq;
+    /// <summary>进货历史区空态提示（未选中明细行）。</summary>
+    private const string NoLinePurchaseHistoryHint = "未选中配件：请在上方明细中选择配件后查看进货历史";
+    /// <summary>进货历史防抖窗口（毫秒）与取消源：连续快速切换选中行只保留最后一次查询。</summary>
+    private const int PurchaseHistoryDebounceMs = 200;
+    private CancellationTokenSource? _purchaseHistoryCts;
 
     [RelayCommand]
     public async Task NewPlanAsync(CancellationToken ct)
@@ -437,6 +452,44 @@ public partial class Order4ViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// 进货历史区（2026-11-06 需求）：明细行选中即查，无需查询按钮。
+    /// 口径复用 IPartRepository.GetPurchaseHistoryAsync（与销售编辑窗 SaleLineEditDialog 完全同一套）：
+    /// type IN ('入库','历史')、按 indate DESC, id DESC、不过滤 jkamount 正负（进货退货为负数行）。
+    /// 防抖 + CancellationToken：连续快速切换选中行时取消旧查询，并用选中行引用复核防串结果。
+    /// </summary>
+    private async Task LoadPurchaseHistoryDebouncedAsync()
+    {
+        _purchaseHistoryCts?.Cancel();   // 取消上一次（含仍在防抖等待中的查询）
+        var line = SelectedLine;
+        PurchaseHistory.Clear();
+        if (line is null || string.IsNullOrWhiteSpace(line.Nno))
+        {
+            PurchaseHistoryHint = NoLinePurchaseHistoryHint;
+            return;
+        }
+
+        var cts = _purchaseHistoryCts = new CancellationTokenSource();
+        var ct = cts.Token;
+        PurchaseHistoryHint = $"正在加载 {line.Nno.Trim()} 的进货历史…";
+        try
+        {
+            await Task.Delay(PurchaseHistoryDebounceMs, ct);
+            var rows = await Db.Parts.GetPurchaseHistoryAsync(line.Nno, AppSession.DeptNo, 0, null, ct);
+            if (ct.IsCancellationRequested || !ReferenceEquals(SelectedLine, line)) return;
+            foreach (var r in rows) PurchaseHistory.Add(r);
+            PurchaseHistoryHint = rows.Count == 0 ? $"配件 {line.Nno.Trim()} 暂无进货记录" : "";
+        }
+        catch (OperationCanceledException)
+        {
+            // 快速切换选中行：旧查询被取消，静默丢弃
+        }
+        catch (AppException ex)
+        {
+            if (!ct.IsCancellationRequested) PurchaseHistoryHint = ex.Message;
+        }
+    }
+
     // ---------- 明细行操作 ----------
 
     [RelayCommand]
@@ -451,10 +504,16 @@ public partial class Order4ViewModel : ObservableObject
         }
         var d = new FormDialog($"订货 - {p.Nno.Trim()} {p.Na1.Trim()}");
         var tOqty = d.AddText("订数", (p.Ydqty > 0 ? p.Ydqty : 1).ToString("0.##"));
+        IntegerInput.Restrict(tOqty);
         var tIprj = d.AddText("进价", p.Iprj.ToString("0.##"));
         var tOprc = d.AddText("售价(可空)", "0");
         d.ChainEnterFocus(tOqty, tIprj, tOprc);   // 打开聚焦订数全选；回车→进价→售价全选；再回车=确定
         if (!d.ShowOkCancel()) return;
+        if (!IntegerInput.IsInteger(tOqty.Text, out var oqty))
+        {
+            MessageBox.Show("订数必须是整数（不能带小数）", "订单生成", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
         // 旧 ___.row352 L9-13：新增行继承单头（日期/备注类型/供应商/付款方式/直发客户）；
         // 新单尚无行时用「新建计划单」录入的日期/供应商兜底
         var head = SelectedPlan ?? Plans.FirstOrDefault(pl => pl.Cno == CurrentCno);
@@ -462,7 +521,7 @@ public partial class Order4ViewModel : ObservableObject
         var input = new OrderLineAddInput
         {
             Cno = CurrentCno, Nno = p.Nno, Na1 = p.Na1, Ty = p.Ty, Unit = p.Unit, Dc = p.Dc,
-            Oqty = ParseDec(tOqty.Text), Iprj = ParseDec(tIprj.Text), Fa = p.Fa.Trim(),
+            Oqty = oqty, Iprj = ParseDec(tIprj.Text), Fa = p.Fa.Trim(),
             Oprc = ParseDec(tOprc.Text) is > 0 ? ParseDec(tOprc.Text) : null,
             Orderdate = head?.Orderdate ?? firstLine?.Orderdate ?? _newPlanDate ?? DateTime.Today,
             Bzlx = head?.Bzlx?.Trim() ?? firstLine?.Bzlx ?? "",
@@ -511,14 +570,20 @@ public partial class Order4ViewModel : ObservableObject
         if (l is null) return;
         var d = new FormDialog($"修改行 - {l.Nno.Trim()} {l.Na1.Trim()}");
         var tOqty = d.AddText("数量", l.Oqty.ToString("0.##"));
+        IntegerInput.Restrict(tOqty);
         var tIprj = d.AddText("进价", l.Iprj.ToString("0.##"));
         var tOprc = d.AddText("售价", l.Oprc.ToString("0.##"));
         if (!d.ShowOkCancel()) return;
+        if (!IntegerInput.IsInteger(tOqty.Text, out var oqty))
+        {
+            MessageBox.Show("数量必须是整数（不能带小数）", "订单生成", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
         try
         {
             IsBusy = true;
             Message = "";
-            var deleted = await Db.Order4.UpdateLineAsync(l.Id, ParseDec(tOqty.Text), ParseDec(tIprj.Text),
+            var deleted = await Db.Order4.UpdateLineAsync(l.Id, oqty, ParseDec(tIprj.Text),
                 ParseDec(tOprc.Text), l.Fa.Trim(), AppSession.DeptNo, Cp.Trim(), ct);
             if (deleted) MessageBox.Show("数量为 0，该行已删除。", "订单生成", MessageBoxButton.OK, MessageBoxImage.Information);
             await LoadLinesAsync(ct);
@@ -617,6 +682,7 @@ public partial class Order4ViewModel : ObservableObject
         var d = new FormDialog("改单号/拆数量");
         var tCno = d.AddText("新单号");
         var tQty = d.AddText("新数量", l.Oqty.ToString("0.##"));
+        IntegerInput.Restrict(tQty);
         if (!d.ShowOkCancel()) return;
         var newCno = tCno.Text.Trim();
         if (newCno.Length == 0)
@@ -624,8 +690,12 @@ public partial class Order4ViewModel : ObservableObject
             MessageBox.Show("新单号不能为空。", "订单生成", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
+        if (!IntegerInput.IsInteger(tQty.Text, out var newQty))
+        {
+            MessageBox.Show("新数量必须是整数（不能带小数）", "订单生成", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
         // 旧 g__.row510 L21-30：数量校验（TXT3.TAG=原数量）
-        var newQty = ParseDec(tQty.Text);
         if (newQty > l.Oqty)
         {
             MessageBox.Show("新订货数量不能大于原订货数量。", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -747,7 +817,7 @@ public partial class Order4ViewModel : ObservableObject
                 ? "进仓 0 笔"
                 : $"进仓 {ins.Count} 笔，最近 {last!.Indate:yyyy-MM-dd} {last.Gyname.Trim()} 进价 {last.Iprc:N2}";
             var zt = await Db.Order4.GetTransitAsync(cp, nno);
-            TransitInfo = zt.Count == 0 ? "无在途" : $"在途 {zt.Sum(r => r.Ztqty):N0} 件 / {zt.Count} 单";
+            TransitInfo = zt.Count == 0 ? "无在途" : $"在途 {QtyTruncateConverter.Format(zt.Sum(r => r.Ztqty))} 件 / {zt.Count} 单";
             var sup = await Db.Order4.GetSupplyPricesAsync(cp, nno);
             SupplyInfo = sup.Count == 0
                 ? "无供应商价"
@@ -757,7 +827,7 @@ public partial class Order4ViewModel : ObservableObject
                 // 公式执行日期区间=选料查询条（备案：旧为公式窗独立日期）；P02=区间月均（2026-11-04 改，默认全部日期）
                 var q = await Db.Order4.GetSuggestQtyAsync(f.Cexpress, SelectedPick.Nno, AppSession.DeptNo, cp,
                     AppSession.DeptPermissions, QDate1, QDate2);
-                SuggestInfo = $"公式「{f.Expna.Trim()}」建议订数：{q:N0}";
+                SuggestInfo = $"公式「{f.Expna.Trim()}」建议订数：{QtyTruncateConverter.Format(q)}";
             }
         }
         catch (AppException ex)

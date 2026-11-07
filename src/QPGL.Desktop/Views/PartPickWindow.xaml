@@ -35,7 +35,7 @@
 
         <!-- 上：配件列表（无限滑动加载） -->
         <Border Grid.Row="1" Background="White" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" CornerRadius="3">
-            <DataGrid x:Name="PartGrid" AutoGenerateColumns="False" CanUserAddRows="False" GridLinesVisibility="Horizontal"
+            <DataGrid x:Name="PartGrid" AutoGenerateColumns="False" CanUserAddRows="False"
                       HeadersVisibility="Column" FontSize="12" Margin="1"
                       MouseDoubleClick="PartGrid_MouseDoubleClick" PreviewKeyDown="PartGrid_PreviewKeyDown"
                       SelectionChanged="PartGrid_SelectionChanged">
@@ -46,7 +46,7 @@
                     <DataGridTextColumn Header="车型" Binding="{Binding Ty}" Width="90"/>
                     <DataGridTextColumn Header="货位" Binding="{Binding Posi}" Width="70"/>
                     <DataGridTextColumn Header="仓库" Binding="{Binding Depotno}" Width="60"/>
-                    <DataGridTextColumn Header="库存" Binding="{Binding Kcamount}" Width="70"/>
+                    <DataGridTextColumn Header="库存" Binding="{Binding Kcamount, Converter={StaticResource QtyInt}}" Width="70"/>
                     <DataGridTextColumn Header="进价(不含税)" Binding="{Binding Iprj, StringFormat=N2}" Width="95"/>
                     <DataGridTextColumn Header="进价(含税)" Binding="{Binding Iprc, StringFormat=N2}" Width="85"/>
                     <DataGridTextColumn Header="零售价" Binding="{Binding Oprc, StringFormat=N2}" Width="75"/>
@@ -66,12 +66,12 @@
                 <TextBlock DockPanel.Dock="Top" Text="进货历史（选中配件）" FontWeight="Bold" Margin="2,0,0,3"/>
                 <Border Background="White" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" CornerRadius="3">
                     <DataGrid ItemsSource="{Binding InRecords}"
-                              AutoGenerateColumns="False" CanUserAddRows="False" GridLinesVisibility="Horizontal"
+                              AutoGenerateColumns="False" CanUserAddRows="False"
                               HeadersVisibility="Column" FontSize="12" Margin="1" IsReadOnly="True">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="日期" Binding="{Binding Indate, Mode=OneWay, StringFormat=yyyy-MM-dd}" IsReadOnly="True" Width="90"/>
                             <DataGridTextColumn Header="供应商" Binding="{Binding Gyname}" IsReadOnly="True" Width="160"/>
-                            <DataGridTextColumn Header="数量" Binding="{Binding Jkamount, Mode=OneWay}" IsReadOnly="True" Width="80"
+                            <DataGridTextColumn Header="数量" Binding="{Binding Jkamount, Mode=OneWay, Converter={StaticResource QtyInt}}" IsReadOnly="True" Width="80"
                                                 ElementStyle="{StaticResource NumCellRight}"/>
                             <DataGridTextColumn Header="进价" Binding="{Binding Iprc, Mode=OneWay, StringFormat=N2}" IsReadOnly="True" Width="90"
                                                 ElementStyle="{StaticResource NumCellRight}"/>
@@ -85,13 +85,13 @@
                 <TextBlock DockPanel.Dock="Top" Text="销售历史（选中配件）" FontWeight="Bold" Margin="2,0,0,3"/>
                 <Border Background="White" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" CornerRadius="3">
                     <DataGrid ItemsSource="{Binding SaleRecords}"
-                              AutoGenerateColumns="False" CanUserAddRows="False" GridLinesVisibility="Horizontal"
+                              AutoGenerateColumns="False" CanUserAddRows="False"
                               HeadersVisibility="Column" FontSize="12" Margin="1" IsReadOnly="True">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="日期" Binding="{Binding Outdate, Mode=OneWay, StringFormat=yyyy-MM-dd}" IsReadOnly="True" Width="90"/>
                             <DataGridTextColumn Header="编号" Binding="{Binding Nno}" IsReadOnly="True" Width="110"/>
                             <DataGridTextColumn Header="客户" Binding="{Binding Gname}" IsReadOnly="True" Width="160"/>
-                            <DataGridTextColumn Header="数量" Binding="{Binding Ckamount, Mode=OneWay}" IsReadOnly="True" Width="80"
+                            <DataGridTextColumn Header="数量" Binding="{Binding Ckamount, Mode=OneWay, Converter={StaticResource QtyInt}}" IsReadOnly="True" Width="80"
                                                 ElementStyle="{StaticResource NumCellRight}"/>
                             <DataGridTextColumn Header="售价" Binding="{Binding Oprc, Mode=OneWay, StringFormat=N2}" IsReadOnly="True" Width="90"
                                                 ElementStyle="{StaticResource NumCellRight}"/>

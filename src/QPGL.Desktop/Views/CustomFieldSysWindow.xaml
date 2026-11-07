@@ -35,7 +35,7 @@
             <StackPanel Grid.Column="2">
                 <TextBlock Text="已选字段列表" Foreground="White" Background="Teal" Padding="4,2"/>
                 <DataGrid x:Name="GrdAgg" Height="200" Margin="0,4,0,0" AutoGenerateColumns="False"
-                          CanUserAddRows="False" HeadersVisibility="Column" GridLinesVisibility="Horizontal">
+                          CanUserAddRows="False" HeadersVisibility="Column" >
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="字段" Binding="{Binding Explain}" Width="70" IsReadOnly="True"/>
                         <DataGridComboBoxColumn x:Name="ColMethod" Header="计算方法" SelectedValueBinding="{Binding Method, UpdateSourceTrigger=PropertyChanged}"

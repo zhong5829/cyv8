@@ -10,7 +10,7 @@ namespace QPGL.Desktop.Views;
 
 /// <summary>
 /// 新建计划单对话框（2026-11-03 需求）：计划单号 + 订货日期 + 供应商（拼音码联想）。
-/// 供应商联想与入库页同机制（Db.Suppliers.SearchAsync：tbgugys 按 gyname/gyno/code 拼音码/code1 数字码
+/// 供应商联想与入库页同机制（Db.Suppliers.SearchMergedAsync：合并 tbgu + tbgugys，按 gyname/gyno/code 拼音码/code1 数字码
 /// 前缀匹配，300ms 防抖；↑/↓ 选行、回车确认、Esc 关联想），确定后由 VM 校验单号并存为新单默认单头。
 /// </summary>
 public partial class NewPlanDialog : Window
@@ -46,7 +46,7 @@ public partial class NewPlanDialog : Window
         try
         {
             var request = new PagedRequest { Page = 1, PageSize = 200, Sort = "gyno", Order = "asc", Keyword = kw };
-            var result = await Db.Suppliers.SearchAsync(request);
+            var result = await Db.Suppliers.SearchMergedAsync(request);
             GysList.ItemsSource = result.Items;
             GysPopup.IsOpen = result.Items.Count > 0;
             if (GysList.Items.Count > 0) GysList.SelectedIndex = 0;

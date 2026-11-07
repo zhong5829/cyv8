@@ -239,7 +239,7 @@ public partial class PurchaseReturnViewModel : ObservableObject
                     new QueryColumnSpec("Nno", "配件编号", 'C', 110),
                     new QueryColumnSpec("Na1", "名称", 'C', 200),
                     new QueryColumnSpec("Ty", "车型", 'C', 110),
-                    new QueryColumnSpec("Amount", "退库数", 'N', 60),
+                    new QueryColumnSpec("Amount", "退库数", 'N', 60, QueryGridHelper.QtyFormat),
                     new QueryColumnSpec("Iprj", "外币价", 'N', 60, "F2"),
                     new QueryColumnSpec("Iprc", "进价", 'N', 60, "F2"),
                     new QueryColumnSpec("Depotno", "库号", 'C', 50),
@@ -266,7 +266,7 @@ public partial class PurchaseReturnViewModel : ObservableObject
                     new QueryColumnSpec("Fkfs", "退款方式", 'C', 70),
                     new QueryColumnSpec("Per", "经办人", 'C', 70),
                     new QueryColumnSpec("LineCount", "行数", 'N', 55),
-                    new QueryColumnSpec("TotalAmount", "退货数量", 'N', 70),
+                    new QueryColumnSpec("TotalAmount", "退货数量", 'N', 70, QueryGridHelper.QtyFormat),
                 ],
                 Rows = QueryGridHelper.Wrap(Docs),
             });

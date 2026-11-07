@@ -143,6 +143,7 @@ public partial class StockAdjustViewModel : ObservableObject
         Message = "";
         if (SelectedBatch is null) { Message = "请先在上表选择源批次"; return; }
         if (string.IsNullOrWhiteSpace(Paper)) { Message = "请先新建调仓单（或输入未确认单号）"; return; }
+        if (Qty != decimal.Truncate(Qty)) { Message = "调仓数量必须为整数"; return; }
         IsBusy = true;
         try
         {

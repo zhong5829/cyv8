@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using QPGL.Desktop.Services;
 using QPGL.Domain.Sales;
 
 namespace QPGL.Desktop.Views;
@@ -26,6 +27,7 @@ public partial class ReturnLineEditDialog : Window
         string depotNo, string posi, IReadOnlyList<ReturnBatchOption> batches, bool scrap = false)
     {
         InitializeComponent();
+        IntegerInput.Restrict(TxtReturnQty);   // 退货数量只允许整数录入（2026-11-07 需求）
         Title = caption;
         _batches = [.. batches];
         TxtPartContext.Text = partContext;
@@ -67,6 +69,11 @@ public partial class ReturnLineEditDialog : Window
         if (!decimal.TryParse(TxtReturnQty.Text.Trim(), out var returnQty) || returnQty <= 0)
         {
             ShowError("本次退货数量必须大于 0！");
+            return;
+        }
+        if (returnQty != decimal.Truncate(returnQty))
+        {
+            ShowError("本次退货数量必须是整数（不能带小数）！");
             return;
         }
         if (!decimal.TryParse(TxtQty.Text, out var qty) || !decimal.TryParse(TxtReturned.Text, out var returned))

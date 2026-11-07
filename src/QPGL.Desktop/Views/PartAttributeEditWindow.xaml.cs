@@ -29,6 +29,7 @@ public partial class PartAttributeEditWindow : Window
     public PartAttributeEditWindow(PrnotyRow? source, string cp)
     {
         InitializeComponent();
+        IntegerInput.Restrict(UqtyBox);   // 最小包装数只允许整数录入（2026-11-07 需求）
         Row = source is null ? new PrnotyRow { Cp = cp } : CloneRow(source);
         Loaded += async (_, _) => await LoadDictsAsync();
         Loaded += async (_, _) => await LoadPartImageAsync();
@@ -305,6 +306,11 @@ public partial class PartAttributeEditWindow : Window
         if (NnoBox.Text.Trim().Length == 0 || Na1Box.Text.Trim().Length == 0)
         {
             MessageBox.Show("请输入零件编号和零件名！", Title, MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        if (UqtyBox.Text.Trim().Length > 0 && !IntegerInput.IsInteger(UqtyBox.Text, out _))
+        {
+            MessageBox.Show("最小包装数必须是整数（不能带小数）！", Title, MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
         WriteBack();

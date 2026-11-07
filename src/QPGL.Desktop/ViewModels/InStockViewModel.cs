@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using QPGL.Desktop.Services;
 using QPGL.Domain.Common;
+using QPGL.Domain.Parts;
 using QPGL.Domain.Stock;
 
 namespace QPGL.Desktop.ViewModels;
@@ -37,6 +38,9 @@ public partial class InStockViewModel : ObservableObject
 {
     public ObservableCollection<InStockLineRow> Lines { get; } = [];
 
+    /// <summary>进货历史（2026-11-07 需求）：选中明细行对应配件的 tbistoed 入库/历史记录（与订单生成页同源）。</summary>
+    public ObservableCollection<PartPurchaseHistory> PurchaseHistory { get; } = [];
+
     [ObservableProperty] private string _cno = "";
     [ObservableProperty] private string _gyno = "";
     [ObservableProperty] private string _gyname = "";
@@ -60,8 +64,19 @@ public partial class InStockViewModel : ObservableObject
     [ObservableProperty] private decimal _totalQty;
     /// <summary>脏标记（2026-11-02 暂存需求）：加/改/删明细后为 true，保存暂存或生效后清零，关闭页面/退出时据此提示。</summary>
     [ObservableProperty] private bool _isDirty;
+    /// <summary>进货历史区状态/空态提示（空字符串时隐藏提示文本）。</summary>
+    [ObservableProperty] private string _purchaseHistoryHint = NoLinePurchaseHistoryHint;
 
-    public InStockLineRow? SelectedLine { get; set; }
+    /// <summary>选中明细行（2026-11-07 需求：改为可通知属性，选中变化即刷新进货历史）。</summary>
+    [ObservableProperty] private InStockLineRow? _selectedLine;
+
+    /// <summary>进货历史区空态提示（未选中明细行）。</summary>
+    private const string NoLinePurchaseHistoryHint = "未选中配件：请在上方明细中选择配件后查看进货历史";
+    /// <summary>进货历史防抖窗口（毫秒）与取消源：连续快速切换选中行只保留最后一次查询。</summary>
+    private const int PurchaseHistoryDebounceMs = 200;
+    private CancellationTokenSource? _purchaseHistoryCts;
+
+    partial void OnSelectedLineChanged(InStockLineRow? value) => _ = LoadPurchaseHistoryDebouncedAsync();
 
     public InStockViewModel()
     {
@@ -81,7 +96,8 @@ public partial class InStockViewModel : ObservableObject
     }
 
     /// <summary>
-    /// 供应商联想搜索（tbgugys 按 gyname/gyno/code 拼音码/code1 数字码匹配）。
+    /// 供应商联想搜索（合并 tbgu + tbgugys，按 gyname/gyno/code 拼音码/code1 数字码匹配）：
+    /// 存量客户型供应商（历史入库单 511/530 来自 tbgu）与新建在 tbgugys 的供应商都能命中。
     /// </summary>
     public async System.Threading.Tasks.Task SearchSupplierSuggestionsAsync(CancellationToken ct = default)
     {
@@ -94,7 +110,7 @@ public partial class InStockViewModel : ObservableObject
         try
         {
             var request = new PagedRequest { Page = 1, PageSize = 200, Sort = "gyno", Order = "asc", Keyword = kw };
-            var result = await Db.Suppliers.SearchAsync(request, ct);
+            var result = await Db.Suppliers.SearchMergedAsync(request, ct);
             SupplierSuggestions.Clear();
             foreach (var s in result.Items) SupplierSuggestions.Add(s);
         }
@@ -107,6 +123,39 @@ public partial class InStockViewModel : ObservableObject
         Gyname = s.Gyname.Trim();
         Gyno = s.Gyno.Trim();
         SupplierSuggestions.Clear();
+    }
+
+    /// <summary>
+    /// 按名称精确查找供应商（2026-11-07 需求）：合并查询 tbgu + tbgugys（tbgu 优先），
+    /// 名称 Trim 首尾空格 + 忽略大小写的完全相等比对；不做忽略中间空格的宽松匹配，输入编号不算命中。
+    /// </summary>
+    public async System.Threading.Tasks.Task<Domain.Partners.SupplierRow?> FindExactSupplierAsync(
+        string name, CancellationToken ct = default)
+    {
+        var kw = (name ?? "").Trim();
+        if (kw.Length == 0) return null;
+        return await Db.Suppliers.FindExactAsync(kw, ct);
+    }
+
+    /// <summary>
+    /// 入库前供应商存在性校验（2026-11-07 需求，用户确认「否」后不再放行）：名称必须是库内已有供应商，
+    /// 否则不允许保存暂存/生效入库。复用联想同一套查询与精确比对口径；联想选中路径回填的是库内原始名称，不会被误伤。
+    /// </summary>
+    private async System.Threading.Tasks.Task<bool> EnsureSupplierExistsAsync(CancellationToken ct)
+    {
+        var name = Gyname?.Trim() ?? "";
+        if (name.Length == 0) { Message = "请输入供应商！"; return false; }
+        try
+        {
+            if (await FindExactSupplierAsync(name, ct) is not null) return true;
+        }
+        catch (Exception ex)
+        {
+            Message = "供应商校验失败：" + ex.Message;
+            return false;
+        }
+        Message = $"供应商「{name}」不存在，不允许入库；请从下拉中选择或按回车新增供应商";
+        return false;
     }
 
     public async Task LoadedAsync(CancellationToken ct)
@@ -133,6 +182,44 @@ public partial class InStockViewModel : ObservableObject
 
     [RelayCommand]
     private Task Loaded(CancellationToken ct) => LoadedAsync(ct);
+
+    /// <summary>
+    /// 进货历史区（2026-11-07 需求）：明细行选中即查，无需查询按钮。
+    /// 口径复用 IPartRepository.GetPurchaseHistoryAsync（与订单生成页 Order4Control 完全同一套）：
+    /// type IN ('入库','历史')、按 indate DESC, id DESC、不过滤 jkamount 正负（进货退货为负数行）。
+    /// 防抖 + CancellationToken：连续快速切换选中行时取消旧查询，并用选中行引用复核防串结果。
+    /// </summary>
+    private async Task LoadPurchaseHistoryDebouncedAsync()
+    {
+        _purchaseHistoryCts?.Cancel();   // 取消上一次（含仍在防抖等待中的查询）
+        var line = SelectedLine;
+        PurchaseHistory.Clear();
+        if (line is null || string.IsNullOrWhiteSpace(line.Nno))
+        {
+            PurchaseHistoryHint = NoLinePurchaseHistoryHint;
+            return;
+        }
+
+        var cts = _purchaseHistoryCts = new CancellationTokenSource();
+        var ct = cts.Token;
+        PurchaseHistoryHint = $"正在加载 {line.Nno.Trim()} 的进货历史…";
+        try
+        {
+            await Task.Delay(PurchaseHistoryDebounceMs, ct);
+            var rows = await Db.Parts.GetPurchaseHistoryAsync(line.Nno, AppSession.DeptNo, 0, null, ct);
+            if (ct.IsCancellationRequested || !ReferenceEquals(SelectedLine, line)) return;
+            foreach (var r in rows) PurchaseHistory.Add(r);
+            PurchaseHistoryHint = rows.Count == 0 ? $"配件 {line.Nno.Trim()} 暂无进货记录" : "";
+        }
+        catch (OperationCanceledException)
+        {
+            // 快速切换选中行：旧查询被取消，静默丢弃
+        }
+        catch (AppException ex)
+        {
+            if (!ct.IsCancellationRequested) PurchaseHistoryHint = ex.Message;
+        }
+    }
 
     [RelayCommand]
     private void AddLine()
@@ -207,8 +294,10 @@ public partial class InStockViewModel : ObservableObject
     private void RemoveLine()
     {
         if (SelectedLine is null) return;
-        var smId = SelectedLine.SmId;
-        Lines.Remove(SelectedLine);
+        var row = SelectedLine;
+        var smId = row.SmId;
+        Lines.Remove(row);
+        SelectedLine = null;   // 删行后回到「未选中配件」空态（同时取消在途进货历史查询）
         RecalcTotal();
         IsDirty = true;
         // 已暂存行同步删除（2026-11-02）：避免不点保存直接关页面后重开恢复出已删行
@@ -309,8 +398,8 @@ public partial class InStockViewModel : ObservableObject
     {
         Message = "";
         if (Lines.Count == 0) { Message = "入库明细为空"; return false; }
-        // 供应商必填：暂存单列表要显示供应商名称，生效路径同样必填（旧 X__.row212 L74-78）
-        if (string.IsNullOrWhiteSpace(Gyname)) { Message = "请输入供应商！"; return false; }
+        // 供应商必填 + 必须已存在（2026-11-07 需求：名称匹配不到库内供应商不允许暂存/生效；旧 X__.row212 L74-78 必填语义保留）
+        if (!await EnsureSupplierExistsAsync(ct)) return false;
         IsBusy = true;
         try
         {
@@ -347,6 +436,7 @@ public partial class InStockViewModel : ObservableObject
             var rows = await Db.InStock.GetDraftLinesAsync(cno.Trim(), AppSession.DeptNo, ct);
             if (rows.Count == 0) { Message = $"暂存单 {cno} 无明细行"; return false; }
             Lines.Clear();
+            SelectedLine = null;   // 切换暂存单：清空选中，进货历史回到空态
             foreach (var r in rows)
             {
                 var row = new InStockLineRow
@@ -383,8 +473,8 @@ public partial class InStockViewModel : ObservableObject
     {
         Message = "";
         if (Lines.Count == 0) { Message = "入库明细为空"; return; }
-        // 供应商必填（旧 X__.row212 L74-78 生效拦截语义）
-        if (string.IsNullOrWhiteSpace(Gyname)) { Message = "请输入供应商！"; return; }
+        // 供应商必填 + 必须已存在（2026-11-07 需求；旧 X__.row212 L74-78 生效拦截语义保留）
+        if (!await EnsureSupplierExistsAsync(ct)) return;
         IsBusy = true;
         try
         {
@@ -418,6 +508,7 @@ public partial class InStockViewModel : ObservableObject
             // 清空重开：生效时焦点在网格内会有未提交编辑会话，Clear+AddLine 会产生 ghost 空白行——
             // 这里不再预置空行（用户由「添加配件/表格导入」加行），重进页面时才由 LoadedAsync 预置
             Lines.Clear();
+            SelectedLine = null;   // 生效后明细清空：进货历史回到空态
             RecalcTotal();
             Cno = "";
             Pno = "";
@@ -444,6 +535,7 @@ public partial class InStockViewModel : ObservableObject
                     Cno = result.Cno;   // 回显生成的合同单号
                     Message = $"重入成功：{result.Cno} 共 {result.LineCount} 行";
                     Lines.Clear();
+                    SelectedLine = null;   // 生效后明细清空：进货历史回到空态
                     RecalcTotal();
                     Cno = "";
                     IsDirty = false;

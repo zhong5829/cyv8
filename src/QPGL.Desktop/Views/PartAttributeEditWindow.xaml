@@ -1,6 +1,7 @@
 <Window x:Class="QPGL.Desktop.Views.PartAttributeEditWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:QPGL.Desktop.Controls"
         Title="零件属性添加/修改" Width="520" Height="545" ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner" ShowInTaskbar="False" Background="#ECE9D8">
     <Grid Margin="12">
@@ -94,8 +95,10 @@
         <TextBlock Grid.Row="10" Grid.Column="0" Text="零件说明：" VerticalAlignment="Center"/>
         <TextBox x:Name="Note1Box" Grid.Row="10" Grid.Column="1" Grid.ColumnSpan="3" VerticalAlignment="Center"/>
         <TextBlock Grid.Row="11" Grid.Column="0" Text="备注：" VerticalAlignment="Top" Margin="0,6,0,0"/>
+        <!-- 备注落库 tbprnoty.note varchar(254)，按字节限制（127 个汉字；回车换行占 1 字节/个） -->
         <TextBox x:Name="NoteBox" Grid.Row="11" Grid.Column="1" Grid.ColumnSpan="3" Margin="0,4"
-                 AcceptsReturn="True" VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top"/>
+                 AcceptsReturn="True" VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top"
+                 controls:ByteLengthLimit.MaxBytes="254"/>
 
         <!-- 图片行（2026-11-01 需求，旧 mypicture 类口径）：预览已有第一张图 + 添加图片，确定时随属性一起写 tbImage -->
         <StackPanel Grid.Row="12" Grid.Column="0" Grid.ColumnSpan="4" Orientation="Horizontal" Margin="0,4,0,0">

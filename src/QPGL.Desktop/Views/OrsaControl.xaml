@@ -32,13 +32,13 @@
             <DockPanel Margin="4">
                 <TextBlock DockPanel.Dock="Top" Text="明细：本公司库存 + 同件其他公司报价" FontWeight="Bold" Margin="4,4,0,2"/>
                 <DataGrid ItemsSource="{Binding DetailRows}" AutoGenerateColumns="False" IsReadOnly="True"
-                          CanUserSortColumns="False" GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12">
+                          CanUserSortColumns="False"  HeadersVisibility="Column" FontSize="12">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="来源" Binding="{Binding IsLocalStock, Mode=OneWay}" Width="90"/>
                         <DataGridTextColumn Header="单位" Binding="{Binding Gname}" Width="160"/>
                         <DataGridTextColumn Header="零件号" Binding="{Binding Nno}" Width="110"/>
                         <DataGridTextColumn Header="名称" Binding="{Binding Na1}" Width="*"/>
-                        <DataGridTextColumn Header="数量" Binding="{Binding Qtamount}" Width="60"
+                        <DataGridTextColumn Header="数量" Binding="{Binding Qtamount, Converter={StaticResource QtyInt}}" Width="60"
                                             ElementStyle="{StaticResource NumCellRight}"/>
                         <DataGridTextColumn Header="单价" Binding="{Binding Oprc, StringFormat=N2}" Width="80"
                                             ElementStyle="{StaticResource NumCellRight}"/>
@@ -61,7 +61,7 @@
         <DataGrid ItemsSource="{Binding Rows}" SelectedItem="{Binding SelectedRow}"
                   SelectionChanged="RowsGrid_SelectionChanged"
                   AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single"
-                  CanUserSortColumns="False" GridLinesVisibility="Horizontal"
+                  CanUserSortColumns="False"
                   HeadersVisibility="Column" FontSize="12" Margin="0,0,0,0">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="单位编号" Binding="{Binding Gno}" Width="80"/>
@@ -70,7 +70,7 @@
                 <DataGridTextColumn Header="零件号" Binding="{Binding Nno}" Width="110"/>
                 <DataGridTextColumn Header="名称" Binding="{Binding Na1}" Width="*"/>
                 <DataGridTextColumn Header="车型/图号" Binding="{Binding Ty}" Width="90"/>
-                <DataGridTextColumn Header="报价数量" Binding="{Binding Qtamount}" Width="70"
+                <DataGridTextColumn Header="报价数量" Binding="{Binding Qtamount, Converter={StaticResource QtyInt}}" Width="70"
                                     ElementStyle="{StaticResource NumCellRight}"/>
                 <DataGridTextColumn Header="报价单价" Binding="{Binding Oprc, StringFormat=N2}" Width="80"
                                     ElementStyle="{StaticResource NumCellRight}"/>

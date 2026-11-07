@@ -6,7 +6,7 @@ using QPGL.Desktop.Services;
 namespace QPGL.Desktop.Views;
 
 /// <summary>分组汇总聚合列（各页签合计公式参数化：fr_total SUMSTR 语义）。</summary>
-public sealed record TotalColumn(string Caption, char Type, Func<IEnumerable<QueryRow>, object> Compute);
+public sealed record TotalColumn(string Caption, char Type, Func<IEnumerable<QueryRow>, object> Compute, string? Format = null);
 
 /// <summary>
 /// fr_total 复刻：可选分组字段（非数值列）→ 按组聚合 → 末行"合计"（首列 C 型）→
@@ -103,7 +103,8 @@ public partial class GroupTotalWindow : Window
         if (dpmSpec is not null)
             cols.Add(new QueryColumnSpec("公司名称", "公司名称", 'C', 100));
         foreach (var t in _totals)
-            cols.Add(new QueryColumnSpec(t.Caption, t.Caption, t.Type));
+            cols.Add(new QueryColumnSpec(t.Caption, t.Caption, t.Type, 90,
+                t.Format == QueryGridHelper.QtyFormat ? QueryGridHelper.QtyFormat : null));
 
         var rows = new List<QueryRow>();
         if (groupFields.Count == 0)
@@ -217,7 +218,8 @@ public partial class GroupTotalResultWindow : Window
         foreach (var c in _columns)
         {
             var binding = new System.Windows.Data.Binding($"[{c.Field}]");
-            if (c.Type == 'N') binding.StringFormat = "N2";
+            if (c.Format == QueryGridHelper.QtyFormat) binding.Converter = new QPGL.Desktop.Converters.QtyTruncateConverter();
+            else if (c.Type == 'N') binding.StringFormat = "N2";
             else if (c.Type is 'D' or 'T') binding.StringFormat = "d";
             Grd.Columns.Add(new DataGridTextColumn
             {

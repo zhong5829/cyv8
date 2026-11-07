@@ -19,7 +19,7 @@
                         <Button Content="保存选中行修改" Command="{Binding UpdateAsstyCommand}"/>
                     </StackPanel>
                     <DataGrid ItemsSource="{Binding AsstyRows}" SelectedItem="{Binding SelectedAssty}"
-                              AutoGenerateColumns="False" CanUserAddRows="False" GridLinesVisibility="Horizontal" HeadersVisibility="Column">
+                              AutoGenerateColumns="False" CanUserAddRows="False"  HeadersVisibility="Column">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="ID" Binding="{Binding Perasid}" IsReadOnly="True" Width="50"/>
                             <DataGridTextColumn Header="类别名称" Binding="{Binding Perasty}" Width="*"/>
@@ -33,7 +33,7 @@
                 <DockPanel>
                     <Button DockPanel.Dock="Bottom" Content="新增" Command="{Binding AddChgtyCommand}" HorizontalAlignment="Left" Margin="0,6,0,0"/>
                     <DataGrid ItemsSource="{Binding ChgtyRows}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
-                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                               HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="ID" Binding="{Binding Chgid}" Width="50"/>
                             <DataGridTextColumn Header="方式名称" Binding="{Binding Chgna}" Width="*"/>

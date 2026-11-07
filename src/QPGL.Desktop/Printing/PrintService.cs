@@ -44,16 +44,18 @@ public static class PrintService
         window.ShowDialog();
     }
 
-    /// <summary>打印后直接输出默认打印机（免选对话框，用于保存后快速打印）。</summary>
-    public static async System.Threading.Tasks.Task PrintSaleSilentAsync(string paper, string docType = "销售", CancellationToken ct = default)
+    /// <summary>打印后直接输出默认打印机（免选对话框，用于保存后快速打印）。返回实际使用的打印机名。</summary>
+    public static async System.Threading.Tasks.Task<string> PrintSaleSilentAsync(string paper, string docType = "销售", CancellationToken ct = default)
     {
         var doc = await LoadSaleDocAsync(paper, docType, ct);
         var fixedDoc = SaleTicketDocument.Build(doc);
 
         var dialog = new PrintDialog(); // 默认打印机
+        var printerName = dialog.PrintQueue?.FullName ?? "默认打印机";
         FitToPrintableArea(dialog, fixedDoc);
         dialog.PrintDocument(fixedDoc.DocumentPaginator, $"{docType}单 {paper}");
         LogPrinted(paper);
+        return printerName;
     }
 
     /// <summary>

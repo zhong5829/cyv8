@@ -7,6 +7,7 @@
 !/src/
 !/installer/
 !/Ico/
+!/docs/
 
 # Ico 仅保留构建引用的 LOGO.ICO
 Ico/*

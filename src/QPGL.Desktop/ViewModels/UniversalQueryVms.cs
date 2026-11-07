@@ -53,9 +53,9 @@ public partial class UniversalQueryViewModel : ObservableObject
         new("Item", "行号", 'N', 44, "N0"),
         new("Nno", "配件编码", 'C', 100),
         new("Na1", "配件名称", 'C', 120),
-        new("Oqty", "订数", 'N', 70, "N0"),
-        new("Qty", "到货数", 'N', 70, "N0"),
-        new("Zt", "在途", 'N', 60, "N0"),
+        new("Oqty", "订数", 'N', 70, QueryGridHelper.QtyFormat),
+        new("Qty", "到货数", 'N', 70, QueryGridHelper.QtyFormat),
+        new("Zt", "在途", 'N', 60, QueryGridHelper.QtyFormat),
         new("Iprj", "外币价", 'N', 70, "N2"),
         new("Ty", "车型", 'C', 90),
         new("Fa", "产地", 'C', 70),
@@ -67,7 +67,7 @@ public partial class UniversalQueryViewModel : ObservableObject
         new("Nno", "配件编码", 'C', 100),
         new("Na1", "配件名称", 'C', 130),
         new("Ty", "车型", 'C', 90),
-        new("Xgamount", "修改数量", 'N', 70, "N0"),
+        new("Xgamount", "修改数量", 'N', 70, QueryGridHelper.QtyFormat),
         new("Iprc", "成本金额", 'N', 80, "N2"),
         new("Xgdate", "修改日期", 'D', 90, "d"),
         new("Per", "操作员", 'C', 70),
@@ -78,8 +78,8 @@ public partial class UniversalQueryViewModel : ObservableObject
     private List<QueryColumnSpec> RtmoSpecs { get; } =
     [
         new("Na1", "配件名称", 'C', 120),
-        .. Enumerable.Range(1, 12).Select(i => new QueryColumnSpec($"Oamou{i}", $"oamou{i}", 'N', 58, "N0")),
-        new("月均销售数", "月均销售数", 'N', 80, "N2"),
+        .. Enumerable.Range(1, 12).Select(i => new QueryColumnSpec($"Oamou{i}", $"oamou{i}", 'N', 58, QueryGridHelper.QtyFormat)),
+        new("月均销售数", "月均销售数", 'N', 80, QueryGridHelper.QtyFormat),
         new("Nno", "编码", 'C', 100),
         new("Cp", "厂牌", 'C', 60),
     ];
@@ -88,7 +88,7 @@ public partial class UniversalQueryViewModel : ObservableObject
         new("日期", "日期", 'C', 90),
         new("Dpm", "部门", 'C', 90),
         new("单数", "单数", 'N', 60, "N0"),
-        new("出库数量", "出库数量", 'N', 70, "N0"),
+        new("出库数量", "出库数量", 'N', 70, QueryGridHelper.QtyFormat),
         new("日元", "日元", 'N', 100, "N2"),
         new("人进价", "人进价", 'N', 100, "N2"),
         new("售额", "售额", 'N', 100, "N2"),
@@ -101,14 +101,14 @@ public partial class UniversalQueryViewModel : ObservableObject
         new("Nno", "编码", 'C', 100),
         new("Na1", "名称", 'C', 110),
         new("Ty", "车型", 'C', 80),
-        new("Sav", "备份", 'N', 60, "N0"),
-        new("Outs", "出库合计", 'N', 70, "N0"),
-        new("In", "进库", 'N', 60, "N0"),
-        new("Istoch", "库存修改", 'N', 70, "N0"),
-        new("Saxg", "出库修改", 'N', 70, "N0"),
-        new("逻辑库存", "逻辑库存", 'N', 70, "N0"),
-        new("Isto", "实际库存", 'N', 70, "N0"),
-        new("误差", "误差", 'N', 60, "N0"),
+        new("Sav", "备份", 'N', 60, QueryGridHelper.QtyFormat),
+        new("Outs", "出库合计", 'N', 70, QueryGridHelper.QtyFormat),
+        new("In", "进库", 'N', 60, QueryGridHelper.QtyFormat),
+        new("Istoch", "库存修改", 'N', 70, QueryGridHelper.QtyFormat),
+        new("Saxg", "出库修改", 'N', 70, QueryGridHelper.QtyFormat),
+        new("逻辑库存", "逻辑库存", 'N', 70, QueryGridHelper.QtyFormat),
+        new("Isto", "实际库存", 'N', 70, QueryGridHelper.QtyFormat),
+        new("误差", "误差", 'N', 60, QueryGridHelper.QtyFormat),
     ];
     private List<QueryColumnSpec> IsiosmSpecs { get; } =
     [
@@ -116,9 +116,9 @@ public partial class UniversalQueryViewModel : ObservableObject
         new("No", "单号/库位", 'C', 100),
         new("Date", "日期", 'D', 80, "d"),
         new("Mark", "标志", 'C', 50),
-        new("Jqty", "进库数", 'N', 64, "N0"),
-        new("Cqty", "出库数", 'N', 64, "N0"),
-        new("Amount", "结存数量", 'N', 70, "N0"),
+        new("Jqty", "进库数", 'N', 64, QueryGridHelper.QtyFormat),
+        new("Cqty", "出库数", 'N', 64, QueryGridHelper.QtyFormat),
+        new("Amount", "结存数量", 'N', 70, QueryGridHelper.QtyFormat),
         new("Note", "备注", 'C', 160),
         new("Iprc", "进价", 'N', 66, "N2"),
         new("结存金额", "结存金额", 'N', 90, "N2"),
@@ -136,7 +136,7 @@ public partial class UniversalQueryViewModel : ObservableObject
         new("Nno", "配件编码", 'C', 90),
         new("Na1", "配件名称", 'C', 110),
         new("Ty", "车型", 'C', 80),
-        new("Jkamount", "进库数", 'N', 60, "N0"),
+        new("Jkamount", "进库数", 'N', 60, QueryGridHelper.QtyFormat),
         new("Iprj", "外币价", 'N', 70, "N2"),
         new("Iprc", "进价", 'N', 70, "N2"),
         new("Oprc", "售价", 'N', 70, "N2"),
@@ -150,8 +150,8 @@ public partial class UniversalQueryViewModel : ObservableObject
         new("Seano", "装箱单号", 'C', 90),
         new("Gyname", "供应商", 'C', 110),
         new("Gyno", "供应商编号", 'C', 80),
-        new("Xkcamou", "剩余库存数", 'N', 70, "N0"),
-        new("Xsamou", "销售数", 'N', 60, "N0"),
+        new("Xkcamou", "剩余库存数", 'N', 70, QueryGridHelper.QtyFormat),
+        new("Xsamou", "销售数", 'N', 60, QueryGridHelper.QtyFormat),
         new("Dc", "分类码", 'C', 60),
         new("Cxnno", "串号", 'C', 110),
         new("Isord", "订单标志", 'C', 56),
@@ -171,18 +171,18 @@ public partial class UniversalQueryViewModel : ObservableObject
         return
         [
             new("How", how, 'C', 110),
-            new("销售数", "销售数", 'N', 64, "N0"),
+            new("销售数", "销售数", 'N', 64, QueryGridHelper.QtyFormat),
             new("销售成本", "销售成本", 'N', 76, "N2"),
             new("销售额", "销售额", 'N', 86, "N2"),
-            new("进库数", "进库数", 'N', 64, "N0"),
+            new("进库数", "进库数", 'N', 64, QueryGridHelper.QtyFormat),
             new("进库额", "进库额", 'N', 86, "N2"),
-            new("库存数", "库存数", 'N', 64, "N0"),
+            new("库存数", "库存数", 'N', 64, QueryGridHelper.QtyFormat),
             new("毛利", "毛利", 'N', 76, "N2"),
             new("毛利率", "毛利率", 'C', 70),
-            new("预售数", "预售数", 'N', 64, "N0"),
+            new("预售数", "预售数", 'N', 64, QueryGridHelper.QtyFormat),
             new("预售成本", "预售成本", 'N', 76, "N2"),
             new("预售额", "预售额", 'N', 86, "N2"),
-            new("调拔数", "调拔数", 'N', 64, "N0"),
+            new("调拔数", "调拔数", 'N', 64, QueryGridHelper.QtyFormat),
             new("调拔成本", "调拔成本", 'N', 76, "N2"),
             new("调拔额", "调拔额", 'N', 86, "N2"),
         ];
@@ -313,11 +313,11 @@ public partial class UniversalQueryViewModel : ObservableObject
         var totals = new List<TotalColumn>
         {
             new("进库项目", 'N', rows => (decimal)rows.Count()),
-            new("进库数", 'N', rows => rows.Sum(r => Math.Truncate(r.GetDecimal("Jkamount")))),
+            new("进库数", 'N', rows => rows.Sum(r => Math.Truncate(r.GetDecimal("Jkamount"))), QueryGridHelper.QtyFormat),
             new(wn, 'N', rows => Math.Round(rows.Sum(r => r.GetDecimal("Jkamount") * r.GetDecimal("Iprj")), 2)),
         };
         if (IssmShowRemain)
-            totals.Add(new TotalColumn("销售数", 'N', rows => rows.Sum(r => r.GetDecimal("Xsamou"))));
+            totals.Add(new TotalColumn("销售数", 'N', rows => rows.Sum(r => r.GetDecimal("Xsamou")), QueryGridHelper.QtyFormat));
         totals.Add(new TotalColumn("人进价", 'N', rows => Math.Round(rows.Sum(r => r.GetDecimal("Iprc") * r.GetDecimal("Jkamount")), 4)));
         if (IssmShowRemain)
         {
@@ -584,9 +584,9 @@ public partial class UniversalQueryViewModel : ObservableObject
         await OpenGroupTotalAsync(
         [
             new TotalColumn("订货项目", 'N', rows => (decimal)rows.Count()),
-            new TotalColumn("订数", 'N', rows => rows.Sum(r => Math.Truncate(r.GetDecimal("Oqty")))),
+            new TotalColumn("订数", 'N', rows => rows.Sum(r => Math.Truncate(r.GetDecimal("Oqty"))), QueryGridHelper.QtyFormat),
             new TotalColumn("订货金额", 'N', rows => Math.Round(rows.Sum(r => r.GetDecimal("Oqty") * r.GetDecimal("Iprj")), 2)),
-            new TotalColumn("在途", 'N', rows => rows.Sum(r => Math.Truncate(r.GetDecimal("Oqty") - r.GetDecimal("Qty")))),
+            new TotalColumn("在途", 'N', rows => rows.Sum(r => Math.Truncate(r.GetDecimal("Oqty") - r.GetDecimal("Qty"))), QueryGridHelper.QtyFormat),
             new TotalColumn("在途金额", 'N', rows => Math.Round(rows.Sum(r => (r.GetDecimal("Oqty") - r.GetDecimal("Qty")) * r.GetDecimal("Iprj")), 2)),
         ]);
     }

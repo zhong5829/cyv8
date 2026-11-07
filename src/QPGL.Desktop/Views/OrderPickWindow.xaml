@@ -1,10 +1,45 @@
 <Window x:Class="QPGL.Desktop.Views.OrderPickWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:conv="clr-namespace:QPGL.Desktop.Converters"
         Title="选择配件" Width="1200" Height="750"
         WindowStartupLocation="CenterOwner" MinWidth="950" MinHeight="560"
         ShowInTaskbar="False"
         Background="{StaticResource WindowBackBrush}">
+    <Window.Resources>
+        <conv:LessThanOneConverter x:Key="LtOne"/>
+
+        <!-- 库存为 0 红字（2026-11-07 需求）：「编号」「库存」两列，库存<1（含 0、0.1～0.9、负库存，
+             与 QtyInt 截断显示为 0 一致）且未命中 已订/警戒红/警戒黄 时生效；
+             命中以上任一状态时不设 Foreground，自动继承行级颜色 ⇒ 已订 > 警戒红 > 警戒黄 > 库存0 -->
+        <Style x:Key="ZeroStockCell" TargetType="TextBlock">
+            <Style.Triggers>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding Kcamount, Converter={StaticResource LtOne}}" Value="True"/>
+                        <Condition Binding="{Binding IsOrdered}" Value="False"/>
+                        <Condition Binding="{Binding IsRed}" Value="False"/>
+                        <Condition Binding="{Binding IsYellow}" Value="False"/>
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Foreground" Value="Red"/>
+                </MultiDataTrigger>
+            </Style.Triggers>
+        </Style>
+        <!-- 库存列同时保留右对齐/数字字体（BasedOn NumCellRight），触发条件与 ZeroStockCell 完全一致 -->
+        <Style x:Key="ZeroStockCellRight" TargetType="TextBlock" BasedOn="{StaticResource NumCellRight}">
+            <Style.Triggers>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding Kcamount, Converter={StaticResource LtOne}}" Value="True"/>
+                        <Condition Binding="{Binding IsOrdered}" Value="False"/>
+                        <Condition Binding="{Binding IsRed}" Value="False"/>
+                        <Condition Binding="{Binding IsYellow}" Value="False"/>
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Foreground" Value="Red"/>
+                </MultiDataTrigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
     <Grid Margin="8">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -41,7 +76,7 @@
         <Border Grid.Row="1" Background="White" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" CornerRadius="3">
             <DataGrid x:Name="PickGrid" ItemsSource="{Binding PickRows}" SelectedItem="{Binding SelectedPick}"
                       IsReadOnly="False"
-                      AutoGenerateColumns="False" CanUserAddRows="False" GridLinesVisibility="Horizontal"
+                      AutoGenerateColumns="False" CanUserAddRows="False"
                       HeadersVisibility="Column" FontSize="12" Margin="1"
                       MouseDoubleClick="PickGrid_MouseDoubleClick" PreviewKeyDown="PickGrid_PreviewKeyDown"
                       CellEditEnding="PickGrid_CellEditEnding" PreparingCellForEdit="PickGrid_PreparingCellForEdit">
@@ -56,33 +91,47 @@
                                 <Setter Property="Foreground" Value="Red"/>
                             </DataTrigger>
                             <DataTrigger Binding="{Binding IsOrdered}" Value="True">
-                                <Setter Property="Foreground" Value="#1E8449"/>
+                                <!-- 文字由 #1E8449 微调为 #187440（2026-11-07 二次需求）：绿底加深后
+                                     #1E8449 在 #D3EEDB 上仅 3.82:1，加深一档后达 4.71:1（WCAG AA ≥4.5） -->
+                                <Setter Property="Foreground" Value="#187440"/>
                             </DataTrigger>
+                            <!-- 已订绿底（2026-11-07 需求）：仅未选中且未悬停时生效，避免盖住系统高亮/悬停色；
+                                 已订最高优先：已订+警戒命中时仍是绿字绿底，不额外加红黄；
+                                 #D3EEDB 为加深一档后的底色（原 #E6F4EA 太淡），与白底 1.23:1、与交替行 1.18:1 可辨 -->
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding IsOrdered}" Value="True"/>
+                                    <Condition Binding="{Binding IsSelected, RelativeSource={RelativeSource Self}}" Value="False"/>
+                                    <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="False"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Background" Value="#D3EEDB"/>
+                            </MultiDataTrigger>
                         </Style.Triggers>
                     </Style>
                 </DataGrid.RowStyle>
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="序号" Binding="{Binding Seq, Mode=OneWay}" IsReadOnly="True" Width="40"
                                         ElementStyle="{StaticResource NumCellRight}"/>
-                    <DataGridTextColumn Header="编号" Binding="{Binding Nno}" IsReadOnly="True" Width="110"/>
+                    <DataGridTextColumn Header="编号" Binding="{Binding Nno}" IsReadOnly="True" Width="110"
+                                        ElementStyle="{StaticResource ZeroStockCell}"/>
                     <DataGridTextColumn Header="名称" Binding="{Binding Na1}" IsReadOnly="True" Width="140"/>
                     <DataGridTextColumn Header="车型" Binding="{Binding Ty}" IsReadOnly="True" Width="70"/>
-                    <DataGridTextColumn Header="库存" Binding="{Binding Kcamount, Mode=OneWay}" IsReadOnly="True" Width="55"
-                                        ElementStyle="{StaticResource NumCellRight}"/>
+                    <DataGridTextColumn Header="库存" Binding="{Binding Kcamount, Mode=OneWay, Converter={StaticResource QtyInt}}" IsReadOnly="True" Width="55"
+                                        ElementStyle="{StaticResource ZeroStockCellRight}"/>
                     <DataGridTextColumn Header="进价" Binding="{Binding Iprc, Mode=OneWay, StringFormat=N2}" IsReadOnly="True" Width="55"
                                         ElementStyle="{StaticResource NumCellRight}"/>
-                    <DataGridTextColumn Header="在途" Binding="{Binding Ztqty, Mode=OneWay, StringFormat=N0}" IsReadOnly="True" Width="50"
+                    <DataGridTextColumn Header="在途" Binding="{Binding Ztqty, Mode=OneWay, Converter={StaticResource QtyInt}}" IsReadOnly="True" Width="50"
                                         ElementStyle="{StaticResource NumCellRight}"/>
-                    <DataGridTextColumn Header="建议" Binding="{Binding Ydqty, Mode=OneWay}" IsReadOnly="True" Width="50"
+                    <DataGridTextColumn Header="建议" Binding="{Binding Ydqty, Mode=OneWay, Converter={StaticResource QtyInt}}" IsReadOnly="True" Width="50"
                                         ElementStyle="{StaticResource NumCellRight}"/>
-                    <DataGridTextColumn Header="已订" Binding="{Binding Num, Mode=OneWay, StringFormat=N0}" IsReadOnly="True" Width="50"
+                    <DataGridTextColumn Header="已订" Binding="{Binding Num, Mode=OneWay, Converter={StaticResource QtyInt}}" IsReadOnly="True" Width="50"
                                         ElementStyle="{StaticResource NumCellRight}"/>
-                    <DataGridTextColumn Header="出货" Binding="{Binding Ckamount, Mode=OneWay, StringFormat=N0}" IsReadOnly="True" Width="55"
+                    <DataGridTextColumn Header="出货" Binding="{Binding Ckamount, Mode=OneWay, Converter={StaticResource QtyInt}}" IsReadOnly="True" Width="55"
                                         ElementStyle="{StaticResource NumCellRight}"/>
-                    <DataGridTextColumn Header="警戒值A" Binding="{Binding Amjj, StringFormat=N0, UpdateSourceTrigger=LostFocus}" Width="70"
-                                        ElementStyle="{StaticResource NumCellRight}"/>
-                    <DataGridTextColumn Header="警戒值B" Binding="{Binding Bmjj, StringFormat=N0, UpdateSourceTrigger=LostFocus}" Width="70"
-                                        ElementStyle="{StaticResource NumCellRight}"/>
+                    <DataGridTextColumn Header="警戒值A" Binding="{Binding Amjj, UpdateSourceTrigger=LostFocus, Converter={StaticResource QtyInt}}" Width="70"
+                                        ElementStyle="{StaticResource NumCellRight}" EditingElementStyle="{StaticResource QtyCellEdit}"/>
+                    <DataGridTextColumn Header="警戒值B" Binding="{Binding Bmjj, UpdateSourceTrigger=LostFocus, Converter={StaticResource QtyInt}}" Width="70"
+                                        ElementStyle="{StaticResource NumCellRight}" EditingElementStyle="{StaticResource QtyCellEdit}"/>
                     <DataGridTextColumn Header="产地" Binding="{Binding Dc}" IsReadOnly="True" Width="55"/>
                     <DataGridTextColumn Header="单位" Binding="{Binding Unit}" IsReadOnly="True" Width="42"/>
                 </DataGrid.Columns>
@@ -100,12 +149,12 @@
                 <TextBlock DockPanel.Dock="Top" Text="进货历史（选中配件）" FontWeight="Bold" Margin="2,0,0,3"/>
                 <Border Background="White" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" CornerRadius="3">
                     <DataGrid ItemsSource="{Binding InRecords}"
-                              AutoGenerateColumns="False" CanUserAddRows="False" GridLinesVisibility="Horizontal"
+                              AutoGenerateColumns="False" CanUserAddRows="False"
                               HeadersVisibility="Column" FontSize="12" Margin="1" IsReadOnly="True">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="日期" Binding="{Binding Indate, Mode=OneWay, StringFormat=yyyy-MM-dd}" IsReadOnly="True" Width="90"/>
                             <DataGridTextColumn Header="供应商" Binding="{Binding Gyname}" IsReadOnly="True" Width="140"/>
-                            <DataGridTextColumn Header="数量" Binding="{Binding Jkamount, Mode=OneWay}" IsReadOnly="True" Width="70"
+                            <DataGridTextColumn Header="数量" Binding="{Binding Jkamount, Mode=OneWay, Converter={StaticResource QtyInt}}" IsReadOnly="True" Width="70"
                                                 ElementStyle="{StaticResource NumCellRight}"/>
                             <DataGridTextColumn Header="进价" Binding="{Binding Iprc, Mode=OneWay, StringFormat=N2}" IsReadOnly="True" Width="80"
                                                 ElementStyle="{StaticResource NumCellRight}"/>
@@ -119,13 +168,13 @@
                 <TextBlock DockPanel.Dock="Top" Text="销售历史（选中配件）" FontWeight="Bold" Margin="2,0,0,3"/>
                 <Border Background="White" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" CornerRadius="3">
                     <DataGrid ItemsSource="{Binding SaleRecords}"
-                              AutoGenerateColumns="False" CanUserAddRows="False" GridLinesVisibility="Horizontal"
+                              AutoGenerateColumns="False" CanUserAddRows="False"
                               HeadersVisibility="Column" FontSize="12" Margin="1" IsReadOnly="True">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="日期" Binding="{Binding Outdate, Mode=OneWay, StringFormat=yyyy-MM-dd}" IsReadOnly="True" Width="90"/>
                             <DataGridTextColumn Header="编号" Binding="{Binding Nno}" IsReadOnly="True" Width="110"/>
                             <DataGridTextColumn Header="客户" Binding="{Binding Gname}" IsReadOnly="True" Width="140"/>
-                            <DataGridTextColumn Header="数量" Binding="{Binding Ckamount, Mode=OneWay}" IsReadOnly="True" Width="70"
+                            <DataGridTextColumn Header="数量" Binding="{Binding Ckamount, Mode=OneWay, Converter={StaticResource QtyInt}}" IsReadOnly="True" Width="70"
                                                 ElementStyle="{StaticResource NumCellRight}"/>
                             <DataGridTextColumn Header="售价" Binding="{Binding Oprc, Mode=OneWay, StringFormat=N2}" IsReadOnly="True" Width="80"
                                                 ElementStyle="{StaticResource NumCellRight}"/>

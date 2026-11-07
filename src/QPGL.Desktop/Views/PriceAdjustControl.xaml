@@ -43,11 +43,11 @@
                     </Border>
                     <DataGrid ItemsSource="{Binding IstoRows}" SelectedItem="{Binding SelectedRow}"
                               AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
-                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                               HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="编码" Binding="{Binding Nno}" Width="110"/>
                             <DataGridTextColumn Header="名称" Binding="{Binding Na1}" Width="*"/>
-                            <DataGridTextColumn Header="库存" Binding="{Binding Kcamount, StringFormat=N2}" Width="70"/>
+                            <DataGridTextColumn Header="库存" Binding="{Binding Kcamount, Converter={StaticResource QtyInt}}" Width="70"/>
                             <DataGridTextColumn Header="单位" Binding="{Binding Unit}" Width="50"/>
                             <DataGridTextColumn Header="进价" Binding="{Binding Iprc, StringFormat=N2}" Width="80"/>
                             <DataGridTextColumn Header="进价J" Binding="{Binding Iprj, StringFormat=N2}" Width="80"/>
@@ -86,7 +86,7 @@
                     </Border>
                     <DataGrid x:Name="JjGrid" ItemsSource="{Binding JjView}" SelectedItem="{Binding SelectedJjRow}"
                               IsReadOnly="False"
-                              AutoGenerateColumns="False" CanUserAddRows="False" GridLinesVisibility="Horizontal"
+                              AutoGenerateColumns="False" CanUserAddRows="False"
                               HeadersVisibility="Column" FontSize="12"
                               CellEditEnding="JjGrid_CellEditEnding"
                               PreparingCellForEdit="JjGrid_PreparingCellForEdit"
@@ -110,12 +110,12 @@
                             <DataGridTextColumn Header="车型" Binding="{Binding Ty}" IsReadOnly="True" Width="90"/>
                             <DataGridTextColumn Header="仓位" Binding="{Binding Posi}" IsReadOnly="True" Width="60"/>
                             <DataGridTextColumn Header="单位" Binding="{Binding Unit}" IsReadOnly="True" Width="45"/>
-                            <DataGridTextColumn Header="库存数量" Binding="{Binding Stock, StringFormat=N0}" IsReadOnly="True" Width="70"
+                            <DataGridTextColumn Header="库存数量" Binding="{Binding Stock, Converter={StaticResource QtyInt}}" IsReadOnly="True" Width="70"
                                                 ElementStyle="{StaticResource NumCellRight}"/>
-                            <DataGridTextColumn Header="警戒值A" Binding="{Binding Amjj, StringFormat=N0, UpdateSourceTrigger=LostFocus}" Width="70"
-                                                ElementStyle="{StaticResource NumCellRight}"/>
-                            <DataGridTextColumn Header="警戒值B" Binding="{Binding Bmjj, StringFormat=N0, UpdateSourceTrigger=LostFocus}" Width="70"
-                                                ElementStyle="{StaticResource NumCellRight}"/>
+                            <DataGridTextColumn Header="警戒值A" Binding="{Binding Amjj, UpdateSourceTrigger=LostFocus, Converter={StaticResource QtyInt}}" Width="70"
+                                                ElementStyle="{StaticResource NumCellRight}" EditingElementStyle="{StaticResource QtyCellEdit}"/>
+                            <DataGridTextColumn Header="警戒值B" Binding="{Binding Bmjj, UpdateSourceTrigger=LostFocus, Converter={StaticResource QtyInt}}" Width="70"
+                                                ElementStyle="{StaticResource NumCellRight}" EditingElementStyle="{StaticResource QtyCellEdit}"/>
                             <DataGridTextColumn Header="零售价" Binding="{Binding Oprc, StringFormat=N2}" IsReadOnly="True" Width="70"
                                                 ElementStyle="{StaticResource NumCellRight}"/>
                         </DataGrid.Columns>

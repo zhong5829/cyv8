@@ -51,34 +51,23 @@ public partial class SupplierViewModel : ObservableObject
     [RelayCommand]
     private async Task SaveAsync(CancellationToken ct)
     {
-        // 简易行内编辑：新增用对话框输入（gyno/gyname 必填），修改选中行
+        // 统一供应商编辑窗（2026-11-07 需求）：新增/修改共用一窗（标题按模式切换），
+        // 取代原先「编号/名称/账期」逐字段 PromptWindow 弹框；落库仍走 Db.Suppliers.SaveAsync
         Message = "";
-        IsBusy = true;
-        try
+        var w = new Views.SupplierEditWindow(SelectedRow);
+        w.ShowDialog();
+        if (!w.Saved) return;
+        if (SelectedRow is null)
         {
-            var s = SelectedRow;
-            var gyno = Views.PromptWindow.Ask("供应商编号", s?.Gyno ?? "") ?? "";
-            var gyname = Views.PromptWindow.Ask("供应商名称", s?.Gyname ?? "") ?? "";
-            var zqText = Views.PromptWindow.Ask("账期（天）", s?.Zq.ToString() ?? "0");
-            var command = new SaveSupplierCommand
-            {
-                Id = s?.Id,
-                Gyno = gyno,
-                Gyname = gyname,
-                Zq = decimal.TryParse(zqText, out var zq) ? zq : 0,
-                Tel = s?.Tel ?? "",
-                Adr = s?.Adr ?? "",
-                Note = s?.Note ?? "",
-            };
-            var result = await Db.Suppliers.SaveAsync(command, ct);
-            Message = result.IsCreate ? "供应商已添加" : "供应商已修改";
-            await SearchAsync(ct);
+            // 新增：按新编号重新检索并定位（列表按编号升序，新号可能落在后面的页；
+            // 固定回第 1 页会因为不在当页而看不到刚建的供应商）
+            Page = 1;
+            if (!string.IsNullOrWhiteSpace(w.SavedGyno)) Keyword = w.SavedGyno.Trim();
         }
-        catch (Exception ex)
-        {
-            Message = ex is AppException ae ? ae.Message : "保存失败：" + ex.Message;
-        }
-        finally { IsBusy = false; }
+        await SearchAsync(ct);
+        if (Rows.FirstOrDefault(r => r.Id == w.SavedId) is { } saved) SelectedRow = saved;
+        else if (SelectedRow is null)
+            Message = $"已保存供应商 {w.SavedGyno}，但当前列表未显示该行，请点查询确认";
     }
 
     [RelayCommand]

@@ -38,7 +38,7 @@
         <!-- 行级列表（tbsada type='报价'） -->
         <DataGrid DockPanel.Dock="Top" ItemsSource="{Binding Rows}" SelectedItem="{Binding SelectedRow}"
                   AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single"
-                  CanUserSortColumns="False" GridLinesVisibility="Horizontal"
+                  CanUserSortColumns="False"
                   HeadersVisibility="Column" FontSize="12">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="单号" Binding="{Binding Paper}" Width="90"/>
@@ -47,7 +47,7 @@
                 <DataGridTextColumn Header="配件编码" Binding="{Binding Cp}" Width="80"/>
                 <DataGridTextColumn Header="零件号" Binding="{Binding Nno}" Width="110"/>
                 <DataGridTextColumn Header="名称" Binding="{Binding Na1}" Width="150"/>
-                <DataGridTextColumn Header="数量" Binding="{Binding Ckamount}" Width="60"/>
+                <DataGridTextColumn Header="数量" Binding="{Binding Ckamount, Converter={StaticResource QtyInt}}" Width="60"/>
                 <DataGridTextColumn Header="单价" Binding="{Binding Oprc, StringFormat=N2}" Width="70"/>
                 <DataGridTextColumn Header="折后金额" Binding="{Binding Yhloprct, StringFormat=N2}" Width="80"/>
                 <DataGridTextColumn Header="付款方式" Binding="{Binding Guno}" Width="70"/>

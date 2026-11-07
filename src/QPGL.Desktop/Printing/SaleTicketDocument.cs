@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Shapes;
+using QPGL.Desktop.Converters;
 using QPGL.Domain.Printing;
 
 namespace QPGL.Desktop.Printing;
@@ -80,7 +81,7 @@ public static class SaleTicketDocument
                 Trunc(line.Nno, 15),
                 Trunc(line.Na1, 17),
                 Trunc(line.Ty, 11),
-                line.Qty.ToString("0.##") + line.Unit,
+                QtyTruncateConverter.Format(line.Qty) + line.Unit,
                 line.Price.ToString("N2"),
                 line.Amount.ToString("N2"),
                 line.Posi,
@@ -113,7 +114,7 @@ public static class SaleTicketDocument
         y += 6;
         AddBoxText(page, $"营业员: {doc.Operator}   【付款方式: {doc.PayMode}】【发货方式: 自提】", 13, y, 315, x: 26);
         AddBoxText(page, $"人民币大写: {doc.AmountUpper}", 13, y, 210, x: 345);
-        AddBoxText(page, $"总数: {doc.TotalQty:0.##}", 13, y, 70, x: 560);
+        AddBoxText(page, $"总数: {QtyTruncateConverter.Format(doc.TotalQty)}", 13, y, 70, x: 560);
         AddBoxText(page, $"合 计: ¥ {doc.FinalAmount:N2}", 13, y, 105, x: 634);
         y += 20;
 

@@ -61,8 +61,8 @@
                     <DataGridTextColumn Header="客户" Binding="{Binding Gname}" IsReadOnly="True" Width="110"/>
                     <DataGridTextColumn Header="订单号" Binding="{Binding Cno}" IsReadOnly="True" Width="120"/>
                     <DataGridTextColumn Header="名称" Binding="{Binding Na1}" IsReadOnly="True" Width="*"/>
-                    <DataGridTextColumn Header="订货量" Binding="{Binding Oqty}" IsReadOnly="True" Width="75"/>
-                    <DataGridTextColumn Header="已分货" Binding="{Binding Fqty}" IsReadOnly="True" Width="75"/>
+                    <DataGridTextColumn Header="订货量" Binding="{Binding Oqty, Converter={StaticResource QtyInt}}" IsReadOnly="True" Width="75"/>
+                    <DataGridTextColumn Header="已分货" Binding="{Binding Fqty, Converter={StaticResource QtyInt}}" IsReadOnly="True" Width="75"/>
                 </DataGrid.Columns>
             </DataGrid>
         </Border>

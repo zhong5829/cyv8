@@ -86,33 +86,66 @@ public partial class MainWindow : Window
         };
     }
 
-    /// <summary>退出确认标记：确认框通过一次后置位，避免脏检查循环里重复弹窗。</summary>
+    /// <summary>退出确认标记：本次关闭流程已通过「确定要退出软件吗？」，避免脏检查循环里重复弹窗；
+    /// 中途放弃关闭时复位，下次关闭重新询问。</summary>
     private bool _exitConfirmed;
+
+    /// <summary>关闭确认已全部通过：再次进入 OnClosing 时直接放行，不再拦截。</summary>
+    private bool _closeApproved;
+
+    /// <summary>异步确认进行中：期间再次触发关闭（X/菜单）直接忽略，避免嵌套确认窗或死循环。</summary>
+    private bool _confirmingClose;
 
     /// <summary>软件退出前：先弹退出确认（2026-11-04 需求，防误点直接退出）；
     /// 确认后再做脏检查（2026-11-02 暂存需求）：任一散件入库页有未暂存改动 → 逐页弹窗，取消则不退出。
-    /// 窗口 X 与菜单「退出」两条路径均经过此方法。</summary>
+    /// 窗口 X 与菜单「退出」两条路径均经过此方法。
+    /// 注意：Closing 是同步事件，异步确认期间必须保持 e.Cancel = true；
+    /// 确认全部通过后必须经 Dispatcher 排队再 Close()，确保真正的关闭动作发生在
+    /// OnClosing 返回之后。确认链若同步完成（await 未让出线程），续体仍在本次关闭的
+    /// 调用栈内，直接 Close() 会命中 Window.VerifyNotClosing 抛
+    /// InvalidOperationException（原有崩溃即此原因）。</summary>
     protected override async void OnClosing(System.ComponentModel.CancelEventArgs e)
     {
-        if (!_exitConfirmed)
+        if (_closeApproved)
         {
-            e.Cancel = true;
-            if (MessageBox.Show(this, "确定要退出软件吗？", "退出确认",
-                    MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
-                return;
-            _exitConfirmed = true;
-            Close();
+            base.OnClosing(e);
             return;
         }
-        foreach (var instock in _vm.Tabs.Select(t => t.Content).OfType<InStockControl>().ToList())
+
+        // 先取消本次关闭，等异步确认结果（确认期间窗口保持打开，弹窗/存库才能正常进行）
+        e.Cancel = true;
+        if (_confirmingClose) return;
+
+        _confirmingClose = true;
+        try
         {
-            if (!await instock.ConfirmCloseAsync())
+            if (!_exitConfirmed)
             {
-                e.Cancel = true;
-                return;
+                if (MessageBox.Show(this, "确定要退出软件吗？", "退出确认",
+                        MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+                    return;
+                _exitConfirmed = true;
             }
+
+            foreach (var instock in _vm.Tabs.Select(t => t.Content).OfType<InStockControl>().ToList())
+            {
+                if (!await instock.ConfirmCloseAsync())
+                {
+                    _exitConfirmed = false;
+                    return;
+                }
+            }
+
+            _closeApproved = true;
+            // 排队到 OnClosing 返回之后再真正关窗：同步完成的确认链不会让出线程，
+            // 直接在事件内 Close() 仍处于关闭中，会再次命中 VerifyNotClosing。
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Normal,
+                new Action(() => Close()));
         }
-        base.OnClosing(e);
+        finally
+        {
+            _confirmingClose = false;
+        }
     }
 
     protected override void OnClosed(EventArgs e)

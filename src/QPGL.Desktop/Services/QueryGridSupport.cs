@@ -96,11 +96,17 @@ public static class QueryGridHelper
         return list;
     }
 
+    /// <summary>数量列统一显示标记（2026-11-07 需求）：规格 Format=QTY 时走全局 QtyInt 转换器（向零截断整数）。</summary>
+    public const string QtyFormat = "QTY";
+    private static readonly QPGL.Desktop.Converters.QtyTruncateConverter QtyConverter = new();
+
     /// <summary>按规格给 DataGrid 追加一列（fr_mdefi 加列；网格 AutoGenerateColumns=False）。</summary>
     public static void AppendColumn(DataGrid grid, QueryColumnSpec spec)
     {
         var binding = new System.Windows.Data.Binding($"[{spec.Field}]");
-        if (!string.IsNullOrEmpty(spec.Format))
+        if (spec.Format == QtyFormat)
+            binding.Converter = QtyConverter;
+        else if (!string.IsNullOrEmpty(spec.Format))
             binding.StringFormat = spec.Format;
         var column = new DataGridTextColumn
         {

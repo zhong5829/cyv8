@@ -11,7 +11,7 @@
             </StackPanel>
         </Border>
         <DataGrid ItemsSource="{Binding Rows}" SelectedItem="{Binding SelectedRow}" AutoGenerateColumns="False"
-                  IsReadOnly="True" GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12">
+                  IsReadOnly="True"  HeadersVisibility="Column" FontSize="12">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="单据类型" Binding="{Binding Djname}" Width="140"/>
                 <DataGridTextColumn Header="前缀" Binding="{Binding Djjx}" Width="70"/>

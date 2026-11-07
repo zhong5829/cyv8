@@ -20,7 +20,7 @@
                         <Button Content="添加币别" Command="{Binding AddCurrencyCommand}"/>
                         <Button Content="删除最后一行" Command="{Binding DeleteCurrencyCommand}" Margin="8,0,0,0"/>
                     </StackPanel>
-                    <DataGrid ItemsSource="{Binding Currencies}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" GridLinesVisibility="Horizontal" HeadersVisibility="Column">
+                    <DataGrid ItemsSource="{Binding Currencies}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"  HeadersVisibility="Column">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="代码" Binding="{Binding Item1}" Width="100"/>
                             <DataGridTextColumn Header="币名" Binding="{Binding Item2}" Width="*"/>
@@ -35,7 +35,7 @@
                         <Button Content="添加摘要" Command="{Binding AddSumaryCommand}"/>
                         <Button Content="删除最后一行" Command="{Binding DeleteSumaryCommand}" Margin="8,0,0,0"/>
                     </StackPanel>
-                    <DataGrid ItemsSource="{Binding Sumaries}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" GridLinesVisibility="Horizontal" HeadersVisibility="Column">
+                    <DataGrid ItemsSource="{Binding Sumaries}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"  HeadersVisibility="Column">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="ID" Binding="{Binding Item1}" Width="60"/>
                             <DataGridTextColumn Header="摘要" Binding="{Binding Item2}" Width="*"/>
@@ -44,7 +44,7 @@
                 </DockPanel>
             </TabItem>
             <TabItem Header="核算项目（finset）">
-                <DataGrid ItemsSource="{Binding FinSets}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" GridLinesVisibility="Horizontal" HeadersVisibility="Column">
+                <DataGrid ItemsSource="{Binding FinSets}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"  HeadersVisibility="Column">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="ID" Binding="{Binding Item1}" Width="60"/>
                         <DataGridTextColumn Header="类别" Binding="{Binding Item2}" Width="120"/>
@@ -60,7 +60,7 @@
                         <Button Content="删除最后一行" Command="{Binding DeleteEmployeeCommand}" Margin="8,0,0,0"
                                 ToolTip="打开页面时自动清理空行（fr_finEmplf Load 契约）"/>
                     </StackPanel>
-                    <DataGrid ItemsSource="{Binding Employees}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" GridLinesVisibility="Horizontal" HeadersVisibility="Column">
+                    <DataGrid ItemsSource="{Binding Employees}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"  HeadersVisibility="Column">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="代码" Binding="{Binding Item1}" Width="100"/>
                             <DataGridTextColumn Header="姓名" Binding="{Binding Item2}" Width="*"/>
@@ -69,7 +69,7 @@
                 </DockPanel>
             </TabItem>
             <TabItem Header="现金银行（finrecout）">
-                <DataGrid ItemsSource="{Binding Accounts}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" GridLinesVisibility="Horizontal" HeadersVisibility="Column">
+                <DataGrid ItemsSource="{Binding Accounts}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"  HeadersVisibility="Column">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="ID" Binding="{Binding Item1}" Width="50"/>
                         <DataGridTextColumn Header="帐目名称" Binding="{Binding Item2}" Width="*"/>

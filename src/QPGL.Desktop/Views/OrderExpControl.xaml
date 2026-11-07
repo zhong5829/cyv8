@@ -38,7 +38,7 @@
                     </Border>
                     <DataGrid ItemsSource="{Binding Params}" AutoGenerateColumns="False"
                               CanUserAddRows="False" CanUserDeleteRows="False"
-                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12"
+                               HeadersVisibility="Column" FontSize="12"
                               CellEditEnding="ParamGrid_CellEditEnding">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="参数编号" Binding="{Binding Paraid}" IsReadOnly="True" Width="80"/>
@@ -59,7 +59,7 @@
                     </Border>
                     <DataGrid ItemsSource="{Binding Formulas}" SelectedItem="{Binding SelectedFormula}"
                               AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False"
-                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12"
+                               HeadersVisibility="Column" FontSize="12"
                               CellEditEnding="FormulaGrid_CellEditEnding">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="编号" Binding="{Binding Expid}" IsReadOnly="True" Width="60"/>

@@ -31,7 +31,7 @@
         <DataGrid x:Name="ArrivalGrid" ItemsSource="{Binding Lines}"
                   AutoGenerateColumns="False" CanUserAddRows="False" HeadersVisibility="Column"
                   IsReadOnly="False"
-                  GridLinesVisibility="Horizontal" FontSize="12" Margin="0,4,0,4"
+                   FontSize="12" Margin="0,4,0,4"
                   MouseDoubleClick="ArrivalGrid_MouseDoubleClick" PreparingCellForEdit="ArrivalGrid_PreparingCellForEdit">
             <DataGrid.Columns>
                 <DataGridCheckBoxColumn Header="选" Binding="{Binding IsPick, UpdateSourceTrigger=PropertyChanged}" Width="34"/>
@@ -44,10 +44,10 @@
                 <DataGridTextColumn Header="单位" Binding="{Binding Unit}" IsReadOnly="True" Width="42"/>
                 <DataGridTextColumn Header="供应商" Binding="{Binding Gyname}" IsReadOnly="True" Width="78"/>
                 <DataGridTextColumn Header="直发客户" Binding="{Binding Gname}" IsReadOnly="True" Width="78"/>
-                <DataGridTextColumn Header="订数" Binding="{Binding Oqty, Mode=OneWay}" IsReadOnly="True" Width="60"
+                <DataGridTextColumn Header="订数" Binding="{Binding Oqty, Mode=OneWay, Converter={StaticResource QtyInt}}" IsReadOnly="True" Width="60"
                                     ElementStyle="{StaticResource NumCellRight}"/>
-                <DataGridTextColumn Header="本次到货数" Binding="{Binding ArriveQty, UpdateSourceTrigger=PropertyChanged}" Width="80"
-                                    ElementStyle="{StaticResource NumCellRight}"/>
+                <DataGridTextColumn Header="本次到货数" Binding="{Binding ArriveQty, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource QtyInt}}" Width="80"
+                                    ElementStyle="{StaticResource NumCellRight}" EditingElementStyle="{StaticResource QtyCellEdit}"/>
                 <DataGridTextColumn Header="进价" Binding="{Binding Iprc, UpdateSourceTrigger=PropertyChanged}" Width="70"
                                     ElementStyle="{StaticResource NumCellRight}"/>
                 <DataGridTextColumn Header="售价" Binding="{Binding Oprc, UpdateSourceTrigger=PropertyChanged}" Width="70"

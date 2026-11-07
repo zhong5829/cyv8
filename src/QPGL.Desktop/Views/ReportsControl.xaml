@@ -24,7 +24,7 @@
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="单号" Binding="{Binding Paper}" Width="100"/>
                                     <DataGridTextColumn Header="客户" Binding="{Binding Gname}" Width="140"/>
-                                    <DataGridTextColumn Header="数量" Binding="{Binding Ckamount}" Width="70"/>
+                                    <DataGridTextColumn Header="数量" Binding="{Binding Ckamount, Converter={StaticResource QtyInt}}" Width="70"/>
                                     <DataGridTextColumn Header="成本" Binding="{Binding Iprc, Converter={StaticResource MaskCost}}" Width="90"/>
                                     <DataGridTextColumn Header="销售额" Binding="{Binding Oprc}" Width="90"/>
                                     <DataGridTextColumn Header="实收额" Binding="{Binding Oprct}" Width="90"/>
@@ -39,7 +39,7 @@
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="单号" Binding="{Binding Paper}" Width="100"/>
                                     <DataGridTextColumn Header="客户" Binding="{Binding Gname}" Width="140"/>
-                                    <DataGridTextColumn Header="数量" Binding="{Binding Ckamount}" Width="70"/>
+                                    <DataGridTextColumn Header="数量" Binding="{Binding Ckamount, Converter={StaticResource QtyInt}}" Width="70"/>
                                     <DataGridTextColumn Header="成本" Binding="{Binding Iprc, Converter={StaticResource MaskCost}}" Width="90"/>
                                     <DataGridTextColumn Header="销售额" Binding="{Binding Oprc}" Width="90"/>
                                     <DataGridTextColumn Header="实收额" Binding="{Binding Oprct}" Width="90"/>
@@ -53,7 +53,7 @@
                                     <DataGridTextColumn Header="入库单号" Binding="{Binding Cno}" Width="110"/>
                                     <DataGridTextColumn Header="供应商" Binding="{Binding Gyname}" Width="140"/>
                                     <DataGridTextColumn Header="行数" Binding="{Binding Item}" Width="50"/>
-                                    <DataGridTextColumn Header="数量" Binding="{Binding Jkamount}" Width="70"/>
+                                    <DataGridTextColumn Header="数量" Binding="{Binding Jkamount, Converter={StaticResource QtyInt}}" Width="70"/>
                                     <DataGridTextColumn Header="外币金额" Binding="{Binding Iprj, Converter={StaticResource MaskIprj}}" Width="90"/>
                                     <DataGridTextColumn Header="进价金额" Binding="{Binding Iprc, Converter={StaticResource MaskCost}}" Width="90"/>
                                     <DataGridTextColumn Header="仓库" Binding="{Binding Depotno}" Width="60"/>
@@ -66,7 +66,7 @@
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="单号" Binding="{Binding Paper}" Width="100"/>
                                     <DataGridTextColumn Header="对方" Binding="{Binding Gname}" Width="140"/>
-                                    <DataGridTextColumn Header="数量" Binding="{Binding Ckamount}" Width="70"/>
+                                    <DataGridTextColumn Header="数量" Binding="{Binding Ckamount, Converter={StaticResource QtyInt}}" Width="70"/>
                                     <DataGridTextColumn Header="销售额" Binding="{Binding Oprc}" Width="90"/>
                                     <DataGridTextColumn Header="实收额" Binding="{Binding Oprct}" Width="90"/>
                                 </DataGrid.Columns>
@@ -124,15 +124,15 @@
                     <DataGrid ItemsSource="{Binding JxcRows}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="厂牌" Binding="{Binding Cp}" Width="90"/>
-                            <DataGridTextColumn Header="销售数量" Binding="{Binding XsAmou}" Width="80"/>
+                            <DataGridTextColumn Header="销售数量" Binding="{Binding XsAmou, Converter={StaticResource QtyInt}}" Width="80"/>
                             <DataGridTextColumn Header="销售收入" Binding="{Binding XsJine}" Width="100"/>
                             <DataGridTextColumn Header="毛利" Binding="{Binding Ml, Converter={StaticResource MaskProfit}}" Width="100"/>
                             <DataGridTextColumn Header="毛利率" Binding="{Binding Mll, Converter={StaticResource MaskProfit}}" Width="70"/>
-                            <DataGridTextColumn Header="退货数量" Binding="{Binding ThAmou}" Width="80"/>
+                            <DataGridTextColumn Header="退货数量" Binding="{Binding ThAmou, Converter={StaticResource QtyInt}}" Width="80"/>
                             <DataGridTextColumn Header="退货金额" Binding="{Binding ThJine}" Width="100"/>
-                            <DataGridTextColumn Header="入库数量" Binding="{Binding InAmou}" Width="80"/>
+                            <DataGridTextColumn Header="入库数量" Binding="{Binding InAmou, Converter={StaticResource QtyInt}}" Width="80"/>
                             <DataGridTextColumn Header="入库金额" Binding="{Binding InJine}" Width="100"/>
-                            <DataGridTextColumn Header="库存数量" Binding="{Binding KcAmou}" Width="80"/>
+                            <DataGridTextColumn Header="库存数量" Binding="{Binding KcAmou, Converter={StaticResource QtyInt}}" Width="80"/>
                             <DataGridTextColumn Header="库存金额" Binding="{Binding KcJine}" Width="100"/>
                             <DataGridTextColumn Header="销售成本" Binding="{Binding Iprc, Converter={StaticResource MaskCost}}" Width="100"/>
                         </DataGrid.Columns>
@@ -154,25 +154,25 @@
                     <DataGrid ItemsSource="{Binding JxcDailyRows}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="日期" Binding="{Binding Date}" Width="90"/>
-                            <DataGridTextColumn Header="期初库存" Binding="{Binding Qckc}" Width="70"/>
+                            <DataGridTextColumn Header="期初库存" Binding="{Binding Qckc, Converter={StaticResource QtyInt}}" Width="70"/>
                             <DataGridTextColumn Header="期初金额" Binding="{Binding Qckcj}" Width="85"/>
-                            <DataGridTextColumn Header="进库数" Binding="{Binding Jk}" Width="65"/>
+                            <DataGridTextColumn Header="进库数" Binding="{Binding Jk, Converter={StaticResource QtyInt}}" Width="65"/>
                             <DataGridTextColumn Header="进库金额" Binding="{Binding Jkj}" Width="85"/>
-                            <DataGridTextColumn Header="销售数" Binding="{Binding Xs}" Width="65"/>
+                            <DataGridTextColumn Header="销售数" Binding="{Binding Xs, Converter={StaticResource QtyInt}}" Width="65"/>
                             <DataGridTextColumn Header="销售金额" Binding="{Binding Xsj}" Width="85"/>
-                            <DataGridTextColumn Header="调拨数" Binding="{Binding Db}" Width="65"/>
+                            <DataGridTextColumn Header="调拨数" Binding="{Binding Db, Converter={StaticResource QtyInt}}" Width="65"/>
                             <DataGridTextColumn Header="调拨金额" Binding="{Binding Dbj}" Width="85"/>
-                            <DataGridTextColumn Header="领料数" Binding="{Binding Wx}" Width="65"/>
+                            <DataGridTextColumn Header="领料数" Binding="{Binding Wx, Converter={StaticResource QtyInt}}" Width="65"/>
                             <DataGridTextColumn Header="领料金额" Binding="{Binding Wxj}" Width="85"/>
-                            <DataGridTextColumn Header="纠正数" Binding="{Binding Xg}" Width="65"/>
+                            <DataGridTextColumn Header="纠正数" Binding="{Binding Xg, Converter={StaticResource QtyInt}}" Width="65"/>
                             <DataGridTextColumn Header="纠正金额" Binding="{Binding Xgj}" Width="85"/>
-                            <DataGridTextColumn Header="归库数" Binding="{Binding Gk}" Width="65"/>
+                            <DataGridTextColumn Header="归库数" Binding="{Binding Gk, Converter={StaticResource QtyInt}}" Width="65"/>
                             <DataGridTextColumn Header="归库金额" Binding="{Binding Gkj}" Width="85"/>
-                            <DataGridTextColumn Header="差价数" Binding="{Binding Cj}" Width="65"/>
+                            <DataGridTextColumn Header="差价数" Binding="{Binding Cj, Converter={StaticResource QtyInt}}" Width="65"/>
                             <DataGridTextColumn Header="差价金额" Binding="{Binding Cjj}" Width="85"/>
-                            <DataGridTextColumn Header="期末库存" Binding="{Binding Qmkc}" Width="70"/>
+                            <DataGridTextColumn Header="期末库存" Binding="{Binding Qmkc, Converter={StaticResource QtyInt}}" Width="70"/>
                             <DataGridTextColumn Header="期末金额" Binding="{Binding Qmkcj}" Width="85"/>
-                            <DataGridTextColumn Header="出库合计数" Binding="{Binding Ck}" Width="75"/>
+                            <DataGridTextColumn Header="出库合计数" Binding="{Binding Ck, Converter={StaticResource QtyInt}}" Width="75"/>
                             <DataGridTextColumn Header="出库金额" Binding="{Binding Ckj}" Width="85"/>
                             <DataGridTextColumn Header="出库毛利" Binding="{Binding Ckml, Converter={StaticResource MaskProfit}}" Width="85"/>
                             <DataGridTextColumn Header="出库售价" Binding="{Binding Ckoprc}" Width="85"/>

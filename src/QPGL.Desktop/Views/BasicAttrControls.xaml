@@ -21,7 +21,7 @@
                         <TextBlock Text="{Binding Message}" Foreground="{StaticResource BrandBrush}"/>
                     </DockPanel>
                     <DataGrid ItemsSource="{Binding Rows}" SelectedItem="{Binding Selected}" AutoGenerateColumns="False" CanUserAddRows="False"
-                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                               HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="零件名" Binding="{Binding Name}" Width="180"/>
                             <DataGridTextColumn Header="全拼码" Binding="{Binding Code}" Width="110"/>
@@ -45,7 +45,7 @@
                         <TextBlock Text="{Binding Message}" Foreground="{StaticResource BrandBrush}"/>
                     </DockPanel>
                     <DataGrid ItemsSource="{Binding Rows}" SelectedItem="{Binding Selected}" AutoGenerateColumns="False" CanUserAddRows="False"
-                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                               HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="车型" Binding="{Binding Ty}" Width="180"/>
                             <DataGridTextColumn Header="全拼码" Binding="{Binding Code}" Width="110"/>
@@ -62,7 +62,7 @@
                         <TextBlock Text="{Binding Message}" VerticalAlignment="Center" Foreground="{StaticResource BrandBrush}"/>
                     </StackPanel>
                     <DataGrid ItemsSource="{Binding Filtered}" AutoGenerateColumns="False" CanUserAddRows="False"
-                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                               HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="税则号" Binding="{Binding Code_ts}" Width="100"/>
                             <DataGridTextColumn Header="品名" Binding="{Binding G_name}" Width="260"/>
@@ -88,7 +88,7 @@
                         <TextBlock Text="{Binding Message}" VerticalAlignment="Center" Foreground="{StaticResource BrandBrush}"/>
                     </StackPanel>
                     <DataGrid ItemsSource="{Binding Rows}" AutoGenerateColumns="False" CanUserAddRows="False"
-                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                               HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="分类码" Binding="{Binding Dc}" Width="120"/>
                             <DataGridTemplateColumn Header="系数" Width="120">

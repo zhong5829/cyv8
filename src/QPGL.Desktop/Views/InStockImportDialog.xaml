@@ -89,7 +89,7 @@
                 <DataGridTextColumn Header="行号" Width="45" Binding="{Binding RowIndex}"/>
                 <DataGridTextColumn Header="零件号" Width="110" Binding="{Binding Nno}"/>
                 <DataGridTextColumn Header="名称" Width="150" Binding="{Binding Na1}"/>
-                <DataGridTextColumn Header="数量" Width="60" Binding="{Binding Qty}"/>
+                <DataGridTextColumn Header="数量" Width="60" Binding="{Binding Qty, Converter={StaticResource QtyInt}}"/>
                 <DataGridTextColumn Header="进价" Width="70" Binding="{Binding Iprj, StringFormat=N2}"/>
                 <DataGridTextColumn Header="车型" Width="80" Binding="{Binding Ty}"/>
                 <DataGridTextColumn Header="仓位" Width="60" Binding="{Binding Posi}"/>

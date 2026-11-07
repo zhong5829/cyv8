@@ -11,7 +11,7 @@
         <StackPanel>
             <TextBlock Text="请选择源字段列表" Foreground="Blue" FontSize="11"/>
             <DataGrid x:Name="GrdField" Height="240" Margin="0,6,0,0" AutoGenerateColumns="False"
-                      IsReadOnly="True" CanUserAddRows="False" HeadersVisibility="Column" GridLinesVisibility="Horizontal">
+                      IsReadOnly="True" CanUserAddRows="False" HeadersVisibility="Column" >
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="字段列表" Binding="{Binding Display}" Width="120"/>
                 </DataGrid.Columns>

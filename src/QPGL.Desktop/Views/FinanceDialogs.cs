@@ -563,7 +563,6 @@ public sealed class YsyfTwelveMonthWindow : Window
             CanUserAddRows = false,
             IsReadOnly = true,
             HeadersVisibility = DataGridHeadersVisibility.Column,
-            GridLinesVisibility = DataGridGridLinesVisibility.Horizontal,
             FontSize = 12,
             Margin = new Thickness(12),
             MinHeight = 220,

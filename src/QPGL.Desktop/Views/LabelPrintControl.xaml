@@ -74,7 +74,7 @@
                         </DataGridTemplateColumn.CellEditingTemplate>
                     </DataGridTemplateColumn>
                     <DataGridTextColumn Header="仓位" Width="80" Binding="{Binding Place}" IsReadOnly="True"/>
-                    <DataGridTextColumn Header="库存" Width="60" Binding="{Binding Amount}" IsReadOnly="True"/>
+                    <DataGridTextColumn Header="库存" Width="60" Binding="{Binding Amount, Converter={StaticResource QtyInt}}" IsReadOnly="True"/>
                 </DataGrid.Columns>
             </DataGrid>
 

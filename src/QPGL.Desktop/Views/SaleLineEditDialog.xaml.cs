@@ -49,6 +49,7 @@ public partial class SaleLineEditDialog : Window
         string? customerName = null, bool ignoreStockCheck = false)
     {
         InitializeComponent();
+        IntegerInput.Restrict(TxtQty);   // 数量只允许整数录入（2026-11-07 需求：向零截断口径）
         Owner = Application.Current.MainWindow;
         _part = part;
         _dept = dept;
@@ -278,6 +279,11 @@ public partial class SaleLineEditDialog : Window
         if (qty <= 0)
         {
             MessageBox.Show("数量必须大于 0", "销售编辑", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        if (!IntegerInput.IsInteger(TxtQty.Text, out _))
+        {
+            MessageBox.Show("销售数量必须是整数（不能带小数）", "销售编辑", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
         // 双保险：回车流转直接调本方法会绕过按钮 IsEnabled，负库存此处再拦一道（修改明细行路径按改单上限拦）

@@ -29,7 +29,7 @@
 
         <DataGrid ItemsSource="{Binding Rows}" SelectedItem="{Binding SelectedRow}"
                   AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False"
-                  GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12">
+                   HeadersVisibility="Column" FontSize="12">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="编号" Binding="{Binding Nno}" IsReadOnly="True" Width="110"/>
                 <DataGridTextColumn Header="名称" Binding="{Binding Na1}" IsReadOnly="True" Width="*"/>

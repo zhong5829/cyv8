@@ -18,7 +18,7 @@
             </StackPanel>
         </Border>
         <DataGrid ItemsSource="{Binding Rows}" SelectedItem="{Binding SelectedRow}" AutoGenerateColumns="False"
-                  IsReadOnly="True" GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12">
+                  IsReadOnly="True"  HeadersVisibility="Column" FontSize="12">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="厂牌" Binding="{Binding Cp}" Width="70"/>
                 <DataGridTextColumn Header="零件号" Binding="{Binding Nno}" Width="130"/>
@@ -26,7 +26,7 @@
                 <DataGridTextColumn Header="车型" Binding="{Binding Ty}" Width="110"/>
                 <DataGridTextColumn Header="单位" Binding="{Binding Unit}" Width="50"/>
                 <DataGridTextColumn Header="进价金额" Binding="{Binding Iprj, StringFormat=N2}" Width="85"/>
-                <DataGridTextColumn Header="常用量" Binding="{Binding Uqty}" Width="60"/>
+                <DataGridTextColumn Header="常用量" Binding="{Binding Uqty, Converter={StaticResource QtyInt}}" Width="60"/>
                 <DataGridTextColumn Header="最低售价" Binding="{Binding OprcMin, StringFormat=N2}" Width="80"/>
                 <DataGridTextColumn Header="备注" Binding="{Binding Note}" Width="*"/>
             </DataGrid.Columns>

@@ -107,16 +107,16 @@
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
                     <DataGrid x:Name="LinesGrid" Grid.Row="0" ItemsSource="{Binding Lines}" SelectedItem="{Binding SelectedLine}"
-                              AutoGenerateColumns="False" CanUserAddRows="False" GridLinesVisibility="Horizontal"
+                              AutoGenerateColumns="False" CanUserAddRows="False"
                               HeadersVisibility="Column" FontSize="12"
                               MouseDoubleClick="LinesGrid_MouseDoubleClick" PreviewKeyDown="LinesGrid_PreviewKeyDown">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="配件编号" Binding="{Binding Nno}" IsReadOnly="True" Width="110"/>
                             <DataGridTextColumn Header="名称" Binding="{Binding Na1}" IsReadOnly="True" Width="140"/>
                             <DataGridTextColumn Header="车型" Binding="{Binding Ty}" IsReadOnly="True" Width="*"/>
-                            <DataGridTextColumn Header="原进库数" Binding="{Binding Oamount, StringFormat=F0}" IsReadOnly="True" Width="65" ElementStyle="{StaticResource NumCellRight}"/>
-                            <DataGridTextColumn Header="可退数" Binding="{Binding Amount, StringFormat=F0}" IsReadOnly="True" Width="60" ElementStyle="{StaticResource NumCellRight}"/>
-                            <DataGridTextColumn Header="当前库存" Binding="{Binding Kshu, StringFormat=F0}" IsReadOnly="True" Width="65" ElementStyle="{StaticResource NumCellRight}"/>
+                            <DataGridTextColumn Header="原进库数" Binding="{Binding Oamount, Converter={StaticResource QtyInt}}" IsReadOnly="True" Width="65" ElementStyle="{StaticResource NumCellRight}"/>
+                            <DataGridTextColumn Header="可退数" Binding="{Binding Amount, Converter={StaticResource QtyInt}}" IsReadOnly="True" Width="60" ElementStyle="{StaticResource NumCellRight}"/>
+                            <DataGridTextColumn Header="当前库存" Binding="{Binding Kshu, Converter={StaticResource QtyInt}}" IsReadOnly="True" Width="65" ElementStyle="{StaticResource NumCellRight}"/>
                             <DataGridTextColumn Header="入库单号" Binding="{Binding Cno}" IsReadOnly="True" Width="95"/>
                             <DataGridTextColumn Header="库号" Binding="{Binding Depotno}" IsReadOnly="True" Width="50"/>
                             <DataGridTextColumn Header="仓位" Binding="{Binding Posi}" IsReadOnly="True" Width="55"/>
@@ -128,7 +128,7 @@
                     </DataGrid>
                     <GridSplitter Grid.Row="1" Height="4" HorizontalAlignment="Stretch" Background="Transparent"/>
                     <DataGrid Grid.Row="2" ItemsSource="{Binding Cart}" SelectedItem="{Binding SelectedCart}"
-                              AutoGenerateColumns="False" CanUserAddRows="False" GridLinesVisibility="Horizontal"
+                              AutoGenerateColumns="False" CanUserAddRows="False"
                               HeadersVisibility="Column" FontSize="12" PreviewKeyDown="CartGrid_PreviewKeyDown"
                               ContextMenuOpening="CartGrid_ContextMenuOpening">
                         <DataGrid.ContextMenu>
@@ -141,12 +141,12 @@
                             <DataGridTextColumn Header="配件编号" Binding="{Binding Nno}" IsReadOnly="True" Width="110"/>
                             <DataGridTextColumn Header="名称" Binding="{Binding Na1}" IsReadOnly="True" Width="140"/>
                             <DataGridTextColumn Header="车型" Binding="{Binding Ty}" IsReadOnly="True" Width="*"/>
-                            <DataGridTextColumn Header="退库数" Binding="{Binding Amount, UpdateSourceTrigger=LostFocus}" Width="60" ElementStyle="{StaticResource NumCellRight}"/>
+                            <DataGridTextColumn Header="退库数" Binding="{Binding Amount, UpdateSourceTrigger=LostFocus, Converter={StaticResource QtyInt}}" Width="60" ElementStyle="{StaticResource NumCellRight}"/>
                             <DataGridTextColumn Header="进价" Binding="{Binding Iprc, UpdateSourceTrigger=LostFocus}" IsReadOnly="{Binding DataContext.PriceLocked, RelativeSource={RelativeSource AncestorType=UserControl}}" Width="60" ElementStyle="{StaticResource NumCellRight}"/>
                             <DataGridTextColumn Header="库号" Binding="{Binding Depotno}" Width="55"/>
                             <DataGridTextColumn Header="仓位" Binding="{Binding Posi}" Width="55"/>
-                            <DataGridTextColumn Header="原进库数" Binding="{Binding Oamount}" IsReadOnly="True" Width="65" ElementStyle="{StaticResource NumCellRight}"/>
-                            <DataGridTextColumn Header="当前库存" Binding="{Binding Kshu}" IsReadOnly="True" Width="65" ElementStyle="{StaticResource NumCellRight}"/>
+                            <DataGridTextColumn Header="原进库数" Binding="{Binding Oamount, Converter={StaticResource QtyInt}}" IsReadOnly="True" Width="65" ElementStyle="{StaticResource NumCellRight}"/>
+                            <DataGridTextColumn Header="当前库存" Binding="{Binding Kshu, Converter={StaticResource QtyInt}}" IsReadOnly="True" Width="65" ElementStyle="{StaticResource NumCellRight}"/>
                             <DataGridTextColumn Header="原单号" Binding="{Binding Cno}" IsReadOnly="True" Width="95"/>
                             <DataGridTextColumn Header="厂牌" Binding="{Binding Cp}" IsReadOnly="True" Width="60"/>
                         </DataGrid.Columns>
@@ -198,7 +198,7 @@
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
                     <DataGrid Grid.Row="0" ItemsSource="{Binding Docs}" SelectedItem="{Binding SelectedDoc}"
-                              AutoGenerateColumns="False" CanUserAddRows="False" GridLinesVisibility="Horizontal"
+                              AutoGenerateColumns="False" CanUserAddRows="False"
                               HeadersVisibility="Column" FontSize="12" IsReadOnly="True">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="退库单号" Binding="{Binding Cno}" IsReadOnly="True" Width="110"/>
@@ -207,18 +207,18 @@
                             <DataGridTextColumn Header="退款方式" Binding="{Binding Fkfs}" IsReadOnly="True" Width="70"/>
                             <DataGridTextColumn Header="经办人" Binding="{Binding Per}" IsReadOnly="True" Width="70"/>
                             <DataGridTextColumn Header="行数" Binding="{Binding LineCount, StringFormat=F0}" IsReadOnly="True" Width="55" ElementStyle="{StaticResource NumCellRight}"/>
-                            <DataGridTextColumn Header="退货数量" Binding="{Binding TotalAmount, StringFormat=F0}" IsReadOnly="True" Width="70" ElementStyle="{StaticResource NumCellRight}"/>
+                            <DataGridTextColumn Header="退货数量" Binding="{Binding TotalAmount, Converter={StaticResource QtyInt}}" IsReadOnly="True" Width="70" ElementStyle="{StaticResource NumCellRight}"/>
                         </DataGrid.Columns>
                     </DataGrid>
                     <GridSplitter Grid.Row="1" Height="4" HorizontalAlignment="Stretch" Background="Transparent"/>
                     <DataGrid Grid.Row="2" ItemsSource="{Binding DocLines}"
-                              AutoGenerateColumns="False" CanUserAddRows="False" GridLinesVisibility="Horizontal"
+                              AutoGenerateColumns="False" CanUserAddRows="False"
                               HeadersVisibility="Column" FontSize="12" IsReadOnly="True">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="配件编号" Binding="{Binding Nno}" IsReadOnly="True" Width="110"/>
                             <DataGridTextColumn Header="名称" Binding="{Binding Na1}" IsReadOnly="True" Width="*"/>
                             <DataGridTextColumn Header="车型" Binding="{Binding Ty}" IsReadOnly="True" Width="110"/>
-                            <DataGridTextColumn Header="退库数" Binding="{Binding Amount, StringFormat=F0}" IsReadOnly="True" Width="60" ElementStyle="{StaticResource NumCellRight}"/>
+                            <DataGridTextColumn Header="退库数" Binding="{Binding Amount, Converter={StaticResource QtyInt}}" IsReadOnly="True" Width="60" ElementStyle="{StaticResource NumCellRight}"/>
                             <DataGridTextColumn Header="外币价" Binding="{Binding Iprj, StringFormat=F2}" IsReadOnly="True" Width="60" ElementStyle="{StaticResource NumCellRight}"/>
                             <DataGridTextColumn Header="进价" Binding="{Binding Iprc, StringFormat=F2}" IsReadOnly="True" Width="60" ElementStyle="{StaticResource NumCellRight}"/>
                             <DataGridTextColumn Header="库号" Binding="{Binding Depotno}" IsReadOnly="True" Width="50"/>

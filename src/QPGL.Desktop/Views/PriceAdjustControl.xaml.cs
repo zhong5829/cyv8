@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using QPGL.Desktop.Services;
 using QPGL.Desktop.ViewModels;
 using QPGL.Infrastructure.Stock;
 
@@ -81,6 +82,9 @@ public partial class PriceAdjustControl : UserControl
         if (!isA && !isB) return;
         if (e.Row.Item is not JjLineRow row) return;
         if (e.EditingElement is not TextBox tb) return;
+
+        // 整数校验先于落库：小数/空值在此弹提示并还原原值，避免写进 tbistojj（2026-11-07 需求）
+        if (e.Cancel || !IntegerInput.ValidateCell(e, "警戒线设置")) return;
 
         if (!decimal.TryParse(tb.Text.Trim(), out var value) || value < 0)
         {

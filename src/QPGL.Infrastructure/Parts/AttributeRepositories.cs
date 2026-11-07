@@ -357,7 +357,8 @@ public sealed class PrnotyRepository(SqlConnectionFactory factory, IDmService dm
         p.Add("bmjj", c.Bmjj);
         p.Add("nvol", c.Nvol);
         p.Add("suttle", c.Suttle);
-        p.Add("note", new DbString { Value = c.Note ?? "", IsAnsi = true, Length = 50 });
+        // tbprnoty.note 实为 varchar(254)（旧 Length=50 会让驱动把长备注在客户端截成 50 字节，属于静默丢内容）
+        p.Add("note", Ansi(c.Note, 254));
         p.Add("note1", new DbString { Value = c.Note1 ?? "", IsAnsi = true, Length = 50 });
         // oprc_min 列 NOT NULL（副本库实测）：新增时编辑窗无最低售价输入（null）须落 0（旧 VFP frmAdd Value=0 同款）；
         // oprc_cp 库内无 NULL 行，null 一并落 0
@@ -411,7 +412,10 @@ public sealed class PrnotyRepository(SqlConnectionFactory factory, IDmService dm
         ep.Add("nno", new DbString { Value = cur.Nno, IsAnsi = true, Length = 18 });
         ep.Add("na1", new DbString { Value = cur.Na1, IsAnsi = true, Length = 40 });
         ep.Add("ty", new DbString { Value = cur.Ty, IsAnsi = true, Length = 14 });
-        ep.Add("note", new DbString { Value = cur.Note, IsAnsi = true, Length = 50 });
+        // 备注在属性库是 varchar(254)，但库存/单据表更窄：tbisto.note char(100)、tborder.note char(25)。
+        // 按各自字节宽截断（完整备注保留在 tbprnoty.note），避免 UPDATE 时 SQL 报"将截断字符串或二进制数据"
+        ep.Add("note", Ansi(cur.Note, 100));
+        ep.Add("note25", Ansi(cur.Note, 25));
         ep.Add("unit", new DbString { Value = cur.Unit, IsAnsi = true, Length = 4 });
         ep.Add("dc", new DbString { Value = cur.Dc, IsAnsi = true, Length = 8 });
         ep.Add("fa", new DbString { Value = cur.Fa, IsAnsi = true, Length = 8 });
@@ -423,7 +427,7 @@ public sealed class PrnotyRepository(SqlConnectionFactory factory, IDmService dm
             WHERE nno=@nno
             """, ep, cancellationToken: ct));
         await conn.ExecuteAsync(new CommandDefinition("""
-            UPDATE tborder SET nno=@nno, na1=@na1, ty=@ty, note=@note, unit=@unit, dc=@dc, cxnno=@cxnno, fa=@fa
+            UPDATE tborder SET nno=@nno, na1=@na1, ty=@ty, note=@note25, unit=@unit, dc=@dc, cxnno=@cxnno, fa=@fa
             WHERE nno=@nno AND type<>'历史'
             """, ep, cancellationToken: ct));
 
@@ -671,6 +675,13 @@ public sealed class PrnotyRepository(SqlConnectionFactory factory, IDmService dm
         return rows.Where(s => !string.IsNullOrWhiteSpace(s)).Distinct().ToList();
     }
 
+    /// <summary>
+    /// ANSI 列按 GBK 字节宽截断（1 汉字=2 字节）：声明 DbString.Length 的同时截断值本身，
+    /// 避免超宽值直达 SQL Server 报"将截断字符串或二进制数据"（同 SupplierRepository/InStockRepository 口径）。
+    /// </summary>
+    private static DbString Ansi(string value, int length) =>
+        new() { Value = AnsiBytes.Truncate(value ?? "", length), IsAnsi = true, Length = length };
+
     /// <summary>EDITALL 复刻（读回属性行 → update tbisto/tborder WHERE nno=行值；tborder 加 type&lt;&gt;'历史'）。</summary>
     internal static async Task EditAllAsync(SqlConnection conn, long id, CancellationToken ct)
     {
@@ -684,7 +695,9 @@ public sealed class PrnotyRepository(SqlConnectionFactory factory, IDmService dm
         ep.Add("nno", new DbString { Value = cur.Nno, IsAnsi = true, Length = 18 });
         ep.Add("na1", new DbString { Value = cur.Na1, IsAnsi = true, Length = 40 });
         ep.Add("ty", new DbString { Value = cur.Ty, IsAnsi = true, Length = 14 });
-        ep.Add("note", new DbString { Value = cur.Note, IsAnsi = true, Length = 50 });
+        // 同 SaveAsync 的 EditAll：tbisto.note char(100)、tborder.note char(25)，按目标列字节宽分别截断
+        ep.Add("note", Ansi(cur.Note, 100));
+        ep.Add("note25", Ansi(cur.Note, 25));
         ep.Add("unit", new DbString { Value = cur.Unit, IsAnsi = true, Length = 4 });
         ep.Add("dc", new DbString { Value = cur.Dc, IsAnsi = true, Length = 8 });
         ep.Add("fa", new DbString { Value = cur.Fa, IsAnsi = true, Length = 8 });
@@ -695,7 +708,7 @@ public sealed class PrnotyRepository(SqlConnectionFactory factory, IDmService dm
             UPDATE tbisto SET nno=@nno, na1=@na1, ty=@ty, note=@note, unit=@unit, dc=@dc, xno=@xno, tno=@tno, cxnno=@cxnno, fa=@fa WHERE nno=@nno
             """, ep, cancellationToken: ct));
         await conn.ExecuteAsync(new CommandDefinition("""
-            UPDATE tborder SET nno=@nno, na1=@na1, ty=@ty, note=@note, unit=@unit, dc=@dc, cxnno=@cxnno, fa=@fa WHERE nno=@nno AND type<>'历史'
+            UPDATE tborder SET nno=@nno, na1=@na1, ty=@ty, note=@note25, unit=@unit, dc=@dc, cxnno=@cxnno, fa=@fa WHERE nno=@nno AND type<>'历史'
             """, ep, cancellationToken: ct));
     }
 }

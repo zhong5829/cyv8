@@ -92,6 +92,9 @@ public static class Db
 
     public static bool Initialized { get; private set; }
 
+    /// <summary>本次会话生效的连接串（多库选择窗确认后确定；Web 端进程内托管时传给 QPGL.Api，保证同一库）。</summary>
+    public static string ActiveConnectionString { get; private set; } = "";
+
     /// <param name="connectionString">
     /// 外部指定的连接串（多库选择窗确认后传入）；null 时回退读 ConnectionStrings:Default。
     /// </param>
@@ -107,6 +110,7 @@ public static class Db
             ?? throw new InvalidOperationException("缺少连接串配置 ConnectionStrings:Default（appsettings.json）");
 
         var provider = new StaticConnectionStringProvider(connectionString);
+        ActiveConnectionString = connectionString;
         Factory = new SqlConnectionFactory(provider);
         Dm = new DmService();
         Health = new DatabaseHealthChecker(provider);

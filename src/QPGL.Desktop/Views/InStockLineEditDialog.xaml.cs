@@ -54,6 +54,7 @@ public partial class InStockLineEditDialog : Window
     public InStockLineEditDialog(PartItem part, IReadOnlyList<string> warehouses, InStockLineRow? existing)
     {
         InitializeComponent();
+        IntegerInput.Restrict(TxtQty);   // 数量只允许整数录入（2026-11-07 需求：向零截断口径）
         Owner = Application.Current.MainWindow;
         _part = part;
         _warehouses = warehouses;
@@ -131,6 +132,11 @@ public partial class InStockLineEditDialog : Window
         if (qty <= 0)
         {
             MessageBox.Show("进货数量必须大于 0", "入库明细编辑", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        if (!IntegerInput.IsInteger(TxtQty.Text, out _))
+        {
+            MessageBox.Show("进货数量必须是整数（不能带小数）", "入库明细编辑", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
         var iprj = ParseDecimal(TxtIprj.Text);

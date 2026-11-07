@@ -37,21 +37,21 @@
         </Border>
 
         <DataGrid x:Name="Grid" ItemsSource="{Binding Rows}" AutoGenerateColumns="False" CanUserAddRows="False"
-                  GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12" IsReadOnly="True">
+                   HeadersVisibility="Column" FontSize="12" IsReadOnly="True">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="仓位" Binding="{Binding Posi}" Width="60"/>
                 <DataGridTextColumn Header="编码" Binding="{Binding Nno}" Width="115"/>
-                <DataGridTextColumn Header="库存数" Binding="{Binding Kcamount}" Width="65" ElementStyle="{StaticResource NumCellRight}"/>
-                <DataGridTextColumn Header="入库数" Binding="{Binding JinChang}" Width="65" ElementStyle="{StaticResource NumCellRight}"/>
-                <DataGridTextColumn Header="出库数" Binding="{Binding ChuCang}" Width="65" ElementStyle="{StaticResource NumCellRight}"/>
+                <DataGridTextColumn Header="库存数" Binding="{Binding Kcamount, Converter={StaticResource QtyInt}}" Width="65" ElementStyle="{StaticResource NumCellRight}"/>
+                <DataGridTextColumn Header="入库数" Binding="{Binding JinChang, Converter={StaticResource QtyInt}}" Width="65" ElementStyle="{StaticResource NumCellRight}"/>
+                <DataGridTextColumn Header="出库数" Binding="{Binding ChuCang, Converter={StaticResource QtyInt}}" Width="65" ElementStyle="{StaticResource NumCellRight}"/>
                 <DataGridTextColumn Header="名称" Binding="{Binding Na1}" Width="*"/>
                 <DataGridTextColumn Header="车型" Binding="{Binding Ty}" Width="95"/>
                 <DataGridTextColumn Header="单位" Binding="{Binding Unit}" Width="42"/>
                 <DataGridTextColumn Header="产地" Binding="{Binding Fa}" Width="60"/>
                 <DataGridTextColumn Header="库号" Binding="{Binding Depotno}" Width="50"/>
                 <DataGridTextColumn Header="厂牌" Binding="{Binding Cp}" Width="60"/>
-                <DataGridTextColumn Header="未确认数" Binding="{Binding Unconfirmed}" Width="65" ElementStyle="{StaticResource NumCellRight}"/>
-                <DataGridTextColumn Header="急件未冲减数" Binding="{Binding UrgentUnoffset}" Width="80" ElementStyle="{StaticResource NumCellRight}"/>
+                <DataGridTextColumn Header="未确认数" Binding="{Binding Unconfirmed, Converter={StaticResource QtyInt}}" Width="65" ElementStyle="{StaticResource NumCellRight}"/>
+                <DataGridTextColumn Header="急件未冲减数" Binding="{Binding UrgentUnoffset, Converter={StaticResource QtyInt}}" Width="80" ElementStyle="{StaticResource NumCellRight}"/>
                 <DataGridTextColumn Header="dc" Binding="{Binding Dc}" Width="50"/>
                 <DataGridTextColumn Header="库存信息" Binding="{Binding KcInfo}" Width="220"/>
             </DataGrid.Columns>

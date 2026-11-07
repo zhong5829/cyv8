@@ -50,7 +50,7 @@
         <DataGrid ItemsSource="{Binding Rows}" SelectedItem="{Binding Selected}" AutoGenerateColumns="False" CanUserAddRows="False"
                   x:Name="RowsGrid" MouseDoubleClick="RowsGrid_MouseDoubleClick"
                   EnableRowVirtualization="True" VirtualizingPanel.VirtualizationMode="Recycling"
-                  GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                   HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="厂牌" Binding="{Binding Cp}" Width="60"/>
                 <DataGridTextColumn Header="编码" Binding="{Binding Nno}" Width="100"/>

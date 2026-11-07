@@ -22,7 +22,7 @@
                             <ColumnDefinition Width="280"/>
                         </Grid.ColumnDefinitions>
                         <DataGrid ItemsSource="{Binding Fields}" AutoGenerateColumns="False" CanUserAddRows="False"
-                                  GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                                   HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
                             <DataGrid.Columns>
                                 <DataGridCheckBoxColumn Header="传递" Binding="{Binding Is_cd, UpdateSourceTrigger=PropertyChanged}" Width="50"/>
                                 <DataGridTextColumn Header="字段" Binding="{Binding Field_name}" Width="110"/>
@@ -30,7 +30,7 @@
                             </DataGrid.Columns>
                         </DataGrid>
                         <DataGrid Grid.Column="1" ItemsSource="{Binding Targets}" AutoGenerateColumns="False" CanUserAddRows="False"
-                                  GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB" Margin="8,0,0,0">
+                                   HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB" Margin="8,0,0,0">
                             <DataGrid.Columns>
                                 <DataGridCheckBoxColumn Header="目标" Binding="{Binding IsCd, UpdateSourceTrigger=PropertyChanged}" Width="50"/>
                                 <DataGridTextColumn Header="表" Binding="{Binding Tbname}" Width="80"/>
@@ -55,13 +55,13 @@
                                 <Button Content="拆套" Command="{Binding DisassembleCommand}"/>
                             </StackPanel>
                             <DataGrid ItemsSource="{Binding Heads}" SelectedItem="{Binding SelectedHead}" AutoGenerateColumns="False" CanUserAddRows="False"
-                                      GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB" SelectionChanged="OnHeadSelected">
+                                       HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB" SelectionChanged="OnHeadSelected">
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="套件码" Binding="{Binding Tj}" Width="100"/>
                                     <DataGridTextColumn Header="名称" Binding="{Binding Na1}" Width="120"/>
                                     <DataGridTextColumn Header="车型" Binding="{Binding Ty}" Width="80"/>
                                     <DataGridTextColumn Header="套件价" Binding="{Binding Iprj, StringFormat=N2}" Width="66"/>
-                                    <DataGridTextColumn Header="库存" Binding="{Binding Kcamou, StringFormat=N0}" Width="50"/>
+                                    <DataGridTextColumn Header="库存" Binding="{Binding Kcamou, Converter={StaticResource QtyInt}}" Width="50"/>
                                     <DataGridTextColumn Header="备注" Binding="{Binding Note}" Width="*"/>
                                 </DataGrid.Columns>
                             </DataGrid>
@@ -73,13 +73,13 @@
                                 <Button Content="组套" Command="{Binding AssembleCommand}" FontWeight="Bold"/>
                             </StackPanel>
                             <DataGrid ItemsSource="{Binding Lines}" AutoGenerateColumns="False" CanUserAddRows="True"
-                                      GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                                       HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="组件编码" Binding="{Binding Nno}" Width="100"/>
                                     <DataGridTextColumn Header="名称" Binding="{Binding Na1}" Width="110"/>
-                                    <DataGridTextColumn Header="数量" Binding="{Binding Num}" Width="54"/>
+                                    <DataGridTextColumn Header="数量" Binding="{Binding Num, Converter={StaticResource QtyInt}}" Width="54"/>
                                     <DataGridTextColumn Header="单价" Binding="{Binding Iprj, StringFormat=N2}" Width="60"/>
-                                    <DataGridTextColumn Header="库存" Binding="{Binding Kcamou, StringFormat=N0}" Width="50"/>
+                                    <DataGridTextColumn Header="库存" Binding="{Binding Kcamou, Converter={StaticResource QtyInt}}" Width="50"/>
                                     <DataGridTextColumn Header="备注" Binding="{Binding Note}" Width="*"/>
                                 </DataGrid.Columns>
                             </DataGrid>

@@ -138,7 +138,7 @@
                             <DataGridTextColumn Header="车型" Binding="{Binding Ty}" Width="150"/>
                             <DataGridTextColumn Header="货位" Binding="{Binding Posi}" Width="70"/>
                             <!-- 库存整数显示（0.##：整数不带 .00，真实小数库存仍保留），与价格列区分 -->
-                            <DataGridTextColumn Header="库存" Binding="{Binding Kcamount, StringFormat={}{0:0.##}}" Width="70"
+                            <DataGridTextColumn Header="库存" Binding="{Binding Kcamount, Converter={StaticResource QtyInt}}" Width="70"
                                                 ElementStyle="{StaticResource NumCellRight}"/>
                             <!-- 2026-11-01 需求：最低售价（tbprnoty.oprc_min，搜索后批量回填） -->
                             <DataGridTextColumn Header="最低售价" Binding="{Binding OprcMin, StringFormat=N2}" Width="70"
@@ -185,9 +185,9 @@
                             <DataGridTextColumn Header="名称" Binding="{Binding Na1}" IsReadOnly="True" Width="*"/>
                             <DataGridTextColumn Header="车型" Binding="{Binding Ty}" IsReadOnly="True" Width="100"/>
                             <DataGridTextColumn Header="货位" Binding="{Binding Posi}" IsReadOnly="True" Width="60"/>
-                            <DataGridTextColumn Header="批次库存" Binding="{Binding BatchStock}" IsReadOnly="True" Width="70"
+                            <DataGridTextColumn Header="批次库存" Binding="{Binding BatchStock, Converter={StaticResource QtyInt}}" IsReadOnly="True" Width="70"
                                                 ElementStyle="{StaticResource NumCellRight}"/>
-                            <DataGridTextColumn Header="数量" Binding="{Binding Qty}" Width="70"
+                            <DataGridTextColumn Header="数量" Binding="{Binding Qty, Converter={StaticResource QtyInt}}" Width="70"
                                                 ElementStyle="{StaticResource NumCellRight}"/>
                             <DataGridTextColumn Header="单价" Binding="{Binding Price}" Width="80"
                                                 ElementStyle="{StaticResource NumCellRight}"/>

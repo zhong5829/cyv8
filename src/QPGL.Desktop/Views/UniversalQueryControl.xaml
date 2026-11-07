@@ -31,12 +31,12 @@
                                 ToolTip="仅从本次结果集隐藏，不修改数据库"/>
                     </StackPanel>
                     <DataGrid x:Name="GrdIssm" ItemsSource="{Binding IssmRows}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
-                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                               HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="配件编码" Binding="{Binding Nno}" Width="90"/>
                             <DataGridTextColumn Header="配件名称" Binding="{Binding Na1}" Width="110"/>
                             <DataGridTextColumn Header="车型" Binding="{Binding Ty}" Width="80"/>
-                            <DataGridTextColumn Header="进库数" Binding="{Binding Jkamount, StringFormat=N0}" Width="60"/>
+                            <DataGridTextColumn Header="进库数" Binding="{Binding Jkamount, Converter={StaticResource QtyInt}}" Width="60"/>
                             <DataGridTextColumn Header="外币价" Binding="{Binding Iprj, StringFormat=N2}" Width="70"/>
                             <DataGridTextColumn Header="进价" Binding="{Binding Iprc, StringFormat=N2}" Width="70"/>
                             <DataGridTextColumn Header="售价" Binding="{Binding Oprc, StringFormat=N2}" Width="70"/>
@@ -50,8 +50,8 @@
                             <DataGridTextColumn Header="装箱单号" Binding="{Binding Seano}" Width="90"/>
                             <DataGridTextColumn Header="供应商" Binding="{Binding Gyname}" Width="110"/>
                             <DataGridTextColumn Header="供应商编号" Binding="{Binding Gyno}" Width="80"/>
-                            <DataGridTextColumn Header="剩余库存数" Binding="{Binding Xkcamou, StringFormat=N0}" Width="70"/>
-                            <DataGridTextColumn Header="销售数" Binding="{Binding Xsamou, StringFormat=N0}" Width="60"/>
+                            <DataGridTextColumn Header="剩余库存数" Binding="{Binding Xkcamou, Converter={StaticResource QtyInt}}" Width="70"/>
+                            <DataGridTextColumn Header="销售数" Binding="{Binding Xsamou, Converter={StaticResource QtyInt}}" Width="60"/>
                             <DataGridTextColumn Header="分类码" Binding="{Binding Dc}" Width="60"/>
                             <DataGridTextColumn Header="串号" Binding="{Binding Cxnno}" Width="110"/>
                             <DataGridTextColumn Header="订单标志" Binding="{Binding Isord}" Width="56"/>
@@ -74,15 +74,15 @@
                         <Button Content="打印" Command="{Binding PrintCurrentCommand}"/>
                     </StackPanel>
                     <DataGrid x:Name="GrdOrder" ItemsSource="{Binding OrderRows}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
-                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                               HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="合同号" Binding="{Binding Cno}" Width="110"/>
                             <DataGridTextColumn Header="行号" Binding="{Binding Item}" Width="44"/>
                             <DataGridTextColumn Header="配件编码" Binding="{Binding Nno}" Width="100"/>
                             <DataGridTextColumn Header="配件名称" Binding="{Binding Na1}" Width="120"/>
-                            <DataGridTextColumn Header="订数" Binding="{Binding Oqty, StringFormat=N0}" Width="70"/>
-                            <DataGridTextColumn Header="到货数" Binding="{Binding Qty, StringFormat=N0}" Width="70"/>
-                            <DataGridTextColumn Header="在途" Binding="{Binding Zt, StringFormat=N0}" Width="60"/>
+                            <DataGridTextColumn Header="订数" Binding="{Binding Oqty, Converter={StaticResource QtyInt}}" Width="70"/>
+                            <DataGridTextColumn Header="到货数" Binding="{Binding Qty, Converter={StaticResource QtyInt}}" Width="70"/>
+                            <DataGridTextColumn Header="在途" Binding="{Binding Zt, Converter={StaticResource QtyInt}}" Width="60"/>
                             <DataGridTextColumn Header="外币价" Binding="{Binding Iprj, StringFormat=N2}" Width="70"/>
                             <DataGridTextColumn Header="车型" Binding="{Binding Ty}" Width="90"/>
                             <DataGridTextColumn Header="产地" Binding="{Binding Fa}" Width="70"/>
@@ -103,12 +103,12 @@
                         <Button Content="打印" Command="{Binding PrintCurrentCommand}"/>
                     </StackPanel>
                     <DataGrid x:Name="GrdKcxg" ItemsSource="{Binding KcxgRows}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
-                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                               HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="配件编码" Binding="{Binding Nno}" Width="100"/>
                             <DataGridTextColumn Header="配件名称" Binding="{Binding Na1}" Width="130"/>
                             <DataGridTextColumn Header="车型" Binding="{Binding Ty}" Width="90"/>
-                            <DataGridTextColumn Header="修改数量" Binding="{Binding Xgamount, StringFormat=N0}" Width="70"/>
+                            <DataGridTextColumn Header="修改数量" Binding="{Binding Xgamount, Converter={StaticResource QtyInt}}" Width="70"/>
                             <DataGridTextColumn Header="成本金额" Binding="{Binding Iprc, StringFormat=N2}" Width="80"/>
                             <DataGridTextColumn Header="修改日期" Binding="{Binding Xgdate, StringFormat=d}" Width="90"/>
                             <DataGridTextColumn Header="操作员" Binding="{Binding Per}" Width="70"/>
@@ -162,21 +162,21 @@
                                 ToolTip="仅从本次结果集隐藏，不修改数据库"/>
                     </StackPanel>
                     <DataGrid x:Name="GrdIo" ItemsSource="{Binding IoRows}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
-                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                               HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
                         <DataGrid.Columns>
                             <DataGridTextColumn x:Name="ColIoHow" Header="编码" Binding="{Binding How}" Width="110"/>
-                            <DataGridTextColumn Header="销售数" Binding="{Binding 销售数, StringFormat=N0}" Width="64"/>
+                            <DataGridTextColumn Header="销售数" Binding="{Binding 销售数, Converter={StaticResource QtyInt}}" Width="64"/>
                             <DataGridTextColumn Header="销售成本" Binding="{Binding 销售成本, StringFormat=N2}" Width="76"/>
                             <DataGridTextColumn Header="销售额" Binding="{Binding 销售额, StringFormat=N2}" Width="86"/>
-                            <DataGridTextColumn Header="进库数" Binding="{Binding 进库数, StringFormat=N0}" Width="64"/>
+                            <DataGridTextColumn Header="进库数" Binding="{Binding 进库数, Converter={StaticResource QtyInt}}" Width="64"/>
                             <DataGridTextColumn Header="进库额" Binding="{Binding 进库额, StringFormat=N2}" Width="86"/>
-                            <DataGridTextColumn Header="库存数" Binding="{Binding 库存数, StringFormat=N0}" Width="64"/>
+                            <DataGridTextColumn Header="库存数" Binding="{Binding 库存数, Converter={StaticResource QtyInt}}" Width="64"/>
                             <DataGridTextColumn Header="毛利" Binding="{Binding 毛利, StringFormat=N2}" Width="76"/>
                             <DataGridTextColumn Header="毛利率" Binding="{Binding 毛利率}" Width="70"/>
-                            <DataGridTextColumn Header="预售数" Binding="{Binding 预售数, StringFormat=N0}" Width="64"/>
+                            <DataGridTextColumn Header="预售数" Binding="{Binding 预售数, Converter={StaticResource QtyInt}}" Width="64"/>
                             <DataGridTextColumn Header="预售成本" Binding="{Binding 预售成本, StringFormat=N2}" Width="76"/>
                             <DataGridTextColumn Header="预售额" Binding="{Binding 预售额, StringFormat=N2}" Width="86"/>
-                            <DataGridTextColumn Header="调拔数" Binding="{Binding 调拔数, StringFormat=N0}" Width="64"/>
+                            <DataGridTextColumn Header="调拔数" Binding="{Binding 调拔数, Converter={StaticResource QtyInt}}" Width="64"/>
                             <DataGridTextColumn Header="调拔成本" Binding="{Binding 调拔成本, StringFormat=N2}" Width="76"/>
                             <DataGridTextColumn Header="调拔额" Binding="{Binding 调拔额, StringFormat=N2}" Width="86"/>
                         </DataGrid.Columns>
@@ -202,22 +202,22 @@
                                 ToolTip="仅从本次结果集隐藏，不修改数据库"/>
                     </StackPanel>
                     <DataGrid x:Name="GrdRtmo" ItemsSource="{Binding RtmoRows}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
-                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                               HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="配件名称" Binding="{Binding Na1}" Width="120"/>
-                            <DataGridTextColumn Header="oamou1" Binding="{Binding Oamou1, StringFormat=N0}" Width="58"/>
-                            <DataGridTextColumn Header="oamou2" Binding="{Binding Oamou2, StringFormat=N0}" Width="58"/>
-                            <DataGridTextColumn Header="oamou3" Binding="{Binding Oamou3, StringFormat=N0}" Width="58"/>
-                            <DataGridTextColumn Header="oamou4" Binding="{Binding Oamou4, StringFormat=N0}" Width="58"/>
-                            <DataGridTextColumn Header="oamou5" Binding="{Binding Oamou5, StringFormat=N0}" Width="58"/>
-                            <DataGridTextColumn Header="oamou6" Binding="{Binding Oamou6, StringFormat=N0}" Width="58"/>
-                            <DataGridTextColumn Header="oamou7" Binding="{Binding Oamou7, StringFormat=N0}" Width="58"/>
-                            <DataGridTextColumn Header="oamou8" Binding="{Binding Oamou8, StringFormat=N0}" Width="58"/>
-                            <DataGridTextColumn Header="oamou9" Binding="{Binding Oamou9, StringFormat=N0}" Width="58"/>
-                            <DataGridTextColumn Header="oamou10" Binding="{Binding Oamou10, StringFormat=N0}" Width="58"/>
-                            <DataGridTextColumn Header="oamou11" Binding="{Binding Oamou11, StringFormat=N0}" Width="58"/>
-                            <DataGridTextColumn Header="oamou12" Binding="{Binding Oamou12, StringFormat=N0}" Width="58"/>
-                            <DataGridTextColumn Header="月均销售数" Binding="{Binding 月均销售数, StringFormat=N2}" Width="80"/>
+                            <DataGridTextColumn Header="oamou1" Binding="{Binding Oamou1, Converter={StaticResource QtyInt}}" Width="58"/>
+                            <DataGridTextColumn Header="oamou2" Binding="{Binding Oamou2, Converter={StaticResource QtyInt}}" Width="58"/>
+                            <DataGridTextColumn Header="oamou3" Binding="{Binding Oamou3, Converter={StaticResource QtyInt}}" Width="58"/>
+                            <DataGridTextColumn Header="oamou4" Binding="{Binding Oamou4, Converter={StaticResource QtyInt}}" Width="58"/>
+                            <DataGridTextColumn Header="oamou5" Binding="{Binding Oamou5, Converter={StaticResource QtyInt}}" Width="58"/>
+                            <DataGridTextColumn Header="oamou6" Binding="{Binding Oamou6, Converter={StaticResource QtyInt}}" Width="58"/>
+                            <DataGridTextColumn Header="oamou7" Binding="{Binding Oamou7, Converter={StaticResource QtyInt}}" Width="58"/>
+                            <DataGridTextColumn Header="oamou8" Binding="{Binding Oamou8, Converter={StaticResource QtyInt}}" Width="58"/>
+                            <DataGridTextColumn Header="oamou9" Binding="{Binding Oamou9, Converter={StaticResource QtyInt}}" Width="58"/>
+                            <DataGridTextColumn Header="oamou10" Binding="{Binding Oamou10, Converter={StaticResource QtyInt}}" Width="58"/>
+                            <DataGridTextColumn Header="oamou11" Binding="{Binding Oamou11, Converter={StaticResource QtyInt}}" Width="58"/>
+                            <DataGridTextColumn Header="oamou12" Binding="{Binding Oamou12, Converter={StaticResource QtyInt}}" Width="58"/>
+                            <DataGridTextColumn Header="月均销售数" Binding="{Binding 月均销售数, Converter={StaticResource QtyInt}}" Width="80"/>
                             <DataGridTextColumn Header="编码" Binding="{Binding Nno}" Width="100"/>
                             <DataGridTextColumn Header="厂牌" Binding="{Binding Cp}" Width="60"/>
                         </DataGrid.Columns>
@@ -244,12 +244,12 @@
                                 ToolTip="仅从本次结果集隐藏，不修改数据库"/>
                     </StackPanel>
                     <DataGrid x:Name="GrdSesada" ItemsSource="{Binding SesadaRows}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
-                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                               HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="日期" Binding="{Binding 日期}" Width="90"/>
                             <DataGridTextColumn Header="部门" Binding="{Binding Dpm}" Width="90"/>
                             <DataGridTextColumn Header="单数" Binding="{Binding 单数, StringFormat=N0}" Width="60"/>
-                            <DataGridTextColumn Header="出库数量" Binding="{Binding 出库数量, StringFormat=N0}" Width="70"/>
+                            <DataGridTextColumn Header="出库数量" Binding="{Binding 出库数量, Converter={StaticResource QtyInt}}" Width="70"/>
                             <DataGridTextColumn Header="日元" Binding="{Binding 日元, StringFormat=N2}" Width="100"/>
                             <DataGridTextColumn Header="人进价" Binding="{Binding 人进价, StringFormat=N2}" Width="100"/>
                             <DataGridTextColumn Header="售额" Binding="{Binding 售额, StringFormat=N2}" Width="100"/>
@@ -278,19 +278,19 @@
                         <TextBox Text="{Binding CheckSummary, Mode=OneWay}" IsReadOnly="True" FontFamily="Consolas"
                                  VerticalScrollBarVisibility="Auto" Margin="0,0,8,0" Background="#FAFAF5"/>
                         <DataGrid x:Name="GrdCheck" Grid.Column="1" ItemsSource="{Binding CheckRows}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
-                                  GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                                   HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="编码" Binding="{Binding Nno}" Width="100"/>
                                 <DataGridTextColumn Header="名称" Binding="{Binding Na1}" Width="110"/>
                                 <DataGridTextColumn Header="车型" Binding="{Binding Ty}" Width="80"/>
-                                <DataGridTextColumn Header="备份" Binding="{Binding Sav, StringFormat=N0}" Width="60"/>
-                                <DataGridTextColumn Header="出库合计" Binding="{Binding Outs, StringFormat=N0}" Width="70"/>
-                                <DataGridTextColumn Header="进库" Binding="{Binding In, StringFormat=N0}" Width="60"/>
-                                <DataGridTextColumn Header="库存修改" Binding="{Binding Istoch, StringFormat=N0}" Width="70"/>
-                                <DataGridTextColumn Header="出库修改" Binding="{Binding Saxg, StringFormat=N0}" Width="70"/>
-                                <DataGridTextColumn Header="逻辑库存" Binding="{Binding 逻辑库存, Mode=OneWay, StringFormat=N0}" Width="70"/>
-                                <DataGridTextColumn Header="实际库存" Binding="{Binding Isto, StringFormat=N0}" Width="70"/>
-                                <DataGridTextColumn Header="误差" Binding="{Binding 误差, Mode=OneWay, StringFormat=N0}" Width="60"/>
+                                <DataGridTextColumn Header="备份" Binding="{Binding Sav, Converter={StaticResource QtyInt}}" Width="60"/>
+                                <DataGridTextColumn Header="出库合计" Binding="{Binding Outs, Converter={StaticResource QtyInt}}" Width="70"/>
+                                <DataGridTextColumn Header="进库" Binding="{Binding In, Converter={StaticResource QtyInt}}" Width="60"/>
+                                <DataGridTextColumn Header="库存修改" Binding="{Binding Istoch, Converter={StaticResource QtyInt}}" Width="70"/>
+                                <DataGridTextColumn Header="出库修改" Binding="{Binding Saxg, Converter={StaticResource QtyInt}}" Width="70"/>
+                                <DataGridTextColumn Header="逻辑库存" Binding="{Binding 逻辑库存, Mode=OneWay, Converter={StaticResource QtyInt}}" Width="70"/>
+                                <DataGridTextColumn Header="实际库存" Binding="{Binding Isto, Converter={StaticResource QtyInt}}" Width="70"/>
+                                <DataGridTextColumn Header="误差" Binding="{Binding 误差, Mode=OneWay, Converter={StaticResource QtyInt}}" Width="60"/>
                             </DataGrid.Columns>
                         </DataGrid>
                     </Grid>
@@ -311,15 +311,15 @@
                         <Button Content="打印" Command="{Binding PrintCurrentCommand}"/>
                     </StackPanel>
                     <DataGrid x:Name="GrdIsiosm" ItemsSource="{Binding IsiosmRows}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
-                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                               HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="操作员" Binding="{Binding Per}" Width="60"/>
                             <DataGridTextColumn Header="单号/库位" Binding="{Binding No}" Width="100"/>
                             <DataGridTextColumn Header="日期" Binding="{Binding Date, StringFormat=d}" Width="80"/>
                             <DataGridTextColumn Header="标志" Binding="{Binding Mark}" Width="50"/>
-                            <DataGridTextColumn Header="进库数" Binding="{Binding Jqty, StringFormat=N0}" Width="64"/>
-                            <DataGridTextColumn Header="出库数" Binding="{Binding Cqty, StringFormat=N0}" Width="64"/>
-                            <DataGridTextColumn Header="结存数量" Binding="{Binding Amount, StringFormat=N0}" Width="70"/>
+                            <DataGridTextColumn Header="进库数" Binding="{Binding Jqty, Converter={StaticResource QtyInt}}" Width="64"/>
+                            <DataGridTextColumn Header="出库数" Binding="{Binding Cqty, Converter={StaticResource QtyInt}}" Width="64"/>
+                            <DataGridTextColumn Header="结存数量" Binding="{Binding Amount, Converter={StaticResource QtyInt}}" Width="70"/>
                             <DataGridTextColumn Header="备注" Binding="{Binding Note}" Width="160"/>
                             <DataGridTextColumn Header="进价" Binding="{Binding Iprc, StringFormat=N2}" Width="66"/>
                             <DataGridTextColumn Header="结存金额" Binding="{Binding 结存金额, StringFormat=N2}" Width="90"/>

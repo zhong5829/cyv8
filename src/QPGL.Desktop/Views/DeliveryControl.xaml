@@ -37,7 +37,7 @@
                         </Grid.RowDefinitions>
                         <DataGrid Grid.Row="0" ItemsSource="{Binding Orders1}" SelectedItem="{Binding SelectedOrder1}"
                                   SelectionChanged="Order1_SelectionChanged" AutoGenerateColumns="False" CanUserAddRows="False"
-                                  GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12" Margin="0,0,0,6">
+                                   HeadersVisibility="Column" FontSize="12" Margin="0,0,0,6">
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="发货状态" Binding="{Binding Status}" IsReadOnly="True" Width="70"/>
                                 <DataGridTextColumn Header="单号" Binding="{Binding Paper}" IsReadOnly="True" Width="100"/>
@@ -45,7 +45,7 @@
                                 <DataGridTextColumn Header="日期" Binding="{Binding Outdate, StringFormat={}{0:yyyy-MM-dd}}" IsReadOnly="True" Width="85"/>
                                 <DataGridTextColumn Header="发货员" Binding="{Binding Back1}" IsReadOnly="True" Width="70"/>
                                 <DataGridTextColumn Header="收银方式" Binding="{Binding Guno}" IsReadOnly="True" Width="70"/>
-                                <DataGridTextColumn Header="数量" Binding="{Binding Ckamount}" IsReadOnly="True" Width="60"
+                                <DataGridTextColumn Header="数量" Binding="{Binding Ckamount, Converter={StaticResource QtyInt}}" IsReadOnly="True" Width="60"
                                                     ElementStyle="{StaticResource NumCellRight}"/>
                                 <DataGridTextColumn Header="金额" Binding="{Binding Oprc, StringFormat={}{0:N2}}" IsReadOnly="True" Width="90"
                                                     ElementStyle="{StaticResource NumCellRight}"/>
@@ -57,7 +57,7 @@
                             </DataGrid.Columns>
                         </DataGrid>
                         <DataGrid Grid.Row="1" ItemsSource="{Binding Lines1}" AutoGenerateColumns="False" CanUserAddRows="False"
-                                  GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12">
+                                   HeadersVisibility="Column" FontSize="12">
                             <DataGrid.RowStyle>
                                 <Style TargetType="DataGridRow">
                                     <Style.Triggers>
@@ -74,7 +74,7 @@
                                 <DataGridTextColumn Header="车型" Binding="{Binding Ty}" IsReadOnly="True" Width="90"/>
                                 <DataGridTextColumn Header="产地" Binding="{Binding Fa}" IsReadOnly="True" Width="70"/>
                                 <DataGridTextColumn Header="单位" Binding="{Binding Unit}" IsReadOnly="True" Width="45"/>
-                                <DataGridTextColumn Header="数量" Binding="{Binding Ckamount}" IsReadOnly="True" Width="60"
+                                <DataGridTextColumn Header="数量" Binding="{Binding Ckamount, Converter={StaticResource QtyInt}}" IsReadOnly="True" Width="60"
                                                     ElementStyle="{StaticResource NumCellRight}"/>
                                 <DataGridTextColumn Header="进价" Binding="{Binding Oprc, StringFormat={}{0:N2}}" IsReadOnly="True" Width="80"
                                                     ElementStyle="{StaticResource NumCellRight}"/>
@@ -111,7 +111,7 @@
                         </Grid.RowDefinitions>
                         <DataGrid Grid.Row="0" ItemsSource="{Binding Orders2}" SelectedItem="{Binding SelectedOrder2}"
                                   SelectionChanged="Order2_SelectionChanged" AutoGenerateColumns="False" CanUserAddRows="False"
-                                  GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12" Margin="0,0,0,6">
+                                   HeadersVisibility="Column" FontSize="12" Margin="0,0,0,6">
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="发货状态" Binding="{Binding Status}" IsReadOnly="True" Width="70"/>
                                 <DataGridTextColumn Header="单号" Binding="{Binding Paper}" IsReadOnly="True" Width="100"/>
@@ -119,7 +119,7 @@
                                 <DataGridTextColumn Header="日期" Binding="{Binding Outdate, StringFormat={}{0:yyyy-MM-dd}}" IsReadOnly="True" Width="85"/>
                                 <DataGridTextColumn Header="发货员" Binding="{Binding Back1}" IsReadOnly="True" Width="70"/>
                                 <DataGridTextColumn Header="收银方式" Binding="{Binding Guno}" IsReadOnly="True" Width="70"/>
-                                <DataGridTextColumn Header="数量" Binding="{Binding Ckamount}" IsReadOnly="True" Width="60"
+                                <DataGridTextColumn Header="数量" Binding="{Binding Ckamount, Converter={StaticResource QtyInt}}" IsReadOnly="True" Width="60"
                                                     ElementStyle="{StaticResource NumCellRight}"/>
                                 <DataGridTextColumn Header="金额" Binding="{Binding Oprc, StringFormat={}{0:N2}}" IsReadOnly="True" Width="90"
                                                     ElementStyle="{StaticResource NumCellRight}"/>
@@ -131,7 +131,7 @@
                             </DataGrid.Columns>
                         </DataGrid>
                         <DataGrid Grid.Row="1" ItemsSource="{Binding Lines2}" AutoGenerateColumns="False" CanUserAddRows="False"
-                                  GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12">
+                                   HeadersVisibility="Column" FontSize="12">
                             <DataGrid.RowStyle>
                                 <Style TargetType="DataGridRow">
                                     <Style.Triggers>
@@ -148,7 +148,7 @@
                                 <DataGridTextColumn Header="车型" Binding="{Binding Ty}" IsReadOnly="True" Width="90"/>
                                 <DataGridTextColumn Header="产地" Binding="{Binding Fa}" IsReadOnly="True" Width="70"/>
                                 <DataGridTextColumn Header="单位" Binding="{Binding Unit}" IsReadOnly="True" Width="45"/>
-                                <DataGridTextColumn Header="数量" Binding="{Binding Ckamount}" IsReadOnly="True" Width="60"
+                                <DataGridTextColumn Header="数量" Binding="{Binding Ckamount, Converter={StaticResource QtyInt}}" IsReadOnly="True" Width="60"
                                                     ElementStyle="{StaticResource NumCellRight}"/>
                                 <DataGridTextColumn Header="进价" Binding="{Binding Oprc, StringFormat={}{0:N2}}" IsReadOnly="True" Width="80"
                                                     ElementStyle="{StaticResource NumCellRight}"/>
@@ -180,7 +180,7 @@
                         </Grid.RowDefinitions>
                         <DataGrid Grid.Row="0" ItemsSource="{Binding PackingOrders}" SelectedItem="{Binding SelectedPacking}"
                                   SelectionChanged="Packing_SelectionChanged" AutoGenerateColumns="False" CanUserAddRows="False"
-                                  GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12" Margin="0,0,0,6">
+                                   HeadersVisibility="Column" FontSize="12" Margin="0,0,0,6">
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="装箱状态" Binding="{Binding ZxStatus}" IsReadOnly="True" Width="70"/>
                                 <DataGridTextColumn Header="单号" Binding="{Binding Paper}" IsReadOnly="True" Width="100"/>
@@ -195,16 +195,16 @@
                             </DataGrid.Columns>
                         </DataGrid>
                         <DataGrid Grid.Row="1" ItemsSource="{Binding PackingLines}" AutoGenerateColumns="False" CanUserAddRows="False"
-                                  GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12">
+                                   HeadersVisibility="Column" FontSize="12">
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="编号" Binding="{Binding Nno}" IsReadOnly="True" Width="110"/>
                                 <DataGridTextColumn Header="名称" Binding="{Binding Na1}" IsReadOnly="True" Width="*"/>
                                 <DataGridTextColumn Header="车型" Binding="{Binding Ty}" IsReadOnly="True" Width="90"/>
                                 <DataGridTextColumn Header="单位" Binding="{Binding Unit}" IsReadOnly="True" Width="45"/>
-                                <DataGridTextColumn Header="数量" Binding="{Binding Ckamount}" IsReadOnly="True" Width="60"
+                                <DataGridTextColumn Header="数量" Binding="{Binding Ckamount, Converter={StaticResource QtyInt}}" IsReadOnly="True" Width="60"
                                                     ElementStyle="{StaticResource NumCellRight}"/>
                                 <DataGridTextColumn Header="箱号" Binding="{Binding Box, UpdateSourceTrigger=PropertyChanged}" Width="100"/>
-                                <DataGridTextColumn Header="发货数量" Binding="{Binding FhAmount, UpdateSourceTrigger=PropertyChanged}" Width="80"
+                                <DataGridTextColumn Header="发货数量" Binding="{Binding FhAmount, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource QtyInt}}" Width="80"
                                                     ElementStyle="{StaticResource NumCellRight}"/>
                                 <DataGridTextColumn Header="仓位" Binding="{Binding Posi}" IsReadOnly="True" Width="60"/>
                                 <DataGridTextColumn Header="库号" Binding="{Binding Depotno}" IsReadOnly="True" Width="55"/>

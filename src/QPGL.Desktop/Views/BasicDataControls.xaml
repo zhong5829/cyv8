@@ -13,7 +13,7 @@
             </StackPanel>
         </Border>
         <DataGrid ItemsSource="{Binding Rows}" SelectedItem="{Binding SelectedRow}" AutoGenerateColumns="False"
-                  IsReadOnly="True" GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12">
+                  IsReadOnly="True"  HeadersVisibility="Column" FontSize="12">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="供应商编号" Binding="{Binding Gyno}" Width="100"/>
                 <DataGridTextColumn Header="供应商名称" Binding="{Binding Gyname}" Width="180"/>

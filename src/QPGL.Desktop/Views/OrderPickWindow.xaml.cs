@@ -242,6 +242,9 @@ public partial class OrderPickWindow : Window
         if (e.Row.Item is not PartPickRow row) return;
         if (e.EditingElement is not TextBox tb) return;
 
+        // 整数校验先于落库：小数/空值在此弹提示并还原原值，避免写进 tbistojj（2026-11-07 需求）
+        if (e.Cancel || !IntegerInput.ValidateCell(e, "选择配件")) return;
+
         if (!decimal.TryParse(tb.Text.Trim(), out var value) || value < 0)
         {
             e.Cancel = true;   // 非法输入：取消本次编辑，单元格回退原值

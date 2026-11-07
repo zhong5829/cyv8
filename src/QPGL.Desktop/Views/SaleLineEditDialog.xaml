@@ -178,7 +178,7 @@
                         <DataGridTextColumn Header="日期" Width="90" Binding="{Binding OutDate, StringFormat=yyyy-MM-dd}"/>
                         <DataGridTextColumn Header="客户" Width="*" Binding="{Binding Gname}"/>
                         <DataGridTextColumn Header="库号" Width="55" Binding="{Binding Depotno}"/>
-                        <DataGridTextColumn Header="数量" Width="60" Binding="{Binding Qty}"
+                        <DataGridTextColumn Header="数量" Width="60" Binding="{Binding Qty, Converter={StaticResource QtyInt}}"
                                             ElementStyle="{StaticResource NumCellRight}"/>
                         <DataGridTextColumn Header="单价" Width="70" Binding="{Binding Price, StringFormat=N2}"
                                             ElementStyle="{StaticResource NumCellRight}"/>
@@ -207,7 +207,7 @@
                         <DataGridTextColumn Header="单号" Width="100" Binding="{Binding Cno}"/>
                         <DataGridTextColumn Header="日期" Width="90" Binding="{Binding InDate, StringFormat=yyyy-MM-dd}"/>
                         <DataGridTextColumn Header="供应商" Width="*" Binding="{Binding Gyname}"/>
-                        <DataGridTextColumn Header="数量" Width="60" Binding="{Binding Qty}"
+                        <DataGridTextColumn Header="数量" Width="60" Binding="{Binding Qty, Converter={StaticResource QtyInt}}"
                                             ElementStyle="{StaticResource NumCellRight}"/>
                         <DataGridTextColumn Header="进价(不含税)" Width="95" Binding="{Binding Iprj, StringFormat=N2}"
                                             ElementStyle="{StaticResource NumCellRight}"/>

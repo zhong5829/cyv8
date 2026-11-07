@@ -98,7 +98,7 @@
                         <DataGridTextColumn Header="零件编码" Binding="{Binding Nno}" Width="110"/>
                         <DataGridTextColumn Header="零件名称" Binding="{Binding Na1}" Width="*"/>
                         <DataGridTextColumn Header="车型" Binding="{Binding Ty}" Width="90"/>
-                        <DataGridTextColumn Header="可退数" Binding="{Binding Remain}" Width="60"
+                        <DataGridTextColumn Header="可退数" Binding="{Binding Remain, Converter={StaticResource QtyInt}}" Width="60"
                                             ElementStyle="{StaticResource NumCellRight}"/>
                         <DataGridTextColumn Header="仓位" Binding="{Binding Posi}" Width="70"/>
                         <DataGridTextColumn Header="库号" Binding="{Binding DepotNo}" Width="55"/>
@@ -136,7 +136,7 @@
                         <DataGridTextColumn Header="零件编码" Binding="{Binding Nno}" IsReadOnly="True" Width="110"/>
                         <DataGridTextColumn Header="零件名称" Binding="{Binding Na1}" IsReadOnly="True" Width="*"/>
                         <DataGridTextColumn Header="车型" Binding="{Binding Ty}" IsReadOnly="True" Width="90"/>
-                        <DataGridTextColumn Header="可退数" Binding="{Binding Remain}" IsReadOnly="True" Width="60"
+                        <DataGridTextColumn Header="可退数" Binding="{Binding Remain, Converter={StaticResource QtyInt}}" IsReadOnly="True" Width="60"
                                             ElementStyle="{StaticResource NumCellRight}"/>
                         <DataGridTextColumn Header="仓位" Binding="{Binding Posi}" IsReadOnly="True" Width="70"/>
                         <DataGridTextColumn Header="库号" Binding="{Binding DepotNo}" IsReadOnly="True" Width="55"/>
@@ -154,7 +154,7 @@
                                             ElementStyle="{StaticResource NumCellRight}"/>
                         <DataGridTextColumn Header="操作员" Binding="{Binding Per}" IsReadOnly="True" Width="60"/>
                         <DataGridTextColumn Header="备注" Binding="{Binding Note}" IsReadOnly="True" Width="*"/>
-                        <DataGridTextColumn Header="退货数" Binding="{Binding ReturnQty}" Width="70"
+                        <DataGridTextColumn Header="退货数" Binding="{Binding ReturnQty, Converter={StaticResource QtyInt}}" Width="70"
                                             ElementStyle="{StaticResource NumCellRight}"/>
                         <DataGridTextColumn Header="退款额" Binding="{Binding Amount, Mode=OneWay}" IsReadOnly="True" Width="80"
                                             ElementStyle="{StaticResource NumCellRight}"/>

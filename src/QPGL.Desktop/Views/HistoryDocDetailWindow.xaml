@@ -18,14 +18,14 @@
         <Border Grid.Row="1" Background="White" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" CornerRadius="3"
                 x:Name="SalesPanel" Visibility="Collapsed">
             <DataGrid x:Name="SalesGrid" AutoGenerateColumns="False" IsReadOnly="True" Margin="1"
-                      GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12"
+                       HeadersVisibility="Column" FontSize="12"
                       VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="配件编码" Binding="{Binding Cp}" Width="80"/>
                     <DataGridTextColumn Header="内部编号" Binding="{Binding Nno}" Width="110"/>
                     <DataGridTextColumn Header="名称" Binding="{Binding Na1}" Width="160"/>
                     <DataGridTextColumn Header="车型" Binding="{Binding Ty}" Width="90"/>
-                    <DataGridTextColumn Header="数量" Binding="{Binding Ckamount, StringFormat={}{0:0.##}}" Width="55"/>
+                    <DataGridTextColumn Header="数量" Binding="{Binding Ckamount, Converter={StaticResource QtyInt}}" Width="55"/>
                     <DataGridTextColumn Header="单价" Binding="{Binding Oprc, StringFormat=N2}" Width="65"/>
                     <DataGridTextColumn Header="实收价" Binding="{Binding Oprct, StringFormat=N2}" Width="65"/>
                     <DataGridTextColumn Header="实收金额" Binding="{Binding OprctTotal, StringFormat=N2}" Width="75"/>
@@ -40,14 +40,14 @@
         <Border Grid.Row="1" Background="White" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" CornerRadius="3"
                 x:Name="PurchasePanel" Visibility="Collapsed">
             <DataGrid x:Name="PurchaseGrid" AutoGenerateColumns="False" IsReadOnly="True" Margin="1"
-                      GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12"
+                       HeadersVisibility="Column" FontSize="12"
                       VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="进货单号" Binding="{Binding Cno}" Width="95"/>
                     <DataGridTextColumn Header="内部编号" Binding="{Binding Nno}" Width="110"/>
                     <DataGridTextColumn Header="名称" Binding="{Binding Na1}" Width="170"/>
                     <DataGridTextColumn Header="车型" Binding="{Binding Ty}" Width="90"/>
-                    <DataGridTextColumn Header="数量" Binding="{Binding Qty, StringFormat={}{0:0.##}}" Width="55"/>
+                    <DataGridTextColumn Header="数量" Binding="{Binding Qty, Converter={StaticResource QtyInt}}" Width="55"/>
                     <DataGridTextColumn Header="含税价" Binding="{Binding Iprc, StringFormat=N2}" Width="70"/>
                     <DataGridTextColumn Header="入库日期" Binding="{Binding InDate, StringFormat=yyyy-MM-dd}" Width="85"/>
                     <DataGridTextColumn Header="供应商" Binding="{Binding Gyname}" Width="*"/>

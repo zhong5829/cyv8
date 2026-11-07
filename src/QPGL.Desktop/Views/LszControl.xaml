@@ -34,7 +34,7 @@
         </Border>
 
         <DataGrid ItemsSource="{Binding Rows}" AutoGenerateColumns="False" CanUserAddRows="False"
-                  GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12" IsReadOnly="True"
+                   HeadersVisibility="Column" FontSize="12" IsReadOnly="True"
                   SelectedItem="{Binding SelectedRow}">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="日期" Binding="{Binding LsDate}" Width="90"/>

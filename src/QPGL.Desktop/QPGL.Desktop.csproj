@@ -12,6 +12,14 @@
   <ItemGroup>
     <ProjectReference Include="..\QPGL.Domain\QPGL.Domain.csproj" />
     <ProjectReference Include="..\QPGL.Infrastructure\QPGL.Infrastructure.csproj" />
+    <!-- Web 端进程内托管（工作台启动/停止）：引用 QPGL.Api 同一套管线 -->
+    <ProjectReference Include="..\QPGL.Api\QPGL.Api.csproj" />
+  </ItemGroup>
+
+  <!-- Web 端随桌面端发布：专属配置（Jwt/端口）+ 前端页面 -->
+  <ItemGroup>
+    <None Include="..\QPGL.Api\appsettings.json" Link="appsettings.web.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\QPGL.Api\wwwroot\**\*" Link="wwwroot\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
@@ -31,10 +39,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <AssemblyName>QP12</AssemblyName>
-    <Version>0.0.95</Version>
-    <AssemblyVersion>0.0.95.0</AssemblyVersion>
-    <FileVersion>0.0.95.0</FileVersion>
-    <InformationalVersion>0.0.95</InformationalVersion>
+    <Version>0.0.96</Version>
+    <AssemblyVersion>0.0.96.0</AssemblyVersion>
+    <FileVersion>0.0.96.0</FileVersion>
+    <InformationalVersion>0.0.96</InformationalVersion>
     <Product>QP12</Product>
     <ApplicationIcon>..\..\Ico\QP12.ico</ApplicationIcon>
   </PropertyGroup>

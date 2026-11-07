@@ -142,9 +142,13 @@ public static class ListPrintDocument
             return spec.Type == 'T' ? d.ToString("yyyy-MM-dd HH:mm") : d.ToString("yyyy-MM-dd");
         if (v is bool b) return b ? ".T." : ".F.";
         if (v is decimal m)
+        {
+            if (spec.Format == QueryGridHelper.QtyFormat)
+                return decimal.Truncate(m).ToString("0");
             return spec.Format is { Length: > 0 } && spec.Format.Contains("N0")
                 ? m.ToString("N0")
                 : m.ToString("0.####");
+        }
         return v.ToString() ?? "";
     }
 

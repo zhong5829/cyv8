@@ -61,7 +61,7 @@
         <!-- 既有计划单列表 -->
         <TextBlock DockPanel.Dock="Top" Text="既有计划单列表" FontWeight="Bold" Margin="2,0,0,4"/>
         <DataGrid ItemsSource="{Binding OrderNos}" AutoGenerateColumns="False" CanUserAddRows="False"
-                  GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12">
+                   HeadersVisibility="Column" FontSize="12">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="订单号" Binding="{Binding Cno}" IsReadOnly="True" Width="160"/>
                 <DataGridTextColumn Header="订单日期" Binding="{Binding Orderdate}" IsReadOnly="True" Width="120"/>

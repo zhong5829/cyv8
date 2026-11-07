@@ -43,8 +43,9 @@
             </StackPanel>
         </Border>
 
+        <!-- IsReadOnly=False：全局 DataGrid 样式默认只读，而本页"实盘可编辑/实盘仓位"需就地录入 -->
         <DataGrid ItemsSource="{Binding Lines}" SelectedItem="{Binding SelectedLine}"
-                  AutoGenerateColumns="False" CanUserAddRows="False" GridLinesVisibility="Horizontal"
+                  AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="False"
                   HeadersVisibility="Column" FontSize="12">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="配件编号" Binding="{Binding Nno}" IsReadOnly="True" Width="120"/>
@@ -54,11 +55,11 @@
                 <DataGridTextColumn Header="单位" Binding="{Binding Unit}" IsReadOnly="True" Width="45"/>
                 <DataGridTextColumn Header="仓库" Binding="{Binding Depotno}" IsReadOnly="True" Width="70"/>
                 <DataGridTextColumn Header="账面仓位" Binding="{Binding Posi}" IsReadOnly="True" Width="70"/>
-                <DataGridTextColumn Header="账面数" Binding="{Binding Kcamount, Mode=OneWay}" IsReadOnly="True" Width="70"
+                <DataGridTextColumn Header="账面数" Binding="{Binding Kcamount, Mode=OneWay, Converter={StaticResource QtyInt}}" IsReadOnly="True" Width="70"
                                     ElementStyle="{StaticResource NumCellRight}"/>
-                <DataGridTextColumn Header="实盘数" Binding="{Binding Npd, UpdateSourceTrigger=PropertyChanged}" Width="70"
-                                    ElementStyle="{StaticResource NumCellRight}"/>
-                <DataGridTextColumn Header="盈亏" Binding="{Binding Nyk, Mode=OneWay}" IsReadOnly="True" Width="70"
+                <DataGridTextColumn Header="实盘数" Binding="{Binding Npd, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource QtyInt}}" Width="70"
+                                    ElementStyle="{StaticResource NumCellRight}" EditingElementStyle="{StaticResource QtyCellEdit}"/>
+                <DataGridTextColumn Header="盈亏" Binding="{Binding Nyk, Mode=OneWay, Converter={StaticResource QtyInt}}" IsReadOnly="True" Width="70"
                                     ElementStyle="{StaticResource NumCellRight}"/>
                 <DataGridTextColumn Header="实盘仓位" Binding="{Binding Pdposi, UpdateSourceTrigger=PropertyChanged}" Width="70"/>
                 <DataGridTextColumn Header="备注" Binding="{Binding Note}" IsReadOnly="True" Width="120"/>

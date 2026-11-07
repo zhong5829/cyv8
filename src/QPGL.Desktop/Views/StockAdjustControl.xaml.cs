@@ -1,4 +1,5 @@
 using System.Windows.Controls;
+using QPGL.Desktop.Services;
 using QPGL.Desktop.ViewModels;
 
 namespace QPGL.Desktop.Views;
@@ -10,6 +11,7 @@ public partial class StockAdjustControl : UserControl
     public StockAdjustControl()
     {
         InitializeComponent();
+        IntegerInput.Restrict(TxtQty);   // 调仓数量只允许整数录入（2026-11-07 需求）
         DataContext = _vm;
     }
 

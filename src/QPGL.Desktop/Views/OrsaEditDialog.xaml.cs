@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using QPGL.Desktop.Services;
 using QPGL.Infrastructure.Sales;
 
 namespace QPGL.Desktop.Views;
@@ -20,6 +21,7 @@ public partial class OrsaEditDialog : Window
     {
         _editRow = editRow;
         InitializeComponent();
+        IntegerInput.Restrict(TxtQty);   // 报价数量只允许整数录入（2026-11-07 需求）
         Owner = Application.Current?.Windows.OfType<Window>().FirstOrDefault(w => w.IsActive);
         if (editRow is not null)
         {
@@ -69,6 +71,7 @@ public partial class OrsaEditDialog : Window
         if (gname.Length == 0) { Warn("请输入单位名称！"); return; }
         if (nno.Length == 0) { Warn("请输入零件编码！"); return; }
         if (!decimal.TryParse(TxtQty.Text.Trim(), out var qty)) { Warn("报价数量格式不正确"); return; }
+        if (!IntegerInput.IsInteger(TxtQty.Text, out _)) { Warn("报价数量必须是整数（不能带小数）"); return; }
         if (!decimal.TryParse(TxtOprc.Text.Trim(), out var oprc)) { Warn("报价单价格式不正确"); return; }
         Result = new OrsaSaveCommand { Gno = gno, Gname = gname, Nno = nno, Na1 = TxtNa1.Text, Qtamount = qty, Oprc = oprc };
         DialogResult = true;

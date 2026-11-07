@@ -35,14 +35,14 @@
         <!-- 库存列表（fr_istoch 列集） -->
         <DataGrid DockPanel.Dock="Top" ItemsSource="{Binding Rows}" SelectedItem="{Binding SelectedRow}"
                   AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single"
-                  CanUserSortColumns="False" GridLinesVisibility="Horizontal"
+                  CanUserSortColumns="False"
                   HeadersVisibility="Column" FontSize="12">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="厂牌" Binding="{Binding Cp}" Width="70"/>
                 <DataGridTextColumn Header="零件号" Binding="{Binding Nno}" Width="120"/>
                 <DataGridTextColumn Header="名称" Binding="{Binding Na1}" Width="170"/>
                 <DataGridTextColumn Header="车型" Binding="{Binding Ty}" Width="100"/>
-                <DataGridTextColumn Header="数量" Binding="{Binding Kcamount}" Width="70"/>
+                <DataGridTextColumn Header="数量" Binding="{Binding Kcamount, Converter={StaticResource QtyInt}}" Width="70"/>
                 <DataGridTextColumn Header="进价" Binding="{Binding Iprc, StringFormat=N2}" Width="70"/>
                 <DataGridTextColumn Header="进价金额" Binding="{Binding Iprj, StringFormat=N2}" Width="85"/>
                 <DataGridTextColumn Header="售价" Binding="{Binding Oprc, StringFormat=N2}" Width="70"/>
@@ -64,7 +64,7 @@
                     <TextBlock Text="{Binding Total, StringFormat=共 {0} 行}" VerticalAlignment="Center" Margin="12,0,0,0"/>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" HorizontalAlignment="Right" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding SumKcamount, StringFormat=总数量：{0:N0}}" FontWeight="Bold" Foreground="#2E5C8A" Margin="0,0,14,0"/>
+                    <TextBlock FontWeight="Bold" Foreground="#2E5C8A" Margin="0,0,14,0"><Run Text="总数量："/><Run Text="{Binding SumKcamount, Converter={StaticResource QtyInt}}"/></TextBlock>
                     <TextBlock Text="{Binding SumIprjAmount, StringFormat=总进价金额：{0:N2}}" FontWeight="Bold" Foreground="#2E5C8A" Margin="0,0,14,0"/>
                     <TextBlock Text="{Binding SumOprcAmount, StringFormat=总售价金额：{0:N2}}" FontWeight="Bold" Foreground="#2E5C8A"/>
                 </StackPanel>

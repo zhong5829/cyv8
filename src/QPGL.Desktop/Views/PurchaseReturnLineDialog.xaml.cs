@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Input;
+using QPGL.Desktop.Services;
 using QPGL.Infrastructure.Stock;
 
 namespace QPGL.Desktop.Views;
@@ -30,6 +31,7 @@ public partial class PurchaseReturnLineDialog : Window
     public PurchaseReturnLineDialog(ReturnableLine line, bool priceLocked)
     {
         InitializeComponent();
+        IntegerInput.Restrict(TxtQty);   // 退货数量只允许整数录入（2026-11-07 需求）
         Owner = Application.Current.MainWindow;
         _ktx = line.Amount;
 
@@ -92,6 +94,12 @@ public partial class PurchaseReturnLineDialog : Window
         if (qty <= 0)
         {
             MessageBox.Show("退货数量必须大于 0", "入库退货行", MessageBoxButton.OK, MessageBoxImage.Warning);
+            FocusInput(TxtQty);
+            return false;
+        }
+        if (!IntegerInput.IsInteger(TxtQty.Text, out _))
+        {
+            MessageBox.Show("退货数量必须是整数（不能带小数）", "入库退货行", MessageBoxButton.OK, MessageBoxImage.Warning);
             FocusInput(TxtQty);
             return false;
         }

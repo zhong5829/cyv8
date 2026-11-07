@@ -13,7 +13,7 @@
             <Button Content="关闭" Width="60" Margin="8,0,0,0" Click="BtnClose_Click"/>
         </StackPanel>
         <DataGrid x:Name="Grd" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
-                  GridLinesVisibility="Horizontal" HeadersVisibility="Column" Margin="2"
+                   HeadersVisibility="Column" Margin="2"
                   LoadingRow="Grd_LoadingRow"/>
     </DockPanel>
 </Window>

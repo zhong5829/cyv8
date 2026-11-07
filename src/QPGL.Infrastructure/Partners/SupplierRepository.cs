@@ -8,8 +8,14 @@ namespace QPGL.Infrastructure.Partners;
 
 public interface ISupplierRepository
 {
-    /// <summary>供应商分页查询（tbgugys）。</summary>
+    /// <summary>供应商管理列表（固定 tbgugys，与新增/修改/删除同表，避免跨表 Id 误改误删）。</summary>
     Task<PagedResult<SupplierRow>> SearchAsync(PagedRequest request, CancellationToken ct = default);
+
+    /// <summary>业务页供应商联想（合并 tbgu + tbgugys，tbgu 优先；存量客户型供应商与供应商档案都能命中）。</summary>
+    Task<PagedResult<SupplierRow>> SearchMergedAsync(PagedRequest request, CancellationToken ct = default);
+
+    /// <summary>按名称精确查找供应商（合并 tbgu + tbgugys，Trim 首尾空格、忽略大小写，不做中缀宽松匹配）。</summary>
+    Task<SupplierRow?> FindExactAsync(string name, CancellationToken ct = default);
 
     /// <summary>供应商新增/修改（结构契约 + fr_gu 校验模式）。</summary>
     Task<SaveSupplierResult> SaveAsync(SaveSupplierCommand command, CancellationToken ct = default);
@@ -19,48 +25,38 @@ public interface ISupplierRepository
 }
 
 /// <summary>
-/// 供应商管理仓储（M5，A6）。供应商表=tbgugys（gyno/gyname/linkman/tel/fax/zip/cno/adr/code/code1/
-/// zq 账期/email/note/note1/bank/checkno/sl 税率/lb 类别）；tbgu 全为 KH 客户（type1 空，生产实证）。
-/// 校验模式照 fr_gu：gyno 唯一（新增或改号时）、gyname 必填。
+/// 供应商仓储（M5，A6）。
+/// 供应商档案表=tbgugys（gyno/gyname/linkman/tel/fax/zip/cno/adr/code/code1/zq 账期/email/note/note1/bank/checkno/sl 税率/lb 类别）；
+/// tbgu 为历史「供应商使用客户表」数据（gno/gname，无 zq/sl/lb 列）。
+/// 2026-11-07 口径（用户确认 A+D）：管理页列表/新增/修改/删除固定 tbgugys；
+/// 业务页联想与存在性校验合并查询 tbgu + tbgugys，保证存量客户型供应商与新建供应商都能命中。
 /// </summary>
 public sealed class SupplierRepository(SqlConnectionFactory factory) : ISupplierRepository
 {
-    private const string Columns =
-        "id, RTRIM(gyno) gyno, RTRIM(gyname) gyname, RTRIM(linkman) linkman, RTRIM(tel) tel, RTRIM(fax) fax, " +
-        "RTRIM(adr) adr, zq, RTRIM(email) email, RTRIM(note) note, RTRIM(bank) bank, sl, RTRIM(lb) lb";
-
     public async Task<PagedResult<SupplierRow>> SearchAsync(PagedRequest request, CancellationToken ct = default)
     {
         await using var conn = await factory.OpenAsync(ct);
 
-        // 旧 cmm_class row326 Init + pg_proc L3276-3277：tbsysset「MAKER」(valuel) = P_GYSUSEKH，
-        // 真则供应商联想源切 tbgu（gname/gno/code/code1），否则 tbgugys（gyname/gyno）——运行时读配置
-        var useKh = await conn.ExecuteScalarAsync<bool>(new CommandDefinition(
-            "SELECT ISNULL(CAST(valuel AS bit), 0) FROM tbsysset WITH (NOLOCK) WHERE RTRIM(name) = 'MAKER' AND type = 'system'",
-            cancellationToken: ct));
-        var table = useKh ? "tbgu" : "tbgugys";
-        var nameCol = useKh ? "gname" : "gyname";
-        var noCol = useKh ? "gno" : "gyno";
-
+        // 管理页固定 tbgugys（与 SaveAsync/DeleteAsync 同表）：不再跟随 MAKER 切到 tbgu，
+        // 否则列表行携带的是 tbgu.Id，编辑/删除会误作用到同 id 的 tbgugys 记录。
         var where = "1=1";
         var p = new DynamicParameters();
         if (!string.IsNullOrWhiteSpace(request.Keyword))
         {
             // 旧 cmm_class FRDM 机制：拼音码 code / 数字码 code1 / 名称 / 编号前缀匹配
-            where += $" AND ({nameCol} LIKE N'%' + @kw + '%' OR {noCol} LIKE @kw + '%' OR code LIKE @kw + '%' OR code1 LIKE @kw + '%')";
+            where += " AND (gyname LIKE N'%' + @kw + '%' OR gyno LIKE @kw + '%' OR code LIKE @kw + '%' OR code1 LIKE @kw + '%')";
             p.Add("kw", request.Keyword.Trim());
         }
-        var orderBy = $"{noCol} ASC, id ASC";
 
         var sql = $"""
-            SELECT id, RTRIM({noCol}) gyno, RTRIM({nameCol}) gyname, RTRIM(linkman) linkman, RTRIM(tel) tel,
-                   RTRIM(fax) fax, RTRIM(adr) adr, 0 zq, RTRIM(email) email, RTRIM(note) note,
-                   RTRIM(bank) bank, 0 sl, '' lb
-            FROM {table} WITH (NOLOCK)
+            SELECT 'tbgugys' AS source, id, RTRIM(gyno) gyno, RTRIM(gyname) gyname, RTRIM(linkman) linkman,
+                   RTRIM(tel) tel, RTRIM(fax) fax, RTRIM(adr) adr, zq, RTRIM(email) email, RTRIM(note) note,
+                   RTRIM(bank) bank, sl, RTRIM(lb) lb
+            FROM tbgugys WITH (NOLOCK)
             WHERE {where}
-            ORDER BY {orderBy}
+            ORDER BY gyno ASC, id ASC
             OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY;
-            SELECT COUNT(1) FROM {table} WITH (NOLOCK) WHERE {where};
+            SELECT COUNT(1) FROM tbgugys WITH (NOLOCK) WHERE {where};
             """;
         p.Add("skip", (request.Page - 1) * request.PageSize);
         p.Add("take", request.PageSize);
@@ -69,6 +65,75 @@ public sealed class SupplierRepository(SqlConnectionFactory factory) : ISupplier
         var rows = (await multi.ReadAsync<SupplierRow>()).AsList();
         var total = await multi.ReadFirstAsync<int>();
         return new PagedResult<SupplierRow> { Items = rows, Total = total, Page = request.Page, PageSize = request.PageSize };
+    }
+
+    public async Task<PagedResult<SupplierRow>> SearchMergedAsync(PagedRequest request, CancellationToken ct = default)
+    {
+        await using var conn = await factory.OpenAsync(ct);
+
+        var p = new DynamicParameters();
+        var guWhere = "1=1";
+        var gysWhere = "1=1";
+        if (!string.IsNullOrWhiteSpace(request.Keyword))
+        {
+            p.Add("kw", request.Keyword.Trim());
+            guWhere += " AND (gname LIKE N'%' + @kw + '%' OR gno LIKE @kw + '%' OR code LIKE @kw + '%' OR code1 LIKE @kw + '%')";
+            gysWhere += " AND (gyname LIKE N'%' + @kw + '%' OR gyno LIKE @kw + '%' OR code LIKE @kw + '%' OR code1 LIKE @kw + '%')";
+        }
+
+        // 默认取舍（待用户确认重名策略）：两表并集不去重，tbgu（存量客户型供应商）排在前面，表内按编号升序。
+        var union = $"""
+            SELECT 'tbgu' AS source, id, RTRIM(gno) gyno, RTRIM(gname) gyname, RTRIM(linkman) linkman,
+                   RTRIM(tel) tel, RTRIM(fax) fax, RTRIM(adr) adr, 0 zq, RTRIM(email) email,
+                   RTRIM(note) note, RTRIM(bank) bank, 0 sl, CAST('' AS varchar(4)) lb, 0 AS src_order
+            FROM tbgu WITH (NOLOCK) WHERE {guWhere}
+            UNION ALL
+            SELECT 'tbgugys' AS source, id, RTRIM(gyno), RTRIM(gyname), RTRIM(linkman), RTRIM(tel),
+                   RTRIM(fax), RTRIM(adr), zq, RTRIM(email), RTRIM(note), RTRIM(bank), sl, RTRIM(lb), 1 AS src_order
+            FROM tbgugys WITH (NOLOCK) WHERE {gysWhere}
+            """;
+
+        var sql = $"""
+            SELECT source, id, gyno, gyname, linkman, tel, fax, adr, zq, email, note, bank, sl, lb
+            FROM ({union}) t
+            ORDER BY src_order ASC, gyno ASC, id ASC
+            OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY;
+            SELECT COUNT(1) FROM ({union}) c;
+            """;
+        p.Add("skip", (request.Page - 1) * request.PageSize);
+        p.Add("take", request.PageSize);
+
+        using var multi = await conn.QueryMultipleAsync(new CommandDefinition(sql, p, cancellationToken: ct));
+        var rows = (await multi.ReadAsync<SupplierRow>()).AsList();
+        var total = await multi.ReadFirstAsync<int>();
+        return new PagedResult<SupplierRow> { Items = rows, Total = total, Page = request.Page, PageSize = request.PageSize };
+    }
+
+    public async Task<SupplierRow?> FindExactAsync(string name, CancellationToken ct = default)
+    {
+        var n = (name ?? "").Trim();
+        if (n.Length == 0) return null;
+
+        await using var conn = await factory.OpenAsync(ct);
+
+        // 名称整串相等（RTRIM 去尾空格；列排序规则 Chinese_PRC_CI_AS 大小写不敏感），
+        // 不用 LIKE，避免被 200 条上限挤掉；tbgu 优先。
+        const string sql = """
+            SELECT TOP 1 source, id, gyno, gyname, linkman, tel, fax, adr, zq, email, note, bank, sl, lb
+            FROM (
+                SELECT 'tbgu' AS source, id, RTRIM(gno) gyno, RTRIM(gname) gyname, RTRIM(linkman) linkman,
+                       RTRIM(tel) tel, RTRIM(fax) fax, RTRIM(adr) adr, 0 zq, RTRIM(email) email,
+                       RTRIM(note) note, RTRIM(bank) bank, 0 sl, CAST('' AS varchar(4)) lb, 0 AS src_order
+                FROM tbgu WITH (NOLOCK) WHERE RTRIM(gname) = @name
+                UNION ALL
+                SELECT 'tbgugys' AS source, id, RTRIM(gyno), RTRIM(gyname), RTRIM(linkman), RTRIM(tel),
+                       RTRIM(fax), RTRIM(adr), zq, RTRIM(email), RTRIM(note), RTRIM(bank), sl, RTRIM(lb), 1 AS src_order
+                FROM tbgugys WITH (NOLOCK) WHERE RTRIM(gyname) = @name
+            ) t
+            ORDER BY src_order ASC, gyno ASC, id ASC;
+            """;
+        return await conn.QueryFirstOrDefaultAsync<SupplierRow>(
+            new CommandDefinition(sql, new { name = n }, cancellationToken: ct));
     }
 
     public async Task<SaveSupplierResult> SaveAsync(SaveSupplierCommand command, CancellationToken ct = default)

@@ -30,7 +30,7 @@
 
         <DataGrid ItemsSource="{Binding Rows}" SelectedItem="{Binding SelectedRow}"
                   AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False"
-                  GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12">
+                   HeadersVisibility="Column" FontSize="12">
             <DataGrid.Columns>
                 <DataGridTemplateColumn Header="上网" Width="52">
                     <DataGridTemplateColumn.CellTemplate>
@@ -47,7 +47,7 @@
                 <DataGridTextColumn Header="正厂" Binding="{Binding Dc}" IsReadOnly="True" Width="60"/>
                 <DataGridTextColumn Header="售价" Binding="{Binding Oprc, Mode=OneWay}" IsReadOnly="True" Width="80"
                                     ElementStyle="{StaticResource NumCellRight}"/>
-                <DataGridTextColumn Header="数量" Binding="{Binding Kcamount, Mode=OneWay}" IsReadOnly="True" Width="80"
+                <DataGridTextColumn Header="数量" Binding="{Binding Kcamount, Mode=OneWay, Converter={StaticResource QtyInt}}" IsReadOnly="True" Width="80"
                                     ElementStyle="{StaticResource NumCellRight}"/>
                 <DataGridTextColumn Header="上网编码" Binding="{Binding Nnp}" IsReadOnly="True" Width="110"/>
             </DataGrid.Columns>

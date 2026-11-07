@@ -629,7 +629,7 @@ public partial class XlskViewModel : ObservableObject
                 new("Nno", "工号", 'C', 70),
                 new("Na1", "名称", 'C', 150),
                 new("Ty", "规格", 'C', 90),
-                new("Jkamount", "数量", 'N', 70),
+                new("Jkamount", "数量", 'N', 70, QueryGridHelper.QtyFormat),
                 new("Iprc", "进价", 'N', 80),
                 new("Gu", "仓库", 'C', 70),
                 new("Gyname", "供货单位", 'C', 120),

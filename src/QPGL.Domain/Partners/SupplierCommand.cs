@@ -46,9 +46,11 @@ public sealed class SaveSupplierResult
     public required bool IsCreate { get; set; }
 }
 
-/// <summary>供应商行（tbgugys）。</summary>
+/// <summary>供应商行（管理页=tbgugys；业务联想=合并 tbgu+tbgugys）。</summary>
 public sealed class SupplierRow
 {
+    /// <summary>数据来源表：tbgugys=供应商档案；tbgu=存量客户型供应商（仅合并查询返回）。</summary>
+    public string Source { get; set; } = "tbgugys";
     public int Id { get; set; }
     public string Gyno { get; set; } = "";
     public string Gyname { get; set; } = "";

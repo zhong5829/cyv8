@@ -28,7 +28,7 @@
                         <RowDefinition Height="2*"/>
                     </Grid.RowDefinitions>
                     <DataGrid ItemsSource="{Binding YsHz}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
-                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                               HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="科目代码" Binding="{Binding Subcode}" Width="110"/>
                             <DataGridTextColumn Header="科目名称" Binding="{Binding Subname}" Width="*"/>
@@ -40,7 +40,7 @@
                     </DataGrid>
                     <GridSplitter Grid.Row="1" Height="3" HorizontalAlignment="Stretch" Background="LightGray"/>
                     <DataGrid Grid.Row="2" ItemsSource="{Binding Ys}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
-                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                               HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="日期" Binding="{Binding Date, StringFormat=yyyy-MM-dd}" Width="90"/>
                             <DataGridTextColumn Header="凭证字号" Binding="{Binding Wordid}" Width="90"/>
@@ -62,7 +62,7 @@
                         <RowDefinition Height="2*"/>
                     </Grid.RowDefinitions>
                     <DataGrid ItemsSource="{Binding YfHz}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
-                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                               HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="科目代码" Binding="{Binding Subcode}" Width="110"/>
                             <DataGridTextColumn Header="科目名称" Binding="{Binding Subname}" Width="*"/>
@@ -74,7 +74,7 @@
                     </DataGrid>
                     <GridSplitter Grid.Row="1" Height="3" HorizontalAlignment="Stretch" Background="LightGray"/>
                     <DataGrid Grid.Row="2" ItemsSource="{Binding Yf}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
-                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                               HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="日期" Binding="{Binding Date, StringFormat=yyyy-MM-dd}" Width="90"/>
                             <DataGridTextColumn Header="凭证字号" Binding="{Binding Wordid}" Width="90"/>
@@ -96,7 +96,7 @@
                         <RowDefinition Height="2*"/>
                     </Grid.RowDefinitions>
                     <DataGrid ItemsSource="{Binding YsyfHz}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
-                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                               HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="科目名称" Binding="{Binding Subname}" Width="*"/>
                             <DataGridTextColumn Header="期初方向" Binding="{Binding Qcdir}" Width="70"/>
@@ -107,7 +107,7 @@
                     </DataGrid>
                     <GridSplitter Grid.Row="1" Height="3" HorizontalAlignment="Stretch" Background="LightGray"/>
                     <DataGrid Grid.Row="2" ItemsSource="{Binding Ysyf}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
-                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                               HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="日期" Binding="{Binding Date, StringFormat=yyyy-MM-dd}" Width="90"/>
                             <DataGridTextColumn Header="凭证字号" Binding="{Binding Wordid}" Width="90"/>

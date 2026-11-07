@@ -131,7 +131,7 @@
                 <!-- 页1 出库确认（旧 GRDCK 列序：标识/单号/日期/操作员/收款人/付款方式/发票号/优惠率/售价/实售价/客户/确认日期/备注/实收金额/减收/原单号） -->
                 <DataGrid ItemsSource="{Binding OutBills}" SelectedItem="{Binding SelectedOut}"
                           AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single"
-                          GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12" Margin="1"
+                           HeadersVisibility="Column" FontSize="12" Margin="1"
                           VirtualizingPanel.IsVirtualizing="True">
                     <DataGrid.RowStyle>
                         <Style TargetType="DataGridRow">
@@ -168,7 +168,7 @@
                 <!-- 页2 入库确认（旧 GRDRK 列序：mark/cno/indate/per/fkfs/pno/iprc/iprj/gyname/isord/ywr/jkamount/qrr/qrdate） -->
                 <DataGrid ItemsSource="{Binding InBills}" SelectedItem="{Binding SelectedIn}"
                           AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single"
-                          GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12" Margin="1"
+                           HeadersVisibility="Column" FontSize="12" Margin="1"
                           VirtualizingPanel.IsVirtualizing="True">
                     <DataGrid.RowStyle>
                         <Style TargetType="DataGridRow">
@@ -192,7 +192,7 @@
                         <DataGridTextColumn Header="供应商" Binding="{Binding Gyname}" Width="130"/>
                         <DataGridTextColumn Header="订单" Binding="{Binding Isord}" Width="45"/>
                         <DataGridTextColumn Header="业务人" Binding="{Binding Ywr}" Width="60"/>
-                        <DataGridTextColumn Header="数量" Binding="{Binding Jkamount, StringFormat=N2}" Width="60"/>
+                        <DataGridTextColumn Header="数量" Binding="{Binding Jkamount, Converter={StaticResource QtyInt}}" Width="60"/>
                         <DataGridTextColumn Header="确认人" Binding="{Binding Qrr}" Width="60"/>
                         <DataGridTextColumn Header="确认日期" Binding="{Binding Qrdate, StringFormat=yyyy-MM-dd}" Width="*"/>
                     </DataGrid.Columns>
@@ -200,7 +200,7 @@
                 <!-- 页3 调拨确认（旧 GRDDB 列序：sk/paper/outdate/per/guno/pno/oprc(成本)/oprct(实成本)/gname） -->
                 <DataGrid ItemsSource="{Binding TransferBills}" SelectedItem="{Binding SelectedTransfer}"
                           AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single"
-                          GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12" Margin="1"
+                           HeadersVisibility="Column" FontSize="12" Margin="1"
                           VirtualizingPanel.IsVirtualizing="True">
                     <DataGrid.RowStyle>
                         <Style TargetType="DataGridRow">
@@ -224,7 +224,7 @@
                         <DataGridTextColumn Header="发票号" Binding="{Binding Pno}" Width="90"/>
                         <DataGridTextColumn Header="成本" Binding="{Binding Oprc, StringFormat=N2}" Width="75"/>
                         <DataGridTextColumn Header="实成本" Binding="{Binding Oprct, StringFormat=N2}" Width="75"/>
-                        <DataGridTextColumn Header="数量" Binding="{Binding Ckamount, StringFormat=N2}" Width="60"/>
+                        <DataGridTextColumn Header="数量" Binding="{Binding Ckamount, Converter={StaticResource QtyInt}}" Width="60"/>
                         <DataGridTextColumn Header="客户" Binding="{Binding Gname}" Width="130"/>
                         <DataGridTextColumn Header="确认日期" Binding="{Binding Qrdate, StringFormat=yyyy-MM-dd}" Width="*"/>
                     </DataGrid.Columns>
@@ -232,7 +232,7 @@
                 <!-- 页7 代销付款确认（旧 GRDPJ：选项/mark/paper/outdate/per/skper/depotno/ckamount/nno/na1/人进价合计/外币价合计/gname/iprc/iprj/skdate/cp） -->
                 <DataGrid ItemsSource="{Binding ConsignRows}" SelectedItem="{Binding SelectedConsign}"
                           AutoGenerateColumns="False" SelectionMode="Single"
-                          GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12" Margin="1"
+                           HeadersVisibility="Column" FontSize="12" Margin="1"
                           VirtualizingPanel.IsVirtualizing="True">
                     <DataGrid.Columns>
                         <!-- 旧 VFP GRDPJ 选项列单击即勾；DataGridCheckBoxColumn 非编辑态不可命中 → 模板列直接切换 -->
@@ -250,7 +250,7 @@
                         <DataGridTextColumn Header="操作员" Binding="{Binding Per}" Width="60"/>
                         <DataGridTextColumn Header="付款经手人" Binding="{Binding Skper}" Width="70"/>
                         <DataGridTextColumn Header="仓库" Binding="{Binding Depotno}" Width="55"/>
-                        <DataGridTextColumn Header="数量" Binding="{Binding Ckamount, StringFormat=N2}" Width="55"/>
+                        <DataGridTextColumn Header="数量" Binding="{Binding Ckamount, Converter={StaticResource QtyInt}}" Width="55"/>
                         <DataGridTextColumn Header="零件编码" Binding="{Binding Nno}" Width="100"/>
                         <DataGridTextColumn Header="零件名" Binding="{Binding Na1}" Width="130"/>
                         <DataGridTextColumn Header="人进价合计" Binding="{Binding Oprc, StringFormat=N2}" Width="80"/>
@@ -272,7 +272,7 @@
                 <TextBlock DockPanel.Dock="Bottom" Text="{Binding Message}" Foreground="#C0392B" Margin="8,2,8,4"
                            TextTrimming="CharacterEllipsis"/>
                 <DataGrid ItemsSource="{Binding Lines}" AutoGenerateColumns="False" IsReadOnly="True"
-                          GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12" Margin="1"
+                           HeadersVisibility="Column" FontSize="12" Margin="1"
                           VirtualizingPanel.IsVirtualizing="True">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="厂牌" Binding="{Binding Cp}" Width="60"/>
@@ -281,7 +281,7 @@
                         <DataGridTextColumn Header="车型" Binding="{Binding Ty}" Width="90"/>
                         <DataGridTextColumn Header="产地" Binding="{Binding Fa}" Width="60"/>
                         <DataGridTextColumn Header="材料单位" Binding="{Binding Unit}" Width="60"/>
-                        <DataGridTextColumn Header="数量" Binding="{Binding Amount, StringFormat=N2}" Width="55"/>
+                        <DataGridTextColumn Header="数量" Binding="{Binding Amount, Converter={StaticResource QtyInt}}" Width="55"/>
                         <DataGridTextColumn Header="售价" Binding="{Binding Oprc, StringFormat=N2}" Width="65"/>
                         <DataGridTextColumn Header="实售价" Binding="{Binding Oprct, StringFormat=N2}" Width="65"/>
                         <DataGridTextColumn Header="人进价" Binding="{Binding Iprc, StringFormat=N2}" Width="65"/>

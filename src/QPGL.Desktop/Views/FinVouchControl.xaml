@@ -30,7 +30,7 @@
 
         <!-- 分录编辑 -->
         <DataGrid DockPanel.Dock="Top" ItemsSource="{Binding Lines}" AutoGenerateColumns="False" CanUserAddRows="True"
-                  GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12" MinHeight="160"
+                   HeadersVisibility="Column" FontSize="12" MinHeight="160"
                   Margin="0,0,0,6">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="摘要" Binding="{Binding Note, UpdateSourceTrigger=PropertyChanged}" Width="*"/>
@@ -76,7 +76,7 @@
         </Border>
 
         <DataGrid ItemsSource="{Binding QueryRows}" AutoGenerateColumns="False" CanUserAddRows="False"
-                  GridLinesVisibility="Horizontal" HeadersVisibility="Column" FontSize="12" IsReadOnly="True"
+                   HeadersVisibility="Column" FontSize="12" IsReadOnly="True"
                   SelectedItem="{Binding SelectedQueryRow}">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="期间" Binding="{Binding Period}" Width="70"/>

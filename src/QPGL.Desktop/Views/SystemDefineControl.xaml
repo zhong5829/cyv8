@@ -34,7 +34,7 @@
                         <Button Content="保存厂牌组（整组删+重插）" Command="{Binding SaveCpsCommand}"/>
                     </StackPanel>
                     <DataGrid ItemsSource="{Binding CpRows}" AutoGenerateColumns="False" CanUserAddRows="True"
-                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                               HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="厂牌名" Binding="{Binding Name}" Width="110"/>
                             <DataGridTextColumn Header="外币名(valuec)" Binding="{Binding Valuec}" Width="110"/>
@@ -73,7 +73,7 @@
                         <Button Content="新增行" Command="{Binding NewDictRowCommand}" Margin="0,0,8,0"/>
                     </StackPanel>
                     <DataGrid ItemsSource="{Binding DictRows}" AutoGenerateColumns="False" CanUserAddRows="False"
-                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                               HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="名称" Binding="{Binding Name}" Width="180"/>
                             <DataGridTextColumn Header="valuec" Binding="{Binding Valuec}" Width="140"/>
@@ -100,7 +100,7 @@
                         <TextBlock Text="（参数行打开即自动补建 findrecord；保存按类型分派 valuel/valuec/valuen）" Margin="10,0,0,0" Foreground="#888"/>
                     </StackPanel>
                     <DataGrid ItemsSource="{Binding ParaRows}" AutoGenerateColumns="False" CanUserAddRows="False"
-                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                               HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="参数" Binding="{Binding Name}" Width="220"/>
                             <DataGridTextColumn Header="分组" Binding="{Binding Xtype}" Width="60"/>

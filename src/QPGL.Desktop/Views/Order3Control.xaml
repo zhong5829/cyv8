@@ -45,7 +45,7 @@
 
         <!-- 主网格 -->
         <DataGrid ItemsSource="{Binding Rows}" SelectedItem="{Binding SelectedRow}"
-                  AutoGenerateColumns="False" CanUserAddRows="False" GridLinesVisibility="Horizontal"
+                  AutoGenerateColumns="False" CanUserAddRows="False"
                   HeadersVisibility="Column" FontSize="12">
             <DataGrid.RowStyle>
                 <Style TargetType="DataGridRow">
@@ -61,11 +61,11 @@
                 <DataGridTextColumn Header="编号" Binding="{Binding Nno}" IsReadOnly="True" Width="110"/>
                 <DataGridTextColumn Header="名称" Binding="{Binding Na1}" IsReadOnly="True" Width="150"/>
                 <DataGridTextColumn Header="车型" Binding="{Binding Ty}" IsReadOnly="True" Width="80"/>
-                <DataGridTextColumn Header="库存" Binding="{Binding Kcamount, Mode=OneWay}" IsReadOnly="True" Width="60"
+                <DataGridTextColumn Header="库存" Binding="{Binding Kcamount, Mode=OneWay, Converter={StaticResource QtyInt}}" IsReadOnly="True" Width="60"
                                     ElementStyle="{StaticResource NumCellRight}"/>
-                <DataGridTextColumn Header="订货数" Binding="{Binding Oqty, Mode=OneWay}" IsReadOnly="True" Width="60"
+                <DataGridTextColumn Header="订货数" Binding="{Binding Oqty, Mode=OneWay, Converter={StaticResource QtyInt}}" IsReadOnly="True" Width="60"
                                     ElementStyle="{StaticResource NumCellRight}"/>
-                <DataGridTextColumn Header="已到" Binding="{Binding Qty, Mode=OneWay}" IsReadOnly="True" Width="55"
+                <DataGridTextColumn Header="已到" Binding="{Binding Qty, Mode=OneWay, Converter={StaticResource QtyInt}}" IsReadOnly="True" Width="55"
                                     ElementStyle="{StaticResource NumCellRight}"/>
                 <DataGridTextColumn Header="外币价" Binding="{Binding Iprj, Mode=OneWay}" IsReadOnly="True" Width="60"
                                     ElementStyle="{StaticResource NumCellRight}"/>

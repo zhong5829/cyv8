@@ -22,7 +22,7 @@
                 <RowDefinition Height="2*"/>
             </Grid.RowDefinitions>
             <DataGrid ItemsSource="{Binding Recout}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
-                      GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                       HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="帐目名称" Binding="{Binding Accname}" Width="160"/>
                     <DataGridTextColumn Header="类型" Binding="{Binding Ctype}" Width="100"/>
@@ -36,7 +36,7 @@
             </DataGrid>
             <GridSplitter Grid.Row="1" Height="3" HorizontalAlignment="Stretch" Background="LightGray"/>
             <DataGrid Grid.Row="2" ItemsSource="{Binding Vouch}" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
-                      GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
+                       HeadersVisibility="Column" AlternatingRowBackground="#F8F8EB">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="日期" Binding="{Binding Date, StringFormat=yyyy-MM-dd}" Width="90"/>
                     <DataGridTextColumn Header="凭证字号" Binding="{Binding Wordid}" Width="90"/>
