@@ -158,6 +158,22 @@ public partial class InStockControl : UserControl
             VM.AddImportedRow(item);
     }
 
+    /// <summary>
+    /// 明细网格直接改「进价(不含税)」时同步「含税价」（2026-11-08 修复：生效后「总进价」全为 0）。
+    /// 与行编辑窗的 2026-11-02 口径一致（含税价自动同步同金额，不换算税率）；
+    /// 不在网格侧同步的话，直接在单元格改价会让 Iprc 留在 0，生效后 Σ(iprc×数量) 即为 0，库存批次成本也被写成 0。
+    /// </summary>
+    private void Lines_CellEditEnding(object sender, DataGridCellEditEndingEventArgs e)
+    {
+        if (e.EditAction != DataGridEditAction.Commit) return;
+        if (e.Row.Item is not InStockLineRow row) return;
+        if (e.Column is not DataGridTextColumn col) return;
+        if ((col.Binding as System.Windows.Data.Binding)?.Path?.Path != nameof(InStockLineRow.Iprj)) return;
+        if (e.EditingElement is not TextBox tb) return;
+        if (!decimal.TryParse(tb.Text.Trim(), out var iprj) || iprj < 0) return;
+        row.Iprc = iprj;
+    }
+
     /// <summary>明细表格 Del 键删除选中行（2026-11-02 需求）：与"删除行"按钮同一命令；单元格编辑态不拦截。</summary>
     private void Lines_PreviewKeyDown(object sender, KeyEventArgs e)
     {

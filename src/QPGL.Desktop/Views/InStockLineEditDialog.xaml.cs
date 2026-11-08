@@ -87,6 +87,13 @@ public partial class InStockLineEditDialog : Window
             TxtOprb.Text = part.Oprb.ToString("N2");
             TxtNote.Text = "";
         }
+        // 2026-11-08 修复（生效后「总进价」全为 0）：含税价预填值恒为 0（属性库 tbprnoty 无该单价、
+        // 存量批次 tbisto.iprc=0），而上面先赋 TxtIprj 时 Iprj_TextChanged 同步过来的金额又被
+        // TxtIprc = part.Iprc 覆盖回 0；用户直接回车确认（Iprj_KeyDown）就会把 Iprc=0 落库。
+        // 按 2026-11-02 既有口径「含税价自动同步同金额，不换算税率」在预填后补齐（仅当原值为空时，不覆盖真实含税价）。
+        if (ParseDecimal(TxtIprc.Text) <= 0 && ParseDecimal(TxtIprj.Text) > 0)
+            TxtIprc.Text = TxtIprj.Text;
+
         CboDepotno.ItemsSource = _warehouses;
         CboDepotno.SelectedItem = _warehouses.Contains(existing?.Depotno ?? part.Depotno)
             ? (existing?.Depotno ?? part.Depotno) : _warehouses.FirstOrDefault();

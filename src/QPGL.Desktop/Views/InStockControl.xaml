@@ -90,7 +90,7 @@
             <DataGrid Grid.Column="0" ItemsSource="{Binding Lines}" SelectedItem="{Binding SelectedLine}"
                       AutoGenerateColumns="False" CanUserAddRows="False"
                       HeadersVisibility="Column" FontSize="12" MouseDoubleClick="Lines_MouseDoubleClick"
-                      PreviewKeyDown="Lines_PreviewKeyDown">
+                      PreviewKeyDown="Lines_PreviewKeyDown" CellEditEnding="Lines_CellEditEnding">
                 <DataGrid.Columns>
                     <!-- 2026-11-07 需求：移除分类码/产地/单位/货位/仓库/备注六列（仅显示层，字段录入与落库仍走行编辑弹窗）；
                          原「备注」承担 * 填充，移除后由「名称」列接管，避免右侧留白 -->
