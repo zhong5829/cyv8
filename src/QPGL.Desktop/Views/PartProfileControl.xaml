@@ -25,7 +25,7 @@
                 <DataGridTextColumn Header="名称" Binding="{Binding Na1}" Width="180"/>
                 <DataGridTextColumn Header="车型" Binding="{Binding Ty}" Width="110"/>
                 <DataGridTextColumn Header="单位" Binding="{Binding Unit}" Width="50"/>
-                <DataGridTextColumn Header="进价金额" Binding="{Binding Iprj, StringFormat=N2}" Width="85"/>
+                <DataGridTextColumn Header="进价(含税)" Binding="{Binding Iprj, StringFormat=N2}" Width="85"/>
                 <DataGridTextColumn Header="常用量" Binding="{Binding Uqty, Converter={StaticResource QtyInt}}" Width="60"/>
                 <DataGridTextColumn Header="最低售价" Binding="{Binding OprcMin, StringFormat=N2}" Width="80"/>
                 <DataGridTextColumn Header="备注" Binding="{Binding Note}" Width="*"/>

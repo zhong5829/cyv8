@@ -14,7 +14,9 @@ public static class ReplayEnv
     private const string DbName = "rscar_replay";
     private const string SnapshotName = "rscar_replay_snap";
     // 本地 SQLEXPRESS（Developer 版），快照文件与副本库 mdf 同目录（F:\SQLData）
-    private const string SnapshotFile = @"F:\SQLData\rscar_replay_snap.ss";
+    // 旧名 rscar_replay_snap.ss 在一次中断的回放后成为无主文件（SQL 服务账号持有 ACL，普通用户无法删除），
+    // 改用新文件名以避免与残留文件冲突。
+    private const string SnapshotFile = @"F:\SQLData\rscar_replay_snap_v8.ss";
 
     public static SqlConnection Open() =>
         new(ReplayConfig.ConnectionString);

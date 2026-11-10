@@ -174,7 +174,10 @@ public static class Name0Sync
         string na1, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(na1)) return;
-        var name = new DbString { Value = na1, IsAnsi = true, Length = 20 };
+        // tbname0.name/name1 char(20)（只容 10 汉字）：DbString.Length 只按字符数截，
+        // 中文名超 10 字仍会报「将截断字符串或二进制数据」，故按 GBK 字节宽截断后查重/落库
+        var name20 = AnsiBytes.Truncate(na1, 20);
+        var name = new DbString { Value = name20, IsAnsi = true, Length = 20 };
         var exists = await conn.ExecuteScalarAsync<int?>(new CommandDefinition(
             "SELECT id FROM tbname0 WITH (NOLOCK) WHERE rtrim(name)=@name", new { name },
             transaction: tx, cancellationToken: ct));
@@ -186,9 +189,9 @@ public static class Name0Sync
             new
             {
                 name,
-                name1 = new DbString { Value = na1, IsAnsi = true, Length = 20 },
-                code = new DbString { Value = code, IsAnsi = true, Length = 10 },
-                code1 = new DbString { Value = code1, IsAnsi = true, Length = 10 },
+                name1 = name,
+                code = new DbString { Value = AnsiBytes.Truncate(code, 10), IsAnsi = true, Length = 10 },
+                code1 = new DbString { Value = AnsiBytes.Truncate(code1, 10), IsAnsi = true, Length = 10 },
             }, transaction: tx, cancellationToken: ct));
     }
 
@@ -338,18 +341,20 @@ public sealed class PrnotyRepository(SqlConnectionFactory factory, IDmService dm
         }
 
         var p = new DynamicParameters();
-        p.Add("cp", new DbString { Value = c.Cp, IsAnsi = true, Length = 10 });
-        p.Add("nno", new DbString { Value = c.Nno, IsAnsi = true, Length = 18 });
-        p.Add("na1", new DbString { Value = c.Na1, IsAnsi = true, Length = 40 });
-        p.Add("ty", new DbString { Value = c.Ty ?? "", IsAnsi = true, Length = 14 });
-        p.Add("fa", new DbString { Value = c.Fa ?? "", IsAnsi = true, Length = 8 });
-        p.Add("dc", new DbString { Value = c.Dc ?? "", IsAnsi = true, Length = 8 });
-        p.Add("unit", new DbString { Value = c.Unit ?? "", IsAnsi = true, Length = 4 });
+        p.Add("cp", Ansi(c.Cp, 10));
+        p.Add("nno", Ansi(c.Nno, 18));
+        // char 列一律按 GBK 字节宽截断：DbString.Length 只按"字符数"截，中文超宽仍会触发
+        // SQL「将截断字符串或二进制数据」（2026-11-10 新增配件报错但已入库 bug）
+        p.Add("na1", Ansi(c.Na1, 40));
+        p.Add("ty", Ansi(c.Ty, 14));
+        p.Add("fa", Ansi(c.Fa, 8));
+        p.Add("dc", Ansi(c.Dc, 8));
+        p.Add("unit", Ansi(c.Unit, 4));
         p.Add("iprj", c.Iprj);
-        p.Add("code_ts", new DbString { Value = c.Code_ts ?? "", IsAnsi = true, Length = 12 });
-        p.Add("eng", new DbString { Value = c.Eng ?? "", IsAnsi = true, Length = 60 });
-        p.Add("nnp", new DbString { Value = c.Nnp ?? "", IsAnsi = true, Length = 18 });
-        p.Add("nnq", new DbString { Value = c.Nnq ?? "", IsAnsi = true, Length = 18 });
+        p.Add("code_ts", Ansi(c.Code_ts, 12));
+        p.Add("eng", Ansi(c.Eng, 30));   // tbprnoty.eng 实测 char(30)（原声明 60，英文名超 30 字符即报截断错误）
+        p.Add("nnp", Ansi(c.Nnp, 18));
+        p.Add("nnq", Ansi(c.Nnq, 18));
         p.Add("uqty", c.Uqty);
         p.Add("xno", c.Xno);
         p.Add("tno", c.Tno);
@@ -359,12 +364,12 @@ public sealed class PrnotyRepository(SqlConnectionFactory factory, IDmService dm
         p.Add("suttle", c.Suttle);
         // tbprnoty.note 实为 varchar(254)（旧 Length=50 会让驱动把长备注在客户端截成 50 字节，属于静默丢内容）
         p.Add("note", Ansi(c.Note, 254));
-        p.Add("note1", new DbString { Value = c.Note1 ?? "", IsAnsi = true, Length = 50 });
+        p.Add("note1", Ansi(c.Note1, 200));   // tbprnoty.note1 实测 varchar(200)（原声明 50 会静默截断内容）
         // oprc_min 列 NOT NULL（副本库实测）：新增时编辑窗无最低售价输入（null）须落 0（旧 VFP frmAdd Value=0 同款）；
         // oprc_cp 库内无 NULL 行，null 一并落 0
         p.Add("oprc_cp", c.Oprc_cp ?? 0m);
         p.Add("oprc_min", c.Oprc_min ?? 0m);
-        p.Add("cxnno", new DbString { Value = c.Cxnno ?? "", IsAnsi = true, Length = 18 });
+        p.Add("cxnno", Ansi(c.Cxnno, 18));
         long id;
         if (c.IsAdd)
         {
@@ -432,9 +437,13 @@ public sealed class PrnotyRepository(SqlConnectionFactory factory, IDmService dm
             """, ep, cancellationToken: ct));
 
         // tbname0 同步（无行 insert，code=DM(1)/code1=DM(2) 表单层填充）
+        // tbname0.name/name1 为 char(20)（只容 10 汉字），而 tbprnoty.na1 为 char(40)：
+        // 零件名超过 10 汉字时此步原先必报「将截断字符串或二进制数据」——INSERT tbprnoty 已提交，
+        // 于是表现为"新增配件报错但数据已写入"（2026-11-10 修复）。查重与插入都用按字节截断后的名字。
+        var name0Name = AnsiBytes.Truncate(c.Na1, 20);
         var name0Id = 0;
         var exists = await conn.ExecuteScalarAsync<int?>(new CommandDefinition(
-            "SELECT id FROM tbname0 WITH (NOLOCK) WHERE rtrim(name)=@name", new { name = new DbString { Value = c.Na1, IsAnsi = true, Length = 20 } }, cancellationToken: ct));
+            "SELECT id FROM tbname0 WITH (NOLOCK) WHERE rtrim(name)=@name", new { name = new DbString { Value = name0Name, IsAnsi = true, Length = 20 } }, cancellationToken: ct));
         if (exists is null)
         {
             var code = await dm.DmAsync(conn, 1, c.Na1, ct);
@@ -444,10 +453,10 @@ public sealed class PrnotyRepository(SqlConnectionFactory factory, IDmService dm
                 SELECT CAST(SCOPE_IDENTITY() AS int);
                 """, new
             {
-                name = new DbString { Value = c.Na1, IsAnsi = true, Length = 20 },
-                name1 = new DbString { Value = c.Na1, IsAnsi = true, Length = 20 },
-                code = new DbString { Value = code, IsAnsi = true, Length = 10 },
-                code1 = new DbString { Value = code1, IsAnsi = true, Length = 10 },
+                name = new DbString { Value = name0Name, IsAnsi = true, Length = 20 },
+                name1 = new DbString { Value = name0Name, IsAnsi = true, Length = 20 },
+                code = Ansi(code, 10),
+                code1 = Ansi(code1, 10),
             }, cancellationToken: ct));
         }
         else

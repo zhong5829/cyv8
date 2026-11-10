@@ -54,7 +54,7 @@ public sealed class SupplierRepository(SqlConnectionFactory factory) : ISupplier
                    RTRIM(bank) bank, sl, RTRIM(lb) lb
             FROM tbgugys WITH (NOLOCK)
             WHERE {where}
-            ORDER BY gyno ASC, id ASC
+            ORDER BY CASE WHEN RTRIM(gyno) = '' THEN 1 ELSE 0 END, gyno ASC, id ASC
             OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY;
             SELECT COUNT(1) FROM tbgugys WITH (NOLOCK) WHERE {where};
             """;

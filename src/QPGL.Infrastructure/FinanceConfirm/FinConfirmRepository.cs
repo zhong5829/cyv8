@@ -260,10 +260,10 @@ public sealed class FinConfirmRepository(SqlConnectionFactory factory) : IFinCon
             // 旧 row410 L44-84：挂帐且有金额 → 汇总运费后写 tbysyf（type='入库'，yf=PT）
             //   M_B1 = sum(jkamount) oamou00, round(sum(CASE WHEN freight=0 THEN iprc ELSE Freight END*jkamount),2) pt,
             //          SUM((iprc-CASE WHEN freight=0 THEN iprc ELSE Freight END)*jkamount) Freight（P_WBTOHS=.F. 分支）
-            //   聚合仅在挂帐分支执行（旧码 M_GZ!=0 AND FKFS='挂帐' 才取数）
+            //   聚合仅在写应收应付分支执行（旧码 M_GZ!=0 AND FKFS='挂帐' 才取数）
             var fkfs = (command.Fkfs ?? "").Trim();
             var gyname = (command.Gyname ?? "").Trim();
-            if (fkfs == "挂帐" && gyname.Length > 0)
+            if (PaymentTerms.WritesReceivable(fkfs) && gyname.Length > 0)
             {
                 var agg = await conn.QueryFirstOrDefaultAsync<(decimal pt, decimal freight)>(
                     new CommandDefinition(
@@ -489,9 +489,15 @@ public sealed class FinConfirmRepository(SqlConnectionFactory factory) : IFinCon
         try
         {
             // 旧妴_.row478 L4-29：付款方式 IN ('挂帐','托收','汇款') → 写 tbysyf（转出方 dpm，ys=OPRCT）
-            if (fkfs is "挂帐" or "托收" or "汇款")
+            //   二期口径统一走 PaymentTerms：仅挂帐写；现金/汇款/代收/托收不写
+            if (PaymentTerms.WritesReceivable(fkfs))
             {
                 var gname = (command.Gname ?? "").Trim();
+                var dpm = (command.Dpm ?? "").Trim();
+                if (gname.Length == 0)
+                    throw new AppException("TRANSFER_GNAME_REQUIRED", "调拨单缺少客户/接收部门，无法写入应收应付，请刷新数据！", 422);
+                if (dpm.Length == 0)
+                    throw new AppException("TRANSFER_DPM_REQUIRED", "调拨单缺少转出部门，无法写入应收应付，请刷新数据！", 422);
                 var exists = await conn.ExecuteScalarAsync<int>(new CommandDefinition(
                     "SELECT COUNT(1) FROM tbysyf WITH (NOLOCK) WHERE gname = @gname AND cno = @cno",
                     new
@@ -502,11 +508,6 @@ public sealed class FinConfirmRepository(SqlConnectionFactory factory) : IFinCon
                     transaction: tx, cancellationToken: ct));
                 if (exists > 0)
                     throw new AppException("YSYF_EXISTS", "该单在应收应付中已存在，请刷新数据！", 409);
-                // L13：select tbdpm dpmbh as dpmb where dpm=?m.gname（客户名=转入部门名 → 转 dpmbh）
-                var dpmB = await conn.ExecuteScalarAsync<string?>(new CommandDefinition(
-                    "SELECT TOP (1) dpmbh FROM tbdpm WITH (NOLOCK) WHERE dpm = @gname",
-                    new { gname = new DbString { Value = gname, IsAnsi = false, Length = 20 } },
-                    transaction: tx, cancellationToken: ct));
                 var ys = await conn.ExecuteScalarAsync<decimal>(new CommandDefinition(
                     "SELECT ISNULL(SUM(c.ckamount * c.oprct), 0) FROM tbsada c WITH (NOLOCK) WHERE c.type = N'调拨' AND c.paper = @paper",
                     new { paper = new DbString { Value = paper, IsAnsi = true, Length = 10 } },
@@ -530,7 +531,7 @@ public sealed class FinConfirmRepository(SqlConnectionFactory factory) : IFinCon
                         fkfs = new DbString { Value = fkfs, IsAnsi = false, Length = 10 },
                         xm = new DbString { Value = fkfs, IsAnsi = false, Length = 250 },
                         per = new DbString { Value = per, IsAnsi = true, Length = 10 },
-                        dpm = new DbString { Value = (command.Dpm ?? "").Trim(), IsAnsi = true, Length = 10 },
+                        dpm = new DbString { Value = dpm, IsAnsi = true, Length = 10 },
                         gname = new DbString { Value = gname, IsAnsi = false, Length = 60 },
                         ys = ys,
                     },

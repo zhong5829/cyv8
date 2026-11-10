@@ -55,6 +55,8 @@ public sealed class StockEditRepository(SqlConnectionFactory factory) : IStockEd
             var newIprc = command.Iprc ?? row.iprc;
             var newIprj = command.Iprj ?? row.iprj;
             var kcChanged = command.Kcamount is not null && command.Kcamount.Value != row.kc;
+            var iprcChanged = command.Iprc is not null && command.Iprc.Value != row.iprc;
+            var iprjChanged = command.Iprj is not null && command.Iprj.Value != row.iprj;
             var setParts = new List<string>();
             var p = new DynamicParameters();
             p.Add("id", command.Id);
@@ -64,17 +66,21 @@ public sealed class StockEditRepository(SqlConnectionFactory factory) : IStockEd
                 setParts.Add($"{col} = @{col}");
                 p.Add(col, val);
             }
+            // 注意：Set 的 val 实参总是求值，可空数值必须 ?? 兜底（.Value 直取在未变更时炸 Nullable）
             Set("nno", new DbString { Value = (command.Nno ?? "").Trim(), IsAnsi = true, Length = 18 }, command.Nno is not null);
             Set("na1", new DbString { Value = (command.Na1 ?? "").Trim(), IsAnsi = false, Length = 40 }, command.Na1 is not null);
             Set("ty", new DbString { Value = (command.Ty ?? "").Trim(), IsAnsi = false, Length = 14 }, command.Ty is not null);
             Set("fa", new DbString { Value = (command.Fa ?? "").Trim(), IsAnsi = false, Length = 8 }, command.Fa is not null);
             Set("dc", new DbString { Value = (command.Dc ?? "").Trim(), IsAnsi = false, Length = 8 }, command.Dc is not null);
             Set("unit", new DbString { Value = (command.Unit ?? "").Trim(), IsAnsi = false, Length = 4 }, command.Unit is not null);
-            Set("kcamount", command.Kcamount!.Value, kcChanged);
-            Set("iprc", command.Iprc!.Value, command.Iprc is not null && command.Iprc.Value != row.iprc);
-            Set("iprj", command.Iprj!.Value, command.Iprj is not null && command.Iprj.Value != row.iprj);
-            Set("oprc", command.Oprc!.Value, command.Oprc is not null);
-            Set("oprb", command.Oprb!.Value, command.Oprb is not null);
+            Set("kcamount", command.Kcamount ?? 0m, kcChanged);
+            // 数量变化同步 kcbhdate=今天（2026-11-09 用户确认口径，对齐 IsappeEngine/散件入库/调仓命中批次
+            // 的 kcbhdate=今天 一致语义；旧 fr_istoch row71 UPDATE 不含 kcbhdate 属旧码遗漏，不照抄）
+            Set("kcbhdate", DateTime.Today, kcChanged);
+            Set("iprc", command.Iprc ?? 0m, iprcChanged);
+            Set("iprj", command.Iprj ?? 0m, iprjChanged);
+            Set("oprc", command.Oprc ?? 0m, command.Oprc is not null);
+            Set("oprb", command.Oprb ?? 0m, command.Oprb is not null);
             Set("posi", new DbString { Value = (command.Posi ?? "").Trim(), IsAnsi = true, Length = 10 }, command.Posi is not null);
             Set("depotno", new DbString { Value = (command.Depotno ?? "").Trim(), IsAnsi = true, Length = 10 }, command.Depotno is not null);
             Set("note", new DbString { Value = (command.Note ?? "").Trim(), IsAnsi = false, Length = 100 }, command.Note is not null);

@@ -88,7 +88,7 @@
                           AutoGenerateColumns="False" EnableRowVirtualization="True"
                           VirtualizingPanel.VirtualizationMode="Recycling">
                     <DataGrid.Columns>
-                        <!-- 列序按 2026-10-28 确认：厂牌/付款方式/单号/出库单号/出库日期/客户名称/零件编码/零件名称/车型/可退数/仓位/库号/售价/实售价/产地/分类码/进价/含税价/优惠率/操作员/备注 -->
+                        <!-- 列序按 2026-10-28 确认：厂牌/付款方式/单号/出库单号/出库日期/客户名称/零件编码/零件名称/车型/可退数/仓位/库号/售价/实售价/产地/分类码/进价(含税)/进价(不含税)/优惠率/操作员/备注 -->
                         <DataGridTextColumn Header="厂牌" Binding="{Binding Cp}" Width="100"/>
                         <DataGridTextColumn Header="付款方式" Binding="{Binding Guno}" Width="70"/>
                         <DataGridTextColumn Header="单号" Binding="{Binding Paper}" Width="90"/>
@@ -108,9 +108,9 @@
                                             ElementStyle="{StaticResource NumCellRight}"/>
                         <DataGridTextColumn Header="产地" Binding="{Binding Fa}" Width="55"/>
                         <DataGridTextColumn Header="分类码" Binding="{Binding Cxnno}" Width="65"/>
-                        <DataGridTextColumn Header="进价" Binding="{Binding Iprj, StringFormat=N2}" Width="70"
+                        <DataGridTextColumn Header="进价(含税)" Binding="{Binding Iprj, StringFormat=N2}" Width="70"
                                             ElementStyle="{StaticResource NumCellRight}"/>
-                        <DataGridTextColumn Header="含税价" Binding="{Binding Iprc, StringFormat=N2}" Width="70"
+                        <DataGridTextColumn Header="进价(不含税)" Binding="{Binding Iprc, StringFormat=N2}" Width="70"
                                             ElementStyle="{StaticResource NumCellRight}"/>
                         <DataGridTextColumn Header="优惠率" Binding="{Binding Yhl}" Width="60"
                                             ElementStyle="{StaticResource NumCellRight}"/>
@@ -146,9 +146,9 @@
                                             ElementStyle="{StaticResource NumCellRight}"/>
                         <DataGridTextColumn Header="产地" Binding="{Binding Fa}" IsReadOnly="True" Width="55"/>
                         <DataGridTextColumn Header="分类码" Binding="{Binding Cxnno}" IsReadOnly="True" Width="65"/>
-                        <DataGridTextColumn Header="进价" Binding="{Binding Iprj, StringFormat=N2}" IsReadOnly="True" Width="70"
+                        <DataGridTextColumn Header="进价(含税)" Binding="{Binding Iprj, StringFormat=N2}" IsReadOnly="True" Width="70"
                                             ElementStyle="{StaticResource NumCellRight}"/>
-                        <DataGridTextColumn Header="含税价" Binding="{Binding Iprc, StringFormat=N2}" IsReadOnly="True" Width="70"
+                        <DataGridTextColumn Header="进价(不含税)" Binding="{Binding Iprc, StringFormat=N2}" IsReadOnly="True" Width="70"
                                             ElementStyle="{StaticResource NumCellRight}"/>
                         <DataGridTextColumn Header="优惠率" Binding="{Binding Yhl}" IsReadOnly="True" Width="60"
                                             ElementStyle="{StaticResource NumCellRight}"/>

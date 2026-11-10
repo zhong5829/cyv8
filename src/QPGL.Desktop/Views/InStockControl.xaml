@@ -66,7 +66,7 @@
                 <Button Content="添加配件" Click="AddPartButton_Click" Padding="14,3" Margin="0,0,8,0"
                         ToolTip="弹出配件选择窗口（三条件查询），双击配件后设置数量/价格等入库信息"/>
                 <Button Content="表格导入" Click="ImportButton_Click" Padding="14,3" Margin="0,0,8,0"
-                        ToolTip="导入采集器 CSV（列：条码、数量）；按条码合计，属性库带出名称价格（比率推导）"/>
+                        ToolTip="导入采集器 CSV（列：条码、数量）；按条码合计，属性库带出名称与进价（不含税价与含税价同额，不按税率换算）"/>
                 <Button Content="删除行" Command="{Binding RemoveLineCommand}" Padding="14,3" Margin="0,0,8,0"/>
                 <!-- 保存暂存（2026-11-02 需求）：明细写 tbistosm 不入库，重开页面可恢复 -->
                 <Button Content="保存暂存" Command="{Binding SaveDraftCommand}" Padding="14,3" Margin="0,0,8,0"
@@ -99,8 +99,8 @@
                     <DataGridTextColumn Header="名称*" Binding="{Binding Na1, UpdateSourceTrigger=PropertyChanged}" Width="*" MinWidth="160"/>
                     <DataGridTextColumn Header="车型" Binding="{Binding Ty, UpdateSourceTrigger=PropertyChanged}" Width="90"/>
                     <DataGridTextColumn Header="数量*" Binding="{Binding Jkamount, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource QtyInt}}" Width="60"/>
-                    <DataGridTextColumn Header="进价(不含税)" Binding="{Binding Iprj, UpdateSourceTrigger=PropertyChanged}" Width="85"/>
-                    <DataGridTextColumn Header="含税价" Binding="{Binding Iprc, UpdateSourceTrigger=PropertyChanged}" Width="70"/>
+                    <DataGridTextColumn Header="进价(含税)" Binding="{Binding Iprj, UpdateSourceTrigger=PropertyChanged}" Width="85"/>
+                    <DataGridTextColumn Header="进价(不含税)" Binding="{Binding Iprc, UpdateSourceTrigger=PropertyChanged}" Width="70"/>
                     <DataGridTextColumn Header="售价" Binding="{Binding Oprc, UpdateSourceTrigger=PropertyChanged}" Width="70"/>
                     <DataGridTextColumn Header="批发价" Binding="{Binding Oprb, UpdateSourceTrigger=PropertyChanged}" Width="70"/>
                 </DataGrid.Columns>
@@ -123,9 +123,9 @@
                                 <DataGridTextColumn Header="供应商" Binding="{Binding Gyname}" IsReadOnly="True" Width="*"/>
                                 <DataGridTextColumn Header="数量" Binding="{Binding Qty, Mode=OneWay, Converter={StaticResource QtyInt}}" IsReadOnly="True" Width="50"
                                                     ElementStyle="{StaticResource NumCellRight}"/>
-                                <DataGridTextColumn Header="进价(不含税)" Binding="{Binding Iprj, Mode=OneWay, StringFormat=N2}" IsReadOnly="True" Width="85"
+                                <DataGridTextColumn Header="进价(含税)" Binding="{Binding Iprj, Mode=OneWay, StringFormat=N2}" IsReadOnly="True" Width="85"
                                                     ElementStyle="{StaticResource NumCellRight}"/>
-                                <DataGridTextColumn Header="进价(含税)" Binding="{Binding Iprc, Mode=OneWay, StringFormat=N2}" IsReadOnly="True" Width="75"
+                                <DataGridTextColumn Header="进价(不含税)" Binding="{Binding Iprc, Mode=OneWay, StringFormat=N2}" IsReadOnly="True" Width="75"
                                                     ElementStyle="{StaticResource NumCellRight}"/>
                             </DataGrid.Columns>
                         </DataGrid>

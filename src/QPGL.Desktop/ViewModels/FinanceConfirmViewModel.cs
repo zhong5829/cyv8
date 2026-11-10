@@ -1,9 +1,11 @@
 using System.Collections.ObjectModel;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using QPGL.Desktop.Services;
 using QPGL.Domain.Common;
 using QPGL.Domain.FinanceConfirm;
+using QPGL.Domain.Partners;
 using QPGL.Infrastructure.FinanceConfirm;
 
 namespace QPGL.Desktop.ViewModels;
@@ -133,6 +135,116 @@ public partial class FinanceConfirmViewModel : ObservableObject
 
     public bool CanConfirm => AppSession.Permission.IsSuper || AppSession.Permission.HasMenu("G11");
     public bool CanSeeCost => AppSession.Permission.CanSeeCost;
+
+    // ── 筛选栏客户/供应商联想（旧 cmm_class row326 FRDM 下拉机制：拼音码 code / 数字码 code1 / 编号 / 名称） ──
+
+    /// <summary>客户联想结果（出库/调拨/代销三页共用，按当前聚焦框回填）。</summary>
+    public ObservableCollection<Partner> CustomerSuggestions { get; } = [];
+
+    /// <summary>供应商联想结果（入库确认页）。</summary>
+    public ObservableCollection<SupplierRow> SupplierSuggestions { get; } = [];
+
+    private readonly DispatcherTimer _custDebounce = new() { Interval = TimeSpan.FromMilliseconds(300) };
+    private readonly DispatcherTimer _supDebounce = new() { Interval = TimeSpan.FromMilliseconds(300) };
+
+    /// <summary>当前输入的客户框（"out"/"tr"/"cs"）：决定联想查询与回填目标。</summary>
+    private string _custTarget = "out";
+
+    public FinanceConfirmViewModel()
+    {
+        _custDebounce.Tick += async (_, _) =>
+        {
+            _custDebounce.Stop();
+            await SearchCustomerSuggestionsAsync();
+        };
+        _supDebounce.Tick += async (_, _) =>
+        {
+            _supDebounce.Stop();
+            await SearchSupplierSuggestionsAsync();
+        };
+    }
+
+    /// <summary>客户输入变化时调用：记录目标框并重置防抖（View 的 TextChanged 转发）。</summary>
+    public void DebounceCustomerSearch(string target)
+    {
+        _custTarget = target;
+        _custDebounce.Stop();
+        _custDebounce.Start();
+    }
+
+    private string CurrentCustomerKeyword => _custTarget switch
+    {
+        "tr" => TrGname,
+        "cs" => CsGname,
+        _ => OutGname,
+    };
+
+    /// <summary>客户联想（tbgu：gname 包含 + gno/code 拼音码/code1 数字码/tel/mobile 前缀）。</summary>
+    public async Task SearchCustomerSuggestionsAsync(CancellationToken ct = default)
+    {
+        var kw = (CurrentCustomerKeyword ?? "").Trim();
+        if (kw.Length == 0)
+        {
+            CustomerSuggestions.Clear();
+            return;
+        }
+        try
+        {
+            var request = new PagedRequest { Page = 1, PageSize = 200, Sort = "partName", Order = "asc", Keyword = kw };
+            var result = await Db.Partners.SearchAsync(request, ct);
+            CustomerSuggestions.Clear();
+            foreach (var p in result.Items) CustomerSuggestions.Add(p);
+        }
+        catch { /* 联想失败不阻断输入 */ }
+    }
+
+    /// <summary>选中客户联想项：只回填名称（筛选 SQL 走 gname，编号不写入该框）。</summary>
+    public void ApplyCustomer(Partner p, string target)
+    {
+        var name = (p.PartName ?? "").Trim();
+        switch (target)
+        {
+            case "tr": TrGname = name; break;
+            case "cs": CsGname = name; break;
+            default: OutGname = name; break;
+        }
+        _custDebounce.Stop();
+        CustomerSuggestions.Clear();
+    }
+
+    /// <summary>供应商输入变化时调用：重置防抖。</summary>
+    public void DebounceSupplierSearch()
+    {
+        _supDebounce.Stop();
+        _supDebounce.Start();
+    }
+
+    /// <summary>供应商联想（合并 tbgu + tbgugys：gyname 包含 + gyno/code/code1 前缀）。</summary>
+    public async Task SearchSupplierSuggestionsAsync(CancellationToken ct = default)
+    {
+        var kw = (InGyname ?? "").Trim();
+        if (kw.Length == 0)
+        {
+            SupplierSuggestions.Clear();
+            return;
+        }
+        try
+        {
+            var request = new PagedRequest { Page = 1, PageSize = 200, Sort = "gyno", Order = "asc", Keyword = kw };
+            var result = await Db.Suppliers.SearchMergedAsync(request, ct);
+            SupplierSuggestions.Clear();
+            foreach (var s in result.Items) SupplierSuggestions.Add(s);
+        }
+        catch { /* 联想失败不阻断输入 */ }
+    }
+
+    /// <summary>选中供应商联想项：只回填名称（筛选 SQL 走 gyname，编号不写入该框）。</summary>
+    public void ApplySupplier(SupplierRow s)
+    {
+        InGyname = (s.Gyname ?? "").Trim();
+        _supDebounce.Stop();
+        SupplierSuggestions.Clear();
+    }
 
     partial void OnActivePageChanged(int value)
     {
@@ -648,13 +760,13 @@ public partial class FinanceConfirmViewModel : ObservableObject
         const string text = """
             财务确认（新系统实现：出库/入库/调拨/代销付款四页签；维修相关页按约定排除）
 
-            1、出库确认：外卖销售单的收款确认，来源是[出库管理/销售管理]，确认后进入收款记录，挂帐的进入应收应付。
+            1、出库确认：外卖销售单的收款确认，来源是[出库管理/销售管理]，确认后进入收款记录；付款方式为「挂帐」的进入应收应付，现金/汇款/代收不进入应收应付。
 
             2、出库确认-[单号明细]：红色表示该零件的实售价小于人进价。
 
-            3、入库确认：入库单的确认，用于财务标记该单已核对，不影响其它流程。挂帐的在[日营业统计]时进入应收应付。
+            3、入库确认：入库单的确认，用于财务标记该单已核对。付款方式为「挂帐」且供应商非空的，确认后进入应收应付；未确认的挂帐单由[日营业统计]补记。
 
-            4、调拨确认：调拨单的确认。挂帐的在[日营业统计]时进入应收应付。
+            4、调拨确认：调拨单的确认。付款方式为「挂帐」的，确认后进入应收应付（转出方）；未确认的由[日营业统计]补记。
 
             8、代销付款确认：配件/精品代销，以出库记录与供应商对帐，即卖多少结算多少，查询的是财务确认后的出库记录，出库类型包括'销售'和'历史'，记录付款日期和付款经手人，在出库单查询中可查到。
             """;

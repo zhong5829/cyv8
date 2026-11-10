@@ -46,18 +46,27 @@ public sealed class StatisticsRepository(SqlConnectionFactory factory) : IStatis
         var tjJj = prm.IfrtjNoJj ? " AND cp <> N'急件'" : "";
         var tjWqr = prm.IfrtjNoQr ? " AND mark <> ''" : "";
 
+        // 旧 row3 为两段式聚合：先按 dpm/日期/paper 汇总到 c_sadatmp（L18/L26），
+        // 再按日期 GROUP BY 汇总到 c_sada（L29）。必须逐段复刻，否则逐单 ROUND 与整日 ROUND 会差出分币。
         var sales = (await conn.QueryAsync<(DateTime outdate, int papers, decimal ckamount, decimal iprj,
-            decimal iprc, decimal oprc, decimal oprct)>(new CommandDefinition(
+            decimal iprc, decimal oprc, decimal oprct, decimal ml)>(new CommandDefinition(
             $"""
-            SELECT CAST(outdate AS date) outdate, COUNT(DISTINCT paper) papers, SUM(ckamount) ckamount,
-                   ROUND(SUM(iprj * ckamount), 2) iprj, ROUND(SUM(iprc * ckamount), 2) iprc,
-                   SUM(oprc * ckamount * (100 - ISNULL(yhl, 0)) / 100.0) oprc,
-                   SUM(oprct * ckamount * (100 - ISNULL(yhl, 0)) / 100.0) oprct
-            FROM tbsada WITH (NOLOCK)
-            WHERE type = N'销售' AND dpm = @dpm{tjWqr}
-            GROUP BY CAST(outdate AS date)
+            WITH per_paper AS (
+                SELECT CAST(outdate AS date) outdate, SUM(ckamount) ckamount,
+                       ROUND(SUM(iprj * ckamount), 2) iprj, ROUND(SUM(iprc * ckamount), 2) iprc,
+                       SUM(oprc * ckamount * (100 - ISNULL(yhl, 0)) / 100.0) oprc,
+                       SUM(oprct * ckamount * (100 - ISNULL(yhl, 0)) / 100.0) oprct
+                FROM tbsada WITH (NOLOCK)
+                WHERE type = N'销售' AND dpm = @dpm{tjWqr}
+                GROUP BY CAST(outdate AS date), paper
+            )
+            SELECT outdate, COUNT(*) papers, SUM(ckamount) ckamount, SUM(iprj) iprj, SUM(iprc) iprc,
+                   SUM(oprc) oprc, SUM(oprct) oprct,
+                   SUM(oprct - CASE WHEN @wbtohs = 1 THEN iprj ELSE iprc END) ml
+            FROM per_paper
+            GROUP BY outdate
             """,
-            new { dpm = Ansi(dpm, 10) }, cancellationToken: ct))).AsList();
+            new { dpm = Ansi(dpm, 10), wbtohs = prm.Wbtohs }, cancellationToken: ct))).AsList();
 
         var instock = (await conn.QueryAsync<(DateTime indate, int rccno, decimal rcamt, decimal rciprj, decimal rciprc)>(
             new CommandDefinition(
@@ -82,7 +91,7 @@ public sealed class StatisticsRepository(SqlConnectionFactory factory) : IStatis
             var r = GetRow(rows, s.outdate);
             r.PaperCount = s.papers; r.Ckamount = s.ckamount; r.Iprj = s.iprj; r.Iprc = s.iprc;
             r.Oprc = s.oprc; r.Oprct = s.oprct;
-            r.Ml = s.oprct - (prm.Wbtohs ? s.iprj : s.iprc);   // P_XSJEGS='1' 恒等（其他金额公式为已知偏差）
+            r.Ml = s.ml;   // 旧 row3 L29：SUM(GETJE(OPRCT) - IIF(P_WBTOHS, IPRJ, IPRC))；GETJE 在本库为恒等
         }
         foreach (var i in instock)
         {
@@ -134,7 +143,7 @@ public sealed class StatisticsRepository(SqlConnectionFactory factory) : IStatis
                         WHERE type = N'销售' AND outdate >= @d AND outdate < @d2 AND guno = @guno
                           AND paper = @paper AND pno = @pno AND dpm = @dpm AND mark = ''
                         """,
-                        new { d, d2, guno = Ansi(g.guno, 10), paper = Ansi(g.paper, 15), pno = Ansi(g.pno, 12), dpm = Ansi(dpm, 10) },
+                        new { d, d2, guno = Ansi(g.guno, 10), paper = Ansi(g.paper, 15), pno = Ansi(g.pno, 20), dpm = Ansi(dpm, 10) },
                         transaction: tx, cancellationToken: ct));
                 if (agg.pt == 0) continue;
 
@@ -148,7 +157,7 @@ public sealed class StatisticsRepository(SqlConnectionFactory factory) : IStatis
                     var prev = await conn.QueryFirstOrDefaultAsync<(decimal cb, decimal tick, decimal yjb)>(
                         new CommandDefinition(
                             "SELECT TOP (1) ISNULL(cb, 0), ISNULL(tick, 0), ISNULL(yjb, 0) FROM tbysyf WITH (UPDLOCK) WHERE gname = @gname ORDER BY datime",
-                            new { gname = Ansi(g.gname, 40) }, transaction: tx, cancellationToken: ct));
+                            new { gname = Ansi(g.gname, 60) }, transaction: tx, cancellationToken: ct));
                     await conn.ExecuteAsync(new CommandDefinition(
                         """
                         INSERT INTO tbysyf (gname, datime, cno, ys, pno, fkfs, type, cb, yjb, tick, xm, spname, dpm)
@@ -156,10 +165,10 @@ public sealed class StatisticsRepository(SqlConnectionFactory factory) : IStatis
                         """,
                         new
                         {
-                            gname = Ansi(g.gname, 40), datime = d, cno = Ansi(g.paper, 15), ys = agg.pt,
-                            pno = Ansi((g.pno + " " + g.per1).Trim(), 12), fkfs = Ansi(g.guno, 10),
+                            gname = Ansi(g.gname, 60), datime = d, cno = Ansi(g.paper, 15), ys = agg.pt,
+                            pno = Ansi((g.pno + " " + g.per1).Trim(), 50), fkfs = Ansi(g.guno, 10),
                             cb = prev.cb, yjb = prev.yjb, tick = prev.tick, xm = Ansi(g.guno, 10),
-                            spname = Ansi(spname, 40), dpm = Ansi(dpm, 10),
+                            spname = Ansi(spname, 60), dpm = Ansi(dpm, 10),
                         },
                         transaction: tx, cancellationToken: ct));
                     result.YsyfSaleRows++;
@@ -172,9 +181,9 @@ public sealed class StatisticsRepository(SqlConnectionFactory factory) : IStatis
                             """,
                             new
                             {
-                                gname = Ansi(g.gname, 40), datime = d, cno = Ansi(g.paper, 15), ys = agg.ptsj - agg.pt,
+                                gname = Ansi(g.gname, 60), datime = d, cno = Ansi(g.paper, 15), ys = agg.ptsj - agg.pt,
                                 fkfs = Ansi(g.guno, 10), cb = prev.cb, yjb = prev.yjb, tick = prev.tick,
-                                xm = Ansi(g.guno, 10), spname = Ansi(spname, 40), dpm = Ansi(dpm, 10),
+                                xm = Ansi(g.guno, 10), spname = Ansi(spname, 60), dpm = Ansi(dpm, 10),
                             },
                             transaction: tx, cancellationToken: ct));
                         result.YsyfSaleRows++;
@@ -232,7 +241,7 @@ public sealed class StatisticsRepository(SqlConnectionFactory factory) : IStatis
                           AND pno = @pno{tjJj} AND mark = ''
                         """,
                         new { d, d2, isord = Ansi(g.isord, 10), seano = Ansi(g.seano, 15), gyname = Ansi(g.gyname, 60),
-                              dpm = Ansi(dpm, 10), per = Ansi(g.per, 10), pno = Ansi(g.pno, 12) },
+                              dpm = Ansi(dpm, 10), per = Ansi(g.per, 10), pno = Ansi(g.pno, 20) },
                         transaction: tx, cancellationToken: ct));
                 if (agg.pt == 0) continue;
 
@@ -241,8 +250,9 @@ public sealed class StatisticsRepository(SqlConnectionFactory factory) : IStatis
                     var prev = await conn.QueryFirstOrDefaultAsync<(decimal cb, decimal tick, decimal yjb)>(
                         new CommandDefinition(
                             "SELECT TOP (1) ISNULL(cb, 0), ISNULL(tick, 0), ISNULL(yjb, 0) FROM tbysyf WITH (UPDLOCK) WHERE gname = @gname ORDER BY datime",
-                            new { gname = Ansi(g.gyname, 40) }, transaction: tx, cancellationToken: ct));
-                    var xm = agg.freight == 0 ? fkfs : fkfs + "有运费：" + agg.freight.ToString("F2").PadLeft(10);
+                            new { gname = Ansi(g.gyname, 60) }, transaction: tx, cancellationToken: ct));
+                    // 旧 row5 L118：m.XM = m.FKFS + IIF(EMPTY(FREIGHT), "", "有运费：" + ALLTRIM(STR(FREIGHT,10,2))
+                    var xm = agg.freight == 0 ? fkfs : fkfs + "有运费：" + agg.freight.ToString("F2");
                     await conn.ExecuteAsync(new CommandDefinition(
                         """
                         INSERT INTO tbysyf (gname, datime, cno, yf, pno, fkfs, type, cb, yjb, tick, xm, isord, dpm)
@@ -250,9 +260,9 @@ public sealed class StatisticsRepository(SqlConnectionFactory factory) : IStatis
                         """,
                         new
                         {
-                            gname = Ansi(g.gyname, 40), datime = d, cno = Ansi(g.seano, 15), yf = agg.pt,
-                            pno = Ansi((g.pno + " " + g.per).Trim(), 12), fkfs = Ansi(fkfs, 10),
-                            cb = prev.cb, yjb = prev.yjb, tick = prev.tick, xm = Ansi(xm, 10),
+                            gname = Ansi(g.gyname, 60), datime = d, cno = Ansi(g.seano, 15), yf = agg.pt,
+                            pno = Ansi((g.pno + " " + g.per).Trim(), 50), fkfs = Ansi(fkfs, 10),
+                            cb = prev.cb, yjb = prev.yjb, tick = prev.tick, xm = Ansi(xm, 250),
                             isord = Ansi(g.isord, 10), dpm = Ansi(dpm, 10),
                         },
                         transaction: tx, cancellationToken: ct));

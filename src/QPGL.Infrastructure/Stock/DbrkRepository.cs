@@ -34,7 +34,8 @@ public interface IDbrkRepository
 ///   注意 SP 内部按 mark='Y' 取 tbsada 游标自行入库/写 tbistoed，故本事务范围仅覆盖回写段；
 ///   旧系统 SPT 无显式事务（逐条自动提交），新系统整体单事务等价（SP 与回写同事务，异常全回滚更严格）。</item>
 /// <item>挂帐写 tbysyf（__.row68 L71-105，row7 单条版不含此段——单条入口 GUNO 分支备案为旧系统差异，
-///   新系统统一走同一段，行为为旧系统批量版超集备案）：guno∈{挂帐,托收,汇款} 时
+///   新系统统一走同一段，行为为旧系统批量版超集备案）：旧系统 guno∈{挂帐,托收,汇款}；
+///   二期口径统一为仅「挂帐」（PaymentTerms.WritesReceivable）时
 ///   pt=round(Σ oprc*(100-yhl)/100*ckamount, 2)（type='调拨' AND paper）；pt≠0 →
 ///   先查 tbysyf top 1 (gname=P_DPMNAME AND dpm)：无行 INSERT tbsada_header 式首行（gname,dpm，CB/TICK/YJB=0），
 ///   有行继承 CB/TICK/YJB；再 INSERT tbysyf 12 列（gname,datime=GETDATE,cno=MPAPER,ys=GETJE(pt),pno,fkfs=guno,
@@ -152,7 +153,8 @@ public sealed class DbrkRepository(SqlConnectionFactory factory) : IDbrkReposito
                 throw new AppException("DBRK_FAILED", $"dbrk 未返回进库单号（单据 {paper}）", 500);
 
             // __.row68 L71-105：挂帐写 tbysyf（取单上 guno —— 同单各行 guno 一致，任一命中即写）
-            var guno = lines.FirstOrDefault(l => l.guno is "挂帐" or "托收" or "汇款")?.guno;
+            // 二期口径统一走 PaymentTerms：仅挂帐写；现金/汇款/代收/托收不写（旧系统为三类都写）
+            var guno = lines.FirstOrDefault(l => PaymentTerms.WritesReceivable(l.guno))?.guno;
             var credit = false;
             if (guno != null)
             {

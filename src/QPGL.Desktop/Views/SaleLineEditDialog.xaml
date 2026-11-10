@@ -209,9 +209,9 @@
                         <DataGridTextColumn Header="供应商" Width="*" Binding="{Binding Gyname}"/>
                         <DataGridTextColumn Header="数量" Width="60" Binding="{Binding Qty, Converter={StaticResource QtyInt}}"
                                             ElementStyle="{StaticResource NumCellRight}"/>
-                        <DataGridTextColumn Header="进价(不含税)" Width="95" Binding="{Binding Iprj, StringFormat=N2}"
+                        <DataGridTextColumn Header="进价(含税)" Width="95" Binding="{Binding Iprj, StringFormat=N2}"
                                             ElementStyle="{StaticResource NumCellRight}"/>
-                        <DataGridTextColumn Header="进价(含税)" Width="85" Binding="{Binding Iprc, StringFormat=N2}"
+                        <DataGridTextColumn Header="进价(不含税)" Width="85" Binding="{Binding Iprc, StringFormat=N2}"
                                             ElementStyle="{StaticResource NumCellRight}"/>
                     </DataGrid.Columns>
                     </DataGrid>

@@ -10,10 +10,21 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <Image x:Name="ImgMain" Grid.Row="0" Margin="10" Stretch="Uniform"
-               MouseLeftButtonUp="ImgMain_MouseDoubleClick"/>
+        <Grid Grid.Row="0">
+            <Image x:Name="ImgMain" Margin="10" Stretch="Uniform"
+                   MouseLeftButtonUp="ImgMain_MouseDoubleClick"/>
+            <!-- 多图序号角标（2026-11-10 多图修复）：如 2/3 -->
+            <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,18,18,0"
+                    Background="#CC000000" CornerRadius="3" Padding="8,3">
+                <TextBlock x:Name="Badge" Foreground="White" FontSize="14"/>
+            </Border>
+        </Grid>
 
         <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,12">
+            <Button x:Name="BtnPrev" Content="← 上一张" Padding="16,6" Margin="0,0,12,0"
+                    Click="BtnPrev_Click"/>
+            <Button x:Name="BtnNext" Content="下一张 →" Padding="16,6" Margin="0,0,12,0"
+                    Click="BtnNext_Click"/>
             <Button x:Name="BtnCopy" Content="复制图片 (Ctrl+C)" Padding="16,6" Margin="0,0,12,0"
                     Click="BtnCopy_Click"/>
             <Button Content="关闭 (Esc)" Padding="16,6" Click="BtnClose_Click"/>

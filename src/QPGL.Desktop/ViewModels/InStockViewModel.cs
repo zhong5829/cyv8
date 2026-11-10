@@ -235,7 +235,9 @@ public partial class InStockViewModel : ObservableObject
     {
         row.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName is nameof(InStockLineRow.Iprj) or nameof(InStockLineRow.Jkamount))
+            // 合计取 Σ(Iprc×数量)：Iprc 变化也须重算（网格改「进价(含税)」时 Iprc 由 CellEditEnding 同额回写，
+            // 晚于 Iprj 的变更通知，若不监听 Iprc 会留下旧合计）
+            if (e.PropertyName is nameof(InStockLineRow.Iprj) or nameof(InStockLineRow.Iprc) or nameof(InStockLineRow.Jkamount))
                 RecalcTotal();
             IsDirty = true;
         };
@@ -307,8 +309,8 @@ public partial class InStockViewModel : ObservableObject
     /// <summary>
     /// 表格导入确认后写明细（qp11 BuyControl.BtnExcelImport_Click L265-293 同构）：
     /// 属性库命中行带出名称/车型/进价/单位（表格值优先），未命中新配件行（生效时自动建档）。
-    /// 价格（旧 ___.row214 L52-58）：进价(不含税)取表格值、空则属性库价；有进价时按
-    /// tbsysset 进价/售价/批价比率推导 iprc/oprc/oprb（「外币为含税价」定方向）。
+    /// 价格（2026-11-08 用户确认 P3）：进价(含税)(iprj)取表格值、空则属性库价；进价(不含税)(iprc)不做换算，
+    /// 直接等于含税价（iprc = iprj）；售价/批发价仍按 tbsysset 售价比率/批价比率推导（另一业务规则，非含税↔不含税换算）。
     /// </summary>
     public async Task AddImportedRowAsync(Views.ImportRowResult item)
     {
@@ -317,14 +319,13 @@ public partial class InStockViewModel : ObservableObject
         var pf = item.MatchedProfile;
         var iprj = item.Iprj > 0 ? item.Iprj : (pf?.Iprj ?? 0);
 
-        decimal iprc = 0, oprc = 0, oprb = 0;
+        var iprc = iprj;   // 不做税率换算：不含税价与含税价同额
+        decimal oprc = 0, oprb = 0;
         if (iprj > 0)
         {
-            // 比率推导（旧 L38-58）：tbsysset 缺省 0.08/0.05/0.09，外币为含税价定方向
-            var (rJj, rSj, rPj, wbtohs) = await Db.InStock.GetImportRatiosAsync();
-            iprc = wbtohs ? Math.Round(iprj / rJj, 2) : Math.Round(iprj * rJj, 2);
-            oprc = wbtohs ? Math.Round(iprj * rSj, 2) : Math.Round(iprc * rSj, 2);
-            oprb = wbtohs ? Math.Round(iprj * rPj, 2) : Math.Round(iprc * rPj, 2);
+            var (rSj, rPj) = await Db.InStock.GetImportRatiosAsync();
+            oprc = Math.Round(iprj * rSj, 2);
+            oprb = Math.Round(iprj * rPj, 2);
         }
 
         // 2026-10-27 用户确认：表格未填仓位且属性库命中 → 带出库内现有批次仓位/仓库
@@ -462,9 +463,14 @@ public partial class InStockViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// 顶部汇总重算（2026-11-08 用户确认 P1=方案 b）：「总进价金额」= Σ(进价(不含税) × 数量)，
+    /// 与旧系统表头 NETCOST=IPRC*QTY 及生效提示 result.TotalIprcAmount 口径一致；
+    /// 改动前取 Σ(Iprj×数量)（含税总额），改后数值变小属预期。
+    /// </summary>
     private void RecalcTotal()
     {
-        TotalAmount = Lines.Sum(l => l.Jkamount * l.Iprj);
+        TotalAmount = Lines.Sum(l => l.Jkamount * l.Iprc);
         TotalQty = Lines.Sum(l => l.Jkamount);
     }
 

@@ -25,8 +25,8 @@ public sealed class InStockLineEditResult
 
 /// <summary>
 /// 入库明细行编辑对话框：双击配件选择行后弹出，
-/// 设置数量/进价(不含税)/含税价/售价/批发价/库号/仓位/分类码/产地/单位/车型/备注。
-/// 确认后经 Owner（InStockControl）写入明细行。数量与不含税进价必填（row31 校验语义）。
+/// 设置数量/进价(含税)/进价(不含税)/售价/批发价/库号/仓位/分类码/产地/单位/车型/备注。
+/// 确认后经 Owner（InStockControl）写入明细行。数量与进价(含税)必填（row31 校验语义）。
 /// </summary>
 public partial class InStockLineEditDialog : Window
 {
@@ -87,10 +87,10 @@ public partial class InStockLineEditDialog : Window
             TxtOprb.Text = part.Oprb.ToString("N2");
             TxtNote.Text = "";
         }
-        // 2026-11-08 修复（生效后「总进价」全为 0）：含税价预填值恒为 0（属性库 tbprnoty 无该单价、
+        // 2026-11-08 修复（生效后「总进价」全为 0）：进价(不含税)预填值恒为 0（属性库 tbprnoty 无该单价、
         // 存量批次 tbisto.iprc=0），而上面先赋 TxtIprj 时 Iprj_TextChanged 同步过来的金额又被
         // TxtIprc = part.Iprc 覆盖回 0；用户直接回车确认（Iprj_KeyDown）就会把 Iprc=0 落库。
-        // 按 2026-11-02 既有口径「含税价自动同步同金额，不换算税率」在预填后补齐（仅当原值为空时，不覆盖真实含税价）。
+        // 按 P2 口径「进价(含税)与进价(不含税)按同金额同步（不按税率换算）」在预填后补齐（仅当原值为空时，不覆盖真实值）。
         if (ParseDecimal(TxtIprc.Text) <= 0 && ParseDecimal(TxtIprj.Text) > 0)
             TxtIprc.Text = TxtIprj.Text;
 
@@ -109,7 +109,7 @@ public partial class InStockLineEditDialog : Window
 
     private readonly InStockLineRow? _existing;
 
-    /// <summary>进货数量框回车 → 跳转进价（不含税）框并全选（2026-11-02 需求）。</summary>
+    /// <summary>进货数量框回车 → 跳转进价（含税）框并全选（2026-11-02 需求）。</summary>
     private void Qty_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
         if (e.Key != System.Windows.Input.Key.Enter) return;
@@ -118,14 +118,17 @@ public partial class InStockLineEditDialog : Window
         e.Handled = true;
     }
 
-    /// <summary>进价（不含税）变化 → 含税价自动同步同金额（2026-11-02 需求：不换算税率）。</summary>
+    /// <summary>
+    /// 进价（含税）变化 → 进价（不含税）同步为同金额（P2，2026-11-08 用户确认：
+    /// 含税价与不含税价按同金额同步，不按税率换算）。
+    /// </summary>
     private void Iprj_TextChanged(object sender, TextChangedEventArgs e)
     {
         if (TxtIprc is null) return;   // InitializeComponent 初始化期触发
         TxtIprc.Text = TxtIprj.Text;
     }
 
-    /// <summary>进价（不含税）框回车 = 确认保存（2026-11-02 需求）。</summary>
+    /// <summary>进价（含税）框回车 = 确认保存（2026-11-02 需求）。</summary>
     private void Iprj_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
         if (e.Key != System.Windows.Input.Key.Enter) return;

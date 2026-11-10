@@ -38,14 +38,19 @@ public interface IPartRepository
     /// <summary>配件历史进价（进货历史：tbistoed type IN 入库/历史 正数行，按入库日期倒序；top&lt;=0 全部；keyword 按供应商名称/拼音码筛选）。</summary>
     Task<IReadOnlyList<PartPurchaseHistory>> GetPurchaseHistoryAsync(string nno, string dpm, int top, string? keyword = null, CancellationToken ct = default);
 
-    /// <summary>按批次 id 批量点查当前库存（开单页轻量库存刷新：只刷库存列，不重查整表；2026-10-30 需求）。</summary>
+    /// <summary>按批次 id 点查单行（2026-11-09 需求：开单页右键「库存修改」保存后整行回查替换——
+    /// StockEditWindow 可改数量/进价/售价/货位/名称/车型/单位/备注多项，WithStock 只刷数量不够）。</summary>
+    Task<PartItem?> GetPartByIdAsync(int id, string dpm, CancellationToken ct = default);
+
+    /// <summary>轻量库存刷新用：按已加载批次 id 点查最新 kcamount（2026-10-30 需求）。</summary>
     Task<IReadOnlyDictionary<int, decimal>> GetStockByIdsAsync(IReadOnlyCollection<int> ids, string dpm, CancellationToken ct = default);
 
     /// <summary>入库单整单明细（tbistoed 按 cno；2026-10-31 需求：进货历史双击查看。本库 tbistoed 无 gu 列，不可复用收付款路径）。</summary>
     Task<IReadOnlyList<PartPurchaseDocLine>> GetPurchaseDocLinesAsync(string cno, CancellationToken ct = default);
 
-    /// <summary>配件图片（tbImage.imgs base64 按内部编号；2026-10-31 需求：开单页选中配件显示图片。无图返回 null）。</summary>
-    Task<byte[]?> GetPartImageAsync(string nno, CancellationToken ct = default);
+    /// <summary>配件图片（tbImage.imgs base64 按内部编号；2026-10-31 需求：开单页选中配件显示图片）。
+    /// 2026-11-10 多图修复：同编号可有多个 tbImage 行（多张图），按 id 序全部返回（无图返回空表）。</summary>
+    Task<IReadOnlyList<byte[]>> GetPartImagesAsync(string nno, CancellationToken ct = default);
 
     /// <summary>图片大小上限（tbsysset type='system' name='MaxImageSize'，缺省 0x0C8000=819200；旧 mypicture.initimage 口径，2026-11-01 需求）。</summary>
     Task<int> GetMaxImageSizeAsync(CancellationToken ct = default);
@@ -704,25 +709,35 @@ public sealed class PartRepository(SqlConnectionFactory factory) : IPartReposito
     }
 
     /// <inheritdoc/>
-    public async Task<byte[]?> GetPartImageAsync(string nno, CancellationToken ct = default)
+    public async Task<IReadOnlyList<byte[]>> GetPartImagesAsync(string nno, CancellationToken ct = default)
     {
         await using var conn = await factory.OpenAsync(ct);
         // imgs 为 base64 文本（JPG/PNG），fn 存原始文件名；旧系统 bmp 目录文件方案已迁入库内，客户端零依赖。
         // tbImage.nno 存的是去掉空格的紧凑编号（如 PT48510-0N050），与 tbisto 带空格写法（PT 48510-0N050）不一致，
-        // 双形式匹配（2026-10-31 修复：图片不显示）
+        // 双形式匹配（2026-10-31 修复：图片不显示）。
+        // 2026-11-10 多图修复：原 SELECT TOP 1 只取第一张，多图配件丢失其余图片——按 id 序全部返回
         var key = nno.Trim();
         var compact = key.Replace(" ", "");
-        var imgs = await conn.ExecuteScalarAsync<string?>(new CommandDefinition(
-            "SELECT TOP 1 imgs FROM tbImage WITH (NOLOCK) WHERE RTRIM(nno) IN (@key, @compact) ORDER BY id",
+        var rows = await conn.QueryAsync<string>(new CommandDefinition(
+            "SELECT imgs FROM tbImage WITH (NOLOCK) WHERE RTRIM(nno) IN (@key, @compact) ORDER BY id",
             new
             {
                 key = new DbString { Value = key, IsAnsi = true, Length = 18 },
                 compact = new DbString { Value = compact, IsAnsi = true, Length = 18 },
             },
             cancellationToken: ct));
-        if (string.IsNullOrWhiteSpace(imgs)) return null;
-        try { return Convert.FromBase64String(imgs.Trim()); }
-        catch { return null; }   // base64 损坏按无图处理
+        var list = new List<byte[]>();
+        foreach (var imgs in rows)
+        {
+            if (string.IsNullOrWhiteSpace(imgs)) continue;
+            try
+            {
+                var bytes = Convert.FromBase64String(imgs.Trim());
+                if (bytes.Length > 0) list.Add(bytes);
+            }
+            catch { /* base64 损坏按无图处理 */ }
+        }
+        return list;
     }
 
     /// <inheritdoc/>
@@ -777,6 +792,23 @@ public sealed class PartRepository(SqlConnectionFactory factory) : IPartReposito
             new { dpm = new DbString { Value = dpm, IsAnsi = true, Length = 10 }, ids },
             cancellationToken: ct));
         return rows.ToDictionary(r => r.Id, r => r.Kcamount);
+    }
+
+    /// <inheritdoc/>
+    public async Task<PartItem?> GetPartByIdAsync(int id, string dpm, CancellationToken ct = default)
+    {
+        await using var conn = await factory.OpenAsync(ct);
+        return await conn.QueryFirstOrDefaultAsync<PartItem>(new CommandDefinition(
+            """
+            SELECT id AS Id, RTRIM(dpm) AS Dpm, RTRIM(cp) AS Cp, RTRIM(nno) AS Nno, RTRIM(na1) AS Na1,
+                   RTRIM(ty) AS Ty, RTRIM(fa) AS Fa, RTRIM(dc) AS Dc, RTRIM(unit) AS Unit,
+                   kcamount AS Kcamount, iprj AS Iprj, iprc AS Iprc, oprc AS Oprc, oprb AS Oprb,
+                   RTRIM(posi) AS Posi, RTRIM(depotno) AS Depotno, RTRIM(note) AS Note
+            FROM tbisto WITH (NOLOCK)
+            WHERE dpm = @dpm AND id = @id
+            """,
+            new { dpm = new DbString { Value = dpm, IsAnsi = true, Length = 10 }, id },
+            cancellationToken: ct));
     }
 
     /// <inheritdoc/>

@@ -24,6 +24,13 @@ public partial class App : Application
                 .SetBasePath(AppDomain.CurrentDomain.BaseDirectory)
                 .AddJsonFile("appsettings.json", optional: false)
                 .Build();
+
+            // 弹窗闪烁缓解开关（2026-11-09 用户反馈：弹窗出现→消失→再出现，本机/弹窗窗口自身闪）：
+            // 可选配置 Wpf:RenderMode=Software 强制 WPF 软件渲染——若闪烁由显卡/DWM 首帧时序引起可消除；
+            // 代价是整窗渲染性能略降。默认关闭；appsettings.json 加 "Wpf": { "RenderMode": "Software" } 生效。
+            if (string.Equals(config["Wpf:RenderMode"], "Software", StringComparison.OrdinalIgnoreCase))
+                System.Windows.Media.RenderOptions.ProcessRenderMode = System.Windows.Interop.RenderMode.SoftwareOnly;
+
             var connections = config.GetSection("ConnectionStrings").GetChildren()
                 .Where(c => !string.IsNullOrEmpty(c.Value))
                 .Select(c => (Name: c.Key!, ConnectionString: c.Value!))

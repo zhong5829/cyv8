@@ -32,8 +32,8 @@ public class ReturnableRow
     public decimal Remain => Qty - Returned;  // 可退数
     public decimal Oprc { get; init; }        // 售价
     public decimal Oprct { get; init; }       // 实售价
-    public decimal Iprc { get; init; }        // 进价（含税）
-    public decimal Iprj { get; init; }        // 进价（不含税）
+    public decimal Iprc { get; init; }        // 进价（不含税净成本）
+    public decimal Iprj { get; init; }        // 进价（含税价）
     public decimal Yhl { get; init; }         // 优惠率
     public DateTime OutDate { get; init; }    // 出库日期
 }
@@ -62,8 +62,8 @@ public partial class ReturnLineRow : ObservableObject
     public decimal Remain { get; init; }      // 可退数
     public decimal Oprc { get; set; }         // 售价改为
     public decimal Oprct { get; set; }        // 实售价改为
-    public decimal Iprc { get; init; }        // 进价（含税）
-    public decimal Iprj { get; init; }        // 进价（不含税）
+    public decimal Iprc { get; init; }        // 进价（不含税净成本）
+    public decimal Iprj { get; init; }        // 进价（含税价）
     public decimal Yhl { get; init; }         // 优惠率
     public DateTime OutDate { get; init; }    // 出库日期
     public bool IsScrap { get; set; }         // 废品仓（2026-10-29 需求：勾选=不回补库存，自动备注[已作废]）

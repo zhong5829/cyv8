@@ -19,6 +19,9 @@ public class PinxiuDataSource : IVinDataSource
     private string? _accessToken;
     private string? _savedPhone;
     private string[]? _cachedMjsids;
+    /// <summary>_cachedMjsids 所属车架号：品秀配件接口强依赖解码 mjsid，且解码失败/无 mjsid 时
+    /// 严禁复用上一辆车的 mjsid（2026-11-10 修复：品修数据源匹配出上一个车架号的数据）</summary>
+    private string? _cachedMjsidsVin;
 
     private static readonly string TokenFilePath = Path.Combine(
         AppDomain.CurrentDomain.BaseDirectory, "Data", "vin_token_pinxiu.json");
@@ -289,6 +292,9 @@ public class PinxiuDataSource : IVinDataSource
 
     public async Task<VinDecodeResult?> DecodeVinAsync(string vin, CancellationToken ct = default)
     {
+        // 解码前先清缓存：残留的上一辆车 mjsid 不得带入本次查询（2026-11-10 串号修复）
+        _cachedMjsids = null;
+        _cachedMjsidsVin = null;
         try
         {
             var url = $"{ApiBase}/pdmPro/aisearch/getAlphaRecommendVehicleList";
@@ -327,6 +333,7 @@ public class PinxiuDataSource : IVinDataSource
             if (!string.IsNullOrEmpty(mjsidRaw))
             {
                 _cachedMjsids = mjsidRaw.Split(',', StringSplitOptions.RemoveEmptyEntries);
+                _cachedMjsidsVin = vin;   // 记录归属，GetPartCards 按车架号核对防串号
             }
 
             // 从 list[0] 解析车辆信息
@@ -359,7 +366,9 @@ public class PinxiuDataSource : IVinDataSource
             // 品秀API无分页，第1页已返回全部数据，后续页返回空结果避免重复
             if (page > 1)
                 return new VinPartPageResult { Current = page, Pages = 1, Total = 0 };
-            if (_cachedMjsids == null || _cachedMjsids.Length == 0)
+            // mjsid 缺失或不属于本车架号（上次解码失败/并发查询交错）时拒绝查询，
+            // 避免拿上一辆车的 mjsid 匹配出错误数据（2026-11-10 串号修复）
+            if (_cachedMjsids == null || _cachedMjsids.Length == 0 || !string.Equals(_cachedMjsidsVin, vin, StringComparison.OrdinalIgnoreCase))
             {
                 return null;
             }

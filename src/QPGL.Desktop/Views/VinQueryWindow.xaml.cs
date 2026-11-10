@@ -405,6 +405,10 @@ public partial class VinQueryWindow : Window, INotifyPropertyChanged
 
     private async Task QueryVinAsync()
     {
+        // 防重入（2026-11-10 修复）：回车路径已有 IsQuerying 检查，但「查询」按钮没有——
+        // 两次查询并发交错时，品秀数据源的解码 mjsid 会互相覆盖，导致匹配出上一个车架号的数据
+        if (IsQuerying) return;
+
         var input = VinInput.Trim();
         if (input.Length == 0)
         {

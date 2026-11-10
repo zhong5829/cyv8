@@ -30,8 +30,9 @@ public interface IInStockRepository
     /// <summary>业务员列表（旧 fr_isto row203：tbsysset type='ywr' 优先，无则 tbkey.per 全量）。</summary>
     Task<IReadOnlyList<string>> GetYwrListAsync(CancellationToken ct = default);
 
-    /// <summary>表格导入价格比率（旧 ___.row214 L38-43：进价比率/售价比率/批价比率 + 外币为含税价；缺省 0.08/0.05/0.09）。</summary>
-    Task<(decimal Jj, decimal Sj, decimal Pj, bool Wbtohs)> GetImportRatiosAsync(CancellationToken ct = default);
+    /// <summary>表格导入售价/批价比率（旧 ___.row214 L38-43：tbsysset 售价比率/批价比率，缺省 0.05/0.09）。
+    /// 2026-11-08 用户确认 P3：导入时不含税价不再按比率换算（iprc = iprj），进价比率与「外币为含税价」不再参与。</summary>
+    Task<(decimal Sj, decimal Pj)> GetImportRatiosAsync(CancellationToken ct = default);
 
     /// <summary>库内现有批次仓位/仓库（ISAPPE P_WAY=2 同款取批次：kcamount DESC TOP 1）。
     /// 表格导入行未填仓位时带出，使批次键 cp+nno+posi+depotno+dpm 命中原批次、不多出新批次行（2026-10-27 用户确认）。</summary>
@@ -460,32 +461,30 @@ public sealed class InStockRepository(SqlConnectionFactory factory, Parts.IDmSer
     }
 
     /// <summary>
-    /// 表格导入价格比率（旧 ___.row214 L38-43）：
-    /// tbsysset type='system' name IN（进价比率/售价比率/批价比率）取 valuec，
-    /// len(valuec)&gt;0 才生效，缺省 0.08/0.05/0.09；「外币为含税价」定 iprc 推导方向。
+    /// 表格导入售价/批价比率（旧 ___.row214 L38-43）：
+    /// tbsysset type='system' name IN（售价比率/批价比率）取 valuec，len(valuec)&gt;0 才生效，缺省 0.05/0.09。
+    /// 2026-11-08 P3 起不再返回进价比率/外币为含税价（导入 iprc = iprj，不做进价换算）。
     /// </summary>
-    public async Task<(decimal Jj, decimal Sj, decimal Pj, bool Wbtohs)> GetImportRatiosAsync(CancellationToken ct = default)
+    public async Task<(decimal Sj, decimal Pj)> GetImportRatiosAsync(CancellationToken ct = default)
     {
         await using var conn = await factory.OpenAsync(ct);
         var rows = (await conn.QueryAsync<(string name, string valuec, bool? valuel)>(
             new CommandDefinition(
                 "SELECT RTRIM(name), ISNULL(RTRIM(valuec), ''), valuel FROM tbsysset WITH (NOLOCK) " +
-                "WHERE type = 'system' AND name IN (N'进价比率', N'售价比率', N'批价比率', N'外币为含税价')",
+                "WHERE type = 'system' AND name IN (N'售价比率', N'批价比率')",
                 cancellationToken: ct))).AsList();
         static decimal ParseOr(string raw, decimal def) =>
             raw.Length > 0 && decimal.TryParse(raw, out var v) ? v : def;
-        var jj = 0.08m; var sj = 0.05m; var pj = 0.09m; var wbtohs = false;
-        foreach (var (name, valuec, valuel) in rows)
+        var sj = 0.05m; var pj = 0.09m;
+        foreach (var (name, valuec, _) in rows)
         {
             switch (name)
             {
-                case "进价比率": jj = ParseOr(valuec, jj); break;
                 case "售价比率": sj = ParseOr(valuec, sj); break;
                 case "批价比率": pj = ParseOr(valuec, pj); break;
-                case "外币为含税价": wbtohs = valuel ?? false; break;
             }
         }
-        return (jj, sj, pj, wbtohs);
+        return (sj, pj);
     }
 
     /// <summary>库内现有批次仓位/仓库（kcamount DESC TOP 1，与 ISAPPE P_WAY=2 命中取批次同序）。</summary>

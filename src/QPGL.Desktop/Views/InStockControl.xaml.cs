@@ -109,7 +109,7 @@ public partial class InStockControl : UserControl
         pick.ShowDialog();
     }
 
-    /// <summary>处理一个选定配件：重复添加询问修改，否则弹入库明细编辑窗（数量/进价/含税价等），确认后写入明细行。</summary>
+    /// <summary>处理一个选定配件：重复添加询问修改，否则弹入库明细编辑窗（数量/进价(含税)/进价(不含税)等），确认后写入明细行。</summary>
     private async System.Threading.Tasks.Task AddPickedPartAsync(Window pick, PartItem part)
     {
         // 重复添加判定（qp11 AddLineViaDialogAsync 同构：按零件号）
@@ -159,8 +159,8 @@ public partial class InStockControl : UserControl
     }
 
     /// <summary>
-    /// 明细网格直接改「进价(不含税)」时同步「含税价」（2026-11-08 修复：生效后「总进价」全为 0）。
-    /// 与行编辑窗的 2026-11-02 口径一致（含税价自动同步同金额，不换算税率）；
+    /// 明细网格直接改「进价(含税)」时同步「进价(不含税)」（2026-11-08 修复：生效后「总进价」全为 0）。
+    /// 与行编辑窗同一 P2 口径：含税价与不含税价按同金额同步，不按税率换算（2026-11-08 用户确认）；
     /// 不在网格侧同步的话，直接在单元格改价会让 Iprc 留在 0，生效后 Σ(iprc×数量) 即为 0，库存批次成本也被写成 0。
     /// </summary>
     private void Lines_CellEditEnding(object sender, DataGridCellEditEndingEventArgs e)

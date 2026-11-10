@@ -24,7 +24,7 @@ public partial class PartAttributeEditWindow : Window
 
     // 配件图片（2026-11-01 需求，旧 mypicture 类口径）：选择进缓冲、确定时落 tbImage
     private readonly List<(byte[] Bytes, string Ext, string Chksum)> _pendingImages = [];
-    private byte[]? _existingImage;   // 窗口打开时已有的第一张图（仅预览，不重复落库）
+    private IReadOnlyList<byte[]> _existingImages = [];   // 窗口打开时已有的图片（仅预览，不重复落库；2026-11-10 多图修复）
 
     public PartAttributeEditWindow(PrnotyRow? source, string cp)
     {
@@ -333,18 +333,18 @@ public partial class PartAttributeEditWindow : Window
 
     // ==== 配件图片（2026-11-01 需求，旧 mypicture addimg/saveimg 口径）====
 
-    /// <summary>窗口打开时预览已有第一张图（tbImage，开单页同源）。</summary>
+    /// <summary>窗口打开时预览已有图片（tbImage 多行多图，2026-11-10 多图修复：取全部）。</summary>
     private async Task LoadPartImageAsync()
     {
         var nno = NnoBox.Text.Trim();
         if (nno.Length == 0) return;
         try
         {
-            var bytes = await Db.Parts.GetPartImageAsync(nno);
-            if (bytes is null) return;
-            _existingImage = bytes;
-            ShowThumb(bytes);
-            ImgHint.Text = "已有图片";
+            var images = await Db.Parts.GetPartImagesAsync(nno);
+            if (images.Count == 0) return;
+            _existingImages = images;
+            ShowThumb(images[0]);
+            ImgHint.Text = images.Count > 1 ? $"已有 {images.Count} 张图片" : "已有图片";
         }
         catch { /* 预览失败不阻断编辑 */ }
     }
@@ -374,7 +374,7 @@ public partial class PartAttributeEditWindow : Window
                 bytes = compressed;
             }
             var chk = Checksum(bytes);
-            if (_existingImage is not null && chk == Checksum(_existingImage))
+            if (_existingImages.Any(b => chk == Checksum(b)))
             {
                 ImgHint.Text = "该图片与已有图片相同";
                 return;
@@ -390,12 +390,18 @@ public partial class PartAttributeEditWindow : Window
         }
     }
 
-    /// <summary>缩略图单击看大图（优先最新添加的，否则已有图）。</summary>
+    /// <summary>缩略图单击看大图（新添加的多图可翻页；无新图时看已有图，同样多图翻页）。</summary>
     private void PartImage_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
-        var bytes = _pendingImages.Count > 0 ? _pendingImages[^1].Bytes : _existingImage;
-        if (bytes is null) return;
-        new PartImageViewerWindow(NnoBox.Text.Trim(), bytes).ShowDialog();
+        if (_pendingImages.Count > 0)
+        {
+            var pending = _pendingImages.Select(p => p.Bytes).ToList();
+            new PartImageViewerWindow(NnoBox.Text.Trim(), pending, pending.Count - 1).ShowDialog();
+        }
+        else if (_existingImages.Count > 0)
+        {
+            new PartImageViewerWindow(NnoBox.Text.Trim(), _existingImages).ShowDialog();
+        }
     }
 
     private void ShowThumb(byte[] bytes)

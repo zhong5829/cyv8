@@ -152,7 +152,7 @@ public static class FinanceConfirmDialogs
         private void Accept()
         {
             // 旧 row410 L6-9：挂帐时供应商必填
-            if (_fkfs.Text.Trim() == "挂帐" && string.IsNullOrWhiteSpace(_gyname.Text))
+            if (_fkfs.Text.Trim() == PaymentTerms.CreditAccount && string.IsNullOrWhiteSpace(_gyname.Text))
             {
                 MessageBox.Show("挂帐的入库单，供应商不能空!", Title, MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
@@ -173,11 +173,13 @@ public static class FinanceConfirmDialogs
     public sealed class ConfirmTransferDialog : Window
     {
         private readonly ComboBox _fkfs = new() { Width = 180 };
+        private readonly FinConfirmTransferRow _row;
 
         public FinConfirmTransferCommand? Result { get; private set; }
 
         public ConfirmTransferDialog(FinConfirmTransferRow row)
         {
+            _row = row;
             Title = "调拨确认 - " + row.Paper.Trim();
             Width = 340;
             SizeToContent = SizeToContent.Height;
@@ -210,7 +212,13 @@ public static class FinanceConfirmDialogs
                 MessageBox.Show("付款方式不能为空！", Title, MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
-            Result = new FinConfirmTransferCommand { Fkfs = fkfs };
+            // 客户/部门必须随命令带入（旧妴_.row478：gname=C_DB.GNAME、dpm=P_DPM），否则 tbysyf 会落空值行
+            Result = new FinConfirmTransferCommand
+            {
+                Fkfs = fkfs,
+                Gname = _row.Gname,
+                Dpm = _row.Dpm,
+            };
             DialogResult = true;
         }
     }

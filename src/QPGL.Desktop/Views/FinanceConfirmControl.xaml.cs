@@ -1,6 +1,9 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using QPGL.Desktop.ViewModels;
+using QPGL.Domain.Partners;
 
 namespace QPGL.Desktop.Views;
 
@@ -47,4 +50,118 @@ public partial class FinanceConfirmControl : UserControl
         if (FindName("ListHost") is not Grid host) return [];
         return host.Children.OfType<System.Windows.Controls.DataGrid>().ToList();
     }
+
+    // ── 筛选栏客户/供应商联想（与 InStockControl / OutDocQueryControl 同机制）：
+    // 输入即搜（300ms 防抖，VM 侧计时器），↑↓ 移动、回车选中、Esc 关闭、失焦收起、点击选中 ──
+
+    private void SuggestBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (sender is not TextBox box || box.Tag is not string tag) return;
+        if (tag == "in") _vm.DebounceSupplierSearch();
+        else _vm.DebounceCustomerSearch(tag);
+        if (SiblingPopup(box) is { } popup) popup.IsOpen = box.Text.Trim().Length > 0;
+    }
+
+    private void SuggestBox_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (sender is not TextBox box) return;
+        var popup = SiblingPopup(box);
+        var list = popup is null ? null : PopupList(popup);
+        if (popup is null || list is null) return;
+
+        switch (e.Key)
+        {
+            case Key.Down:
+                if (list.Items.Count > 0)
+                {
+                    popup.IsOpen = true;
+                    list.SelectedIndex = System.Math.Min(list.SelectedIndex + 1, list.Items.Count - 1);
+                    list.ScrollIntoView(list.SelectedItem);
+                }
+                e.Handled = true;
+                break;
+            case Key.Up:
+                if (list.Items.Count > 0 && list.SelectedIndex > 0)
+                {
+                    list.SelectedIndex--;
+                    list.ScrollIntoView(list.SelectedItem);
+                }
+                e.Handled = true;
+                break;
+            case Key.Enter:
+                // 下拉展开时回车=选中高亮项；未展开时保持原行为（不触发查询）
+                if (popup.IsOpen)
+                {
+                    if (list.SelectedItem is not null)
+                    {
+                        ApplySuggestion(box, list.SelectedItem);
+                        box.Focus();
+                        box.CaretIndex = box.Text.Length;
+                    }
+                    popup.IsOpen = false;
+                    e.Handled = true;
+                }
+                break;
+            case Key.Escape:
+                if (popup.IsOpen)
+                {
+                    popup.IsOpen = false;
+                    e.Handled = true;
+                }
+                break;
+        }
+    }
+
+    private void SuggestBox_LostFocus(object sender, RoutedEventArgs e)
+    {
+        if (sender is not TextBox box) return;
+        var popup = SiblingPopup(box);
+        if (popup is null) return;
+        // 点击下拉项会先触发 LostFocus：延后判断鼠标是否仍在下拉内，避免误收起导致选不中
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            if (PopupList(popup) is { IsMouseOver: true }) return;
+            popup.IsOpen = false;
+        }));
+    }
+
+    private void SuggestList_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not ListBox list || list.Tag is not string tag) return;
+        var box = AnchorFor(tag);
+        if (box is null || list.SelectedItem is null) return;
+        ApplySuggestion(box, list.SelectedItem);
+        if (SiblingPopup(box) is { } popup) popup.IsOpen = false;
+        box.Focus();
+        box.CaretIndex = box.Text.Length;
+    }
+
+    /// <summary>选中联想项：客户/供应商都只回填名称（筛选 SQL 走 gname/gyname，编号不写入该框）。</summary>
+    private void ApplySuggestion(TextBox box, object item)
+    {
+        var tag = (box.Tag as string) ?? "";
+        if (tag == "in")
+        {
+            if (item is SupplierRow s) _vm.ApplySupplier(s);
+        }
+        else if (item is Partner p)
+        {
+            _vm.ApplyCustomer(p, tag);
+        }
+    }
+
+    private TextBox? AnchorFor(string tag) => tag switch
+    {
+        "out" => OutGnameBox,
+        "in" => InGynameBox,
+        "tr" => TrGnameBox,
+        "cs" => CsGnameBox,
+        _ => null,
+    };
+
+    private static Popup? SiblingPopup(FrameworkElement anchor) =>
+        anchor.Parent is Grid grid ? grid.Children.OfType<Popup>().FirstOrDefault() : null;
+
+    private static ListBox? PopupList(Popup popup) =>
+        (popup.Child as Border)?.Child as ListBox;
 }

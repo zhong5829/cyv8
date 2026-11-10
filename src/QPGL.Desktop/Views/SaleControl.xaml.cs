@@ -209,18 +209,21 @@ public partial class SaleControl : UserControl
             PartGrid.Focus();
     }
 
-    // 双击配件搜索行 → 弹销售编辑对话框（qp11 SellEditDialog 风格）
+    // 双击配件搜索行 → 弹销售编辑对话框（qp11 SellEditDialog 风格）；
+    // 双击的鼠标捕获/激活与 ShowDialog 窗口激活竞争 → 弹窗"出现→被盖→前置"闪一帧，Dispatcher 延迟一拍脱离鼠标消息上下文
     private async void PartGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
         if (PartGrid.SelectedItem is Domain.Parts.PartItem part)
-            await _vm.AddLineViaDialogAsync(part);
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input,
+                async () => await _vm.AddLineViaDialogAsync(part));
     }
 
-    // 双击明细行 → 再次弹窗修改数量/单价/备注
+    // 双击明细行 → 再次弹窗修改数量/单价/备注（同上，延迟一拍防闪）
     private async void LineGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
         if (LineGrid.SelectedItem is ViewModels.SaleLineRow row)
-            await _vm.EditExistingLineAsync(row);
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input,
+                async () => await _vm.EditExistingLineAsync(row));
     }
 
     // 明细行 Delete 键删除选中行；回车（2026-11-04 需求）打开销售编辑窗口（与双击同路径）
@@ -527,49 +530,61 @@ public partial class SaleControl : UserControl
     }
 
     // 配件图片（2026-10-31 需求）：选中配件从 tbImage 取图显示缩略图，单击打开大图（可复制）
+    // 2026-11-10 多图修复：同配件可有多张图，缩略图显示第一张 + 张数角标，大图窗 ←/→ 翻页
     private int _imageLoadSeq;                       // 竞态守卫：慢的旧请求不覆盖新选中
     private string _imageNno = "";                   // 当前缩略图对应的内部编号
-    private byte[]? _imageBytes;                     // 当前图片字节（传大图窗）
+    private IReadOnlyList<byte[]> _imageBytes = [];  // 当前配件全部图片字节（传大图窗）
 
     /// <summary>选中配件变化：异步取 tbImage 图片刷新缩略图（无图显示"无图片"占位）。</summary>
     private async void PartGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         var seq = ++_imageLoadSeq;
-        _imageBytes = null;
+        _imageBytes = [];
         _imageNno = "";
         PartImage.Source = null;
         PartImage.Visibility = Visibility.Collapsed;
+        PartImageBadge.Visibility = Visibility.Collapsed;
         PartImagePlaceholder.Text = "加载中…";
         PartImagePlaceholder.Visibility = Visibility.Visible;
         PartImage.Cursor = Cursors.Arrow;
 
         if (PartGrid.SelectedItem is not Domain.Parts.PartItem p) { PartImagePlaceholder.Text = "无图片"; return; }
         var nno = p.Nno.Trim();
-        var bytes = await Db.Parts.GetPartImageAsync(nno);
+        var images = await Db.Parts.GetPartImagesAsync(nno);
         if (seq != _imageLoadSeq) return;            // 期间用户已切换选中
-        if (bytes is null || bytes.Length == 0)
+        if (images.Count == 0)
         {
             PartImagePlaceholder.Text = "无图片";
             return;
         }
         _imageNno = nno;
-        _imageBytes = bytes;
+        _imageBytes = images;
+        PartImage.Source = LoadBitmap(images[0]);
+        PartImage.Visibility = Visibility.Visible;
+        PartImagePlaceholder.Visibility = Visibility.Collapsed;
+        if (images.Count > 1)
+        {
+            PartImageBadgeText.Text = $"共{images.Count}张";
+            PartImageBadge.Visibility = Visibility.Visible;
+        }
+        PartImage.Cursor = Cursors.Hand;
+    }
+
+    private static System.Windows.Media.Imaging.BitmapImage LoadBitmap(byte[] bytes)
+    {
         var bmp = new System.Windows.Media.Imaging.BitmapImage();
         bmp.BeginInit();
         bmp.StreamSource = new MemoryStream(bytes);
         bmp.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
         bmp.EndInit();
         bmp.Freeze();
-        PartImage.Source = bmp;
-        PartImage.Visibility = Visibility.Visible;
-        PartImagePlaceholder.Visibility = Visibility.Collapsed;
-        PartImage.Cursor = Cursors.Hand;
+        return bmp;
     }
 
-    /// <summary>单击缩略图 → 打开大图查看窗（可复制图片、Esc 关闭）。</summary>
+    /// <summary>单击缩略图 → 打开大图查看窗（多图 ←/→ 翻页、可复制、Esc 关闭）。</summary>
     private void PartImage_Click(object sender, MouseButtonEventArgs e)
     {
-        if (_imageBytes is null || _imageNno.Length == 0) return;
+        if (_imageBytes.Count == 0 || _imageNno.Length == 0) return;
         new PartImageViewerWindow(_imageNno, _imageBytes).ShowDialog();
     }
 
@@ -583,6 +598,15 @@ public partial class SaleControl : UserControl
     /// <summary>右键菜单「修改库存售价」（2026-11-04 需求）：复刻旧「修改库存售价」弹窗。</summary>
     private async void ChangeStockPrice_Click(object sender, RoutedEventArgs e)
         => await OpenStockPriceEditorAsync();
+
+    /// <summary>右键菜单「库存修改」（2026-11-09 需求）：复用库存查询页的 StockEditWindow（复刻 fr_istoch）。</summary>
+    private async void OpenStockEdit_Click(object sender, RoutedEventArgs e)
+    {
+        if (PartGrid.SelectedItem is Domain.Parts.PartItem part)
+            await _vm.OpenStockEditAsync(part);
+        else
+            MessageBox.Show("请先选中配件行。", "库存修改", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
 
     /// <summary>F8 / 右键菜单共用入口：对选中配件打开「修改库存售价」窗。</summary>
     public async System.Threading.Tasks.Task OpenStockPriceEditorAsync()

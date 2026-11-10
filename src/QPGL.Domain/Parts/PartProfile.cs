@@ -7,7 +7,7 @@ namespace QPGL.Domain.Parts;
 /// 结构契约：cp/nno/na1/ty/fa/dc/unit/note/iprj/xno/nnp/nnq/uqty/tno/amjj/bmjj/code_ts/cxnno/eng/cpict/
 /// nvol/suttle/note1/oprc_cp/oprc_min —— **无 id 列**，逻辑键 = cp+nno。
 /// 入库（fr_isto1 row31 L213-228）新配件时自动 INSERT（cp,nno,na1,ty,fa,dc,unit,note,iprj,uqty,cxnno,oprc_cp,oprc_min,cpict）。
-/// 一期：分页查询 + 修改（iprj 进价/na1/ty/note）；新增走散件入库自动生成。
+/// 一期：分页查询 + 修改（iprj 进价(含税价)/na1/ty/note）；新增走散件入库自动生成。
 /// </summary>
 public sealed class PartProfileRow
 {

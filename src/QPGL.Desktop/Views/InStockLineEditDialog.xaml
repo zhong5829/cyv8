@@ -48,7 +48,7 @@
                 <TextBox x:Name="TxtQty" Grid.Column="1" Text="1" Margin="0,1" KeyDown="Qty_KeyDown"/>
             </Grid>
 
-            <!-- 进价（不含税）/ 含税价 -->
+            <!-- 进价（含税）/ 进价（不含税）：Iprj=含税价（旧系统 R-PRICE）、Iprc=不含税净成本（NETCOST） -->
             <Grid Margin="0,0,0,4">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
@@ -56,11 +56,13 @@
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="进价(不含税)*: " VerticalAlignment="Center"/>
+                <TextBlock Text="进价(含税)*: " VerticalAlignment="Center"/>
                 <TextBox x:Name="TxtIprj" Grid.Column="1" Margin="0,1"
+                         ToolTip="进价(含税)，旧系统 R-PRICE 口径；与进价(不含税)按同金额同步（不按税率换算）"
                          TextChanged="Iprj_TextChanged" KeyDown="Iprj_KeyDown"/>
-                <TextBlock Grid.Column="2" Text="含税价: " VerticalAlignment="Center" Margin="8,0,0,0"/>
-                <TextBox x:Name="TxtIprc" Grid.Column="3" Margin="0,1"/>
+                <TextBlock Grid.Column="2" Text="进价(不含税): " VerticalAlignment="Center" Margin="8,0,0,0"/>
+                <TextBox x:Name="TxtIprc" Grid.Column="3" Margin="0,1"
+                         ToolTip="进价(不含税)，旧系统 NETCOST 口径；与进价(含税)按同金额同步（不按税率换算）"/>
             </Grid>
 
             <!-- 售价 / 批发价 -->

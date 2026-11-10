@@ -68,7 +68,7 @@
                 <TextBlock Grid.Row="2" Text="数量 *" VerticalAlignment="Center" Margin="2" Foreground="Red"/>
                 <ComboBox Grid.Row="2" Grid.Column="1" x:Name="MapQty" Margin="2" SelectionChanged="Mapping_SelectionChanged"/>
 
-                <TextBlock Grid.Row="3" Text="进价(不含税)" VerticalAlignment="Center" Margin="2"/>
+                <TextBlock Grid.Row="3" Text="进价(含税)" VerticalAlignment="Center" Margin="2"/>
                 <ComboBox Grid.Row="3" Grid.Column="1" x:Name="MapIprj" Margin="2" SelectionChanged="Mapping_SelectionChanged"/>
 
                 <TextBlock Grid.Row="4" Text="车型" VerticalAlignment="Center" Margin="2"/>
@@ -90,7 +90,7 @@
                 <DataGridTextColumn Header="零件号" Width="110" Binding="{Binding Nno}"/>
                 <DataGridTextColumn Header="名称" Width="150" Binding="{Binding Na1}"/>
                 <DataGridTextColumn Header="数量" Width="60" Binding="{Binding Qty, Converter={StaticResource QtyInt}}"/>
-                <DataGridTextColumn Header="进价" Width="70" Binding="{Binding Iprj, StringFormat=N2}"/>
+                <DataGridTextColumn Header="进价(含税)" Width="70" Binding="{Binding Iprj, StringFormat=N2}"/>
                 <DataGridTextColumn Header="车型" Width="80" Binding="{Binding Ty}"/>
                 <DataGridTextColumn Header="仓位" Width="60" Binding="{Binding Posi}"/>
                 <DataGridTextColumn Header="备注" Width="90" Binding="{Binding Note}"/>

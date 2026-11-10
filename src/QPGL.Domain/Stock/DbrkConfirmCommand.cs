@@ -9,7 +9,7 @@ public sealed class DbrkConfirmResult
     public required string Paper { get; init; }
     /// <summary>SP dbrk 生成的进库单号（c_rfh.CNO）。</summary>
     public required string NewPaper { get; init; }
-    /// <summary>是否写了 tbysyf 挂帐行（guno∈挂帐/托收/汇款 且金额≠0）。</summary>
+    /// <summary>是否写了 tbysyf 应收行（二期口径：仅「挂帐」且金额≠0；旧系统为挂帐/托收/汇款）。</summary>
     public bool CreditWritten { get; init; }
 }
 

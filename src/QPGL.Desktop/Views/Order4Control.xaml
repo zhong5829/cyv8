@@ -86,9 +86,9 @@
                                     <DataGridTextColumn Header="供应商" Binding="{Binding Gyname}" IsReadOnly="True" Width="*"/>
                                     <DataGridTextColumn Header="数量" Binding="{Binding Qty, Mode=OneWay, Converter={StaticResource QtyInt}}" IsReadOnly="True" Width="55"
                                                         ElementStyle="{StaticResource NumCellRight}"/>
-                                    <DataGridTextColumn Header="进价(不含税)" Binding="{Binding Iprj, Mode=OneWay, StringFormat=N2}" IsReadOnly="True" Width="90"
+                                    <DataGridTextColumn Header="进价(含税)" Binding="{Binding Iprj, Mode=OneWay, StringFormat=N2}" IsReadOnly="True" Width="90"
                                                         ElementStyle="{StaticResource NumCellRight}"/>
-                                    <DataGridTextColumn Header="进价(含税)" Binding="{Binding Iprc, Mode=OneWay, StringFormat=N2}" IsReadOnly="True" Width="80"
+                                    <DataGridTextColumn Header="进价(不含税)" Binding="{Binding Iprc, Mode=OneWay, StringFormat=N2}" IsReadOnly="True" Width="80"
                                                         ElementStyle="{StaticResource NumCellRight}"/>
                                 </DataGrid.Columns>
                             </DataGrid>

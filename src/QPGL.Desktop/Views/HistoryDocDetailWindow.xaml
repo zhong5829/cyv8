@@ -48,7 +48,7 @@
                     <DataGridTextColumn Header="名称" Binding="{Binding Na1}" Width="170"/>
                     <DataGridTextColumn Header="车型" Binding="{Binding Ty}" Width="90"/>
                     <DataGridTextColumn Header="数量" Binding="{Binding Qty, Converter={StaticResource QtyInt}}" Width="55"/>
-                    <DataGridTextColumn Header="含税价" Binding="{Binding Iprc, StringFormat=N2}" Width="70"/>
+                    <DataGridTextColumn Header="进价(不含税)" Binding="{Binding Iprc, StringFormat=N2}" Width="70"/>
                     <DataGridTextColumn Header="入库日期" Binding="{Binding InDate, StringFormat=yyyy-MM-dd}" Width="85"/>
                     <DataGridTextColumn Header="供应商" Binding="{Binding Gyname}" Width="*"/>
                 </DataGrid.Columns>

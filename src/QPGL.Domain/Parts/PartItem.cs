@@ -16,8 +16,8 @@ public sealed class PartItem
     public string Dc { get; init; } = "";       // 产地
     public string Unit { get; init; } = "";     // 单位
     public decimal Kcamount { get; init; }      // 该批次当前库存
-    public decimal Iprj { get; init; }          // 进价（不含税）
-    public decimal Iprc { get; init; }          // 进价（含税）
+    public decimal Iprj { get; init; }          // 进价（含税，旧系统 R-PRICE 口径）
+    public decimal Iprc { get; init; }          // 进价（不含税净成本，旧系统 NETCOST 口径）
     public decimal Oprc { get; init; }          // 零售价
     public decimal Oprb { get; init; }          // 批发价
     public string Posi { get; init; } = "";     // 货位

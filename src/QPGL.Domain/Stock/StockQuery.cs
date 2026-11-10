@@ -57,9 +57,12 @@ public static class StockSortFields
     }
 }
 
-/// <summary>库存行（tbisto 全列对齐 fr_istoch 查询）。</summary>
-public sealed class StockRow
+/// <summary>库存行（tbisto 全列对齐 fr_istoch 查询）。Amjj/Bmjj 支持网格就地编辑：实现最小 INPC，
+/// 编辑提交后 WarnLevel 通知 → 警戒行色即时刷新（无需 Items.Refresh 保滚动位置）。</summary>
+public sealed class StockRow : System.ComponentModel.INotifyPropertyChanged
 {
+    public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+
     public int Id { get; set; }
     public string Dpm { get; set; } = "";
     public string Cp { get; set; } = "";
@@ -81,6 +84,21 @@ public sealed class StockRow
     public int Tno { get; set; }
     public string Cxnno { get; set; } = "";
     public string Depotno { get; set; } = "";
+
+    private decimal _amjj;
+    private decimal _bmjj;
+
+    /// <summary>警戒上限（tbistojj amjj，depotno='' 行；无行=0）。可就地编辑，变更通知 WarnLevel。</summary>
+    public decimal Amjj { get => _amjj; set { _amjj = value; On(nameof(Amjj)); On(nameof(WarnLevel)); } }
+
+    /// <summary>警戒下限（tbistojj bmjj，depotno='' 行；无行=0）。可就地编辑，变更通知 WarnLevel。</summary>
+    public decimal Bmjj { get => _bmjj; set { _bmjj = value; On(nameof(Bmjj)); On(nameof(WarnLevel)); } }
+
+    /// <summary>警戒级别（2026-11-09 用户口径，取代旧蓝字）：2=低于下限（红）、1=低于上限（黄）、0=正常。</summary>
+    public int WarnLevel => Bmjj > 0 && Kcamount < Bmjj ? 2 : (Amjj > 0 && Kcamount < Amjj ? 1 : 0);
+
+    private void On(string name) =>
+        PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(name));
 }
 
 /// <summary>库存汇总（旧 _-.row35：SUM KCAMOUNT, IPRJ*KC, IPRC*KC, OPRC*KC）。</summary>

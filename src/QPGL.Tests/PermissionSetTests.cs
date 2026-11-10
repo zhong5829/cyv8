@@ -116,3 +116,47 @@ public class ReceiptGuardsTests
         Assert.False(QPGL.Domain.Receipt.ReceiptGuards.IsOnCredit(payTerm));
     }
 }
+
+/// <summary>财务确认/调拨入库确认写 tbysyf 的统一判定（二期口径：仅挂账）。</summary>
+public class PaymentTermsTests
+{
+    [Theory]
+    [InlineData("挂帐")]
+    [InlineData(" 挂帐 ")]
+    public void WritesReceivable_True(string payTerm)
+    {
+        Assert.True(QPGL.Domain.Common.PaymentTerms.WritesReceivable(payTerm));
+    }
+
+    [Theory]
+    [InlineData("现金")]
+    [InlineData("汇款")]
+    [InlineData("代收")]
+    [InlineData("托收")]
+    [InlineData("挂帐冲预收")]
+    [InlineData("")]
+    [InlineData(null)]
+    public void WritesReceivable_False(string? payTerm)
+    {
+        Assert.False(QPGL.Domain.Common.PaymentTerms.WritesReceivable(payTerm));
+    }
+
+    /// <summary>反确认保护仍按旧三类（挂帐/托收/汇款）判定历史收款数据。</summary>
+    [Theory]
+    [InlineData("挂帐")]
+    [InlineData("托收")]
+    [InlineData("汇款")]
+    public void LegacyTerms_True(string payTerm)
+    {
+        Assert.True(QPGL.Domain.Common.PaymentTerms.IsLegacyReceivableTerm(payTerm));
+    }
+
+    [Theory]
+    [InlineData("现金")]
+    [InlineData("代收")]
+    [InlineData("")]
+    public void LegacyTerms_False(string payTerm)
+    {
+        Assert.False(QPGL.Domain.Common.PaymentTerms.IsLegacyReceivableTerm(payTerm));
+    }
+}

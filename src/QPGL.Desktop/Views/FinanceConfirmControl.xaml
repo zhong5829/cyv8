@@ -53,7 +53,32 @@
                         <TextBlock Text="单号" VerticalAlignment="Center" Margin="12,0,4,0"/>
                         <TextBox Width="100" Text="{Binding OutPaper, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"/>
                         <TextBlock Text="客户" VerticalAlignment="Center" Margin="12,0,4,0"/>
-                        <TextBox Width="120" Text="{Binding OutGname, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"/>
+                        <!-- 客户联想下拉（旧 cmm_class FRDM 机制：拼音码 code/数字码 code1/名称/编号；选中只回填名称） -->
+                        <Grid>
+                            <TextBox x:Name="OutGnameBox" Width="120" Tag="out"
+                                     Text="{Binding OutGname, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"
+                                     TextChanged="SuggestBox_TextChanged" PreviewKeyDown="SuggestBox_PreviewKeyDown"
+                                     LostFocus="SuggestBox_LostFocus"
+                                     ToolTip="支持拼音码/数字码/编号/名称，输入后下拉选择"/>
+                            <Popup x:Name="OutCustPopup" PlacementTarget="{Binding ElementName=OutGnameBox}" Placement="Bottom"
+                                   StaysOpen="False" AllowsTransparency="True" MinWidth="260">
+                                <Border Background="White" BorderBrush="#DDD" BorderThickness="1" CornerRadius="3"
+                                        Margin="0,2,8,8" SnapsToDevicePixels="True">
+                                    <ListBox x:Name="OutCustList" ItemsSource="{Binding CustomerSuggestions}" Tag="out"
+                                             MaxHeight="320" BorderThickness="0"
+                                             MouseLeftButtonUp="SuggestList_MouseLeftButtonUp">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Orientation="Horizontal" Margin="2">
+                                                    <TextBlock Text="{Binding PartNo}" Width="80" Foreground="#666"/>
+                                                    <TextBlock Text="{Binding PartName}" Width="170"/>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </Border>
+                            </Popup>
+                        </Grid>
                     </StackPanel>
                 </Border>
             </TabItem>
@@ -73,7 +98,33 @@
                         <TextBlock Text="进库单号" VerticalAlignment="Center" Margin="12,0,4,0"/>
                         <TextBox Width="110" Text="{Binding InCno, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"/>
                         <TextBlock Text="供应商" VerticalAlignment="Center" Margin="12,0,4,0"/>
-                        <TextBox Width="120" Text="{Binding InGyname, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"/>
+                        <!-- 供应商联想下拉（复用入库页口径：合并 tbgu + tbgugys，拼音码 code/数字码 code1/名称/编号） -->
+                        <Grid>
+                            <TextBox x:Name="InGynameBox" Width="120" Tag="in"
+                                     Text="{Binding InGyname, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"
+                                     TextChanged="SuggestBox_TextChanged" PreviewKeyDown="SuggestBox_PreviewKeyDown"
+                                     LostFocus="SuggestBox_LostFocus"
+                                     ToolTip="支持拼音码/数字码/编号/名称，输入后下拉选择"/>
+                            <Popup x:Name="InSupPopup" PlacementTarget="{Binding ElementName=InGynameBox}" Placement="Bottom"
+                                   StaysOpen="False" AllowsTransparency="True" MinWidth="300">
+                                <Border Background="White" BorderBrush="#DDD" BorderThickness="1" CornerRadius="3"
+                                        Margin="0,2,8,8" SnapsToDevicePixels="True">
+                                    <ListBox x:Name="InSupList" ItemsSource="{Binding SupplierSuggestions}" Tag="in"
+                                             MaxHeight="320" BorderThickness="0"
+                                             MouseLeftButtonUp="SuggestList_MouseLeftButtonUp">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Orientation="Horizontal" Margin="2">
+                                                    <TextBlock Text="{Binding Gyno}" Width="80" Foreground="#666"/>
+                                                    <TextBlock Text="{Binding Gyname}" Width="150"/>
+                                                    <TextBlock Text="{Binding Linkman}" Foreground="#888"/>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </Border>
+                            </Popup>
+                        </Grid>
                     </StackPanel>
                 </Border>
             </TabItem>
@@ -93,7 +144,31 @@
                         <TextBlock Text="调拨单号" VerticalAlignment="Center" Margin="12,0,4,0"/>
                         <TextBox Width="110" Text="{Binding TrPaper, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"/>
                         <TextBlock Text="客户" VerticalAlignment="Center" Margin="12,0,4,0"/>
-                        <TextBox Width="120" Text="{Binding TrGname, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"/>
+                        <Grid>
+                            <TextBox x:Name="TrGnameBox" Width="120" Tag="tr"
+                                     Text="{Binding TrGname, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"
+                                     TextChanged="SuggestBox_TextChanged" PreviewKeyDown="SuggestBox_PreviewKeyDown"
+                                     LostFocus="SuggestBox_LostFocus"
+                                     ToolTip="支持拼音码/数字码/编号/名称，输入后下拉选择"/>
+                            <Popup x:Name="TrCustPopup" PlacementTarget="{Binding ElementName=TrGnameBox}" Placement="Bottom"
+                                   StaysOpen="False" AllowsTransparency="True" MinWidth="260">
+                                <Border Background="White" BorderBrush="#DDD" BorderThickness="1" CornerRadius="3"
+                                        Margin="0,2,8,8" SnapsToDevicePixels="True">
+                                    <ListBox x:Name="TrCustList" ItemsSource="{Binding CustomerSuggestions}" Tag="tr"
+                                             MaxHeight="320" BorderThickness="0"
+                                             MouseLeftButtonUp="SuggestList_MouseLeftButtonUp">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Orientation="Horizontal" Margin="2">
+                                                    <TextBlock Text="{Binding PartNo}" Width="80" Foreground="#666"/>
+                                                    <TextBlock Text="{Binding PartName}" Width="170"/>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </Border>
+                            </Popup>
+                        </Grid>
                     </StackPanel>
                 </Border>
             </TabItem>
@@ -116,7 +191,31 @@
                         <TextBlock Text="单号" VerticalAlignment="Center" Margin="12,0,4,0"/>
                         <TextBox Width="110" Text="{Binding CsPaper, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"/>
                         <TextBlock Text="客户" VerticalAlignment="Center" Margin="12,0,4,0"/>
-                        <TextBox Width="120" Text="{Binding CsGname, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"/>
+                        <Grid>
+                            <TextBox x:Name="CsGnameBox" Width="120" Tag="cs"
+                                     Text="{Binding CsGname, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"
+                                     TextChanged="SuggestBox_TextChanged" PreviewKeyDown="SuggestBox_PreviewKeyDown"
+                                     LostFocus="SuggestBox_LostFocus"
+                                     ToolTip="支持拼音码/数字码/编号/名称，输入后下拉选择"/>
+                            <Popup x:Name="CsCustPopup" PlacementTarget="{Binding ElementName=CsGnameBox}" Placement="Bottom"
+                                   StaysOpen="False" AllowsTransparency="True" MinWidth="260">
+                                <Border Background="White" BorderBrush="#DDD" BorderThickness="1" CornerRadius="3"
+                                        Margin="0,2,8,8" SnapsToDevicePixels="True">
+                                    <ListBox x:Name="CsCustList" ItemsSource="{Binding CustomerSuggestions}" Tag="cs"
+                                             MaxHeight="320" BorderThickness="0"
+                                             MouseLeftButtonUp="SuggestList_MouseLeftButtonUp">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Orientation="Horizontal" Margin="2">
+                                                    <TextBlock Text="{Binding PartNo}" Width="80" Foreground="#666"/>
+                                                    <TextBlock Text="{Binding PartName}" Width="170"/>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </Border>
+                            </Popup>
+                        </Grid>
                     </StackPanel>
                 </Border>
             </TabItem>

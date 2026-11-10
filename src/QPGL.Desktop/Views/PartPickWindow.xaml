@@ -47,8 +47,8 @@
                     <DataGridTextColumn Header="货位" Binding="{Binding Posi}" Width="70"/>
                     <DataGridTextColumn Header="仓库" Binding="{Binding Depotno}" Width="60"/>
                     <DataGridTextColumn Header="库存" Binding="{Binding Kcamount, Converter={StaticResource QtyInt}}" Width="70"/>
-                    <DataGridTextColumn Header="进价(不含税)" Binding="{Binding Iprj, StringFormat=N2}" Width="95"/>
-                    <DataGridTextColumn Header="进价(含税)" Binding="{Binding Iprc, StringFormat=N2}" Width="85"/>
+                    <DataGridTextColumn Header="进价(含税)" Binding="{Binding Iprj, StringFormat=N2}" Width="95"/>
+                    <DataGridTextColumn Header="进价(不含税)" Binding="{Binding Iprc, StringFormat=N2}" Width="85"/>
                     <DataGridTextColumn Header="零售价" Binding="{Binding Oprc, StringFormat=N2}" Width="75"/>
                     <DataGridTextColumn Header="批发价" Binding="{Binding Oprb, StringFormat=N2}" Width="75"/>
                 </DataGrid.Columns>

@@ -48,6 +48,13 @@ public sealed class OutDocSummary
     public decimal TotalOprc { get; set; }
     /// <summary>Σ折后 = Σ CAST(oprct*(100-yhl)/100)（旧 yhloprct 公式，收款默认金额）。</summary>
     public decimal TotalDiscounted { get; set; }
+    /// <summary>
+    /// 旧 fr_sk TAMT（实售金额）：ROUND(Σ ckamount*oprct*(100-yhl)/100, 2)，
+    /// 先求和再取 2 位（fr_sk __.row3 L76），与按行 CAST 的 <see cref="TotalDiscounted"/> 可能有 1 分内差异。
+    /// </summary>
+    public decimal TotalOprctDiscounted { get; set; }
+    /// <summary>旧 fr_sk TOPRC（开单金额）：ROUND(Σ ckamount*oprc*(100-yhl)/100, 2)（同上 L76）。</summary>
+    public decimal TotalOprcDiscounted { get; set; }
 }
 
 /// <summary>
@@ -287,6 +294,8 @@ public sealed class DocQueryRepository(SqlConnectionFactory factory) : IDocQuery
                    SUM(CAST(c.oprct * c.ckamount AS numeric(12,2))) AS total_oprct,
                    SUM(CAST(c.oprc * c.ckamount AS numeric(12,2))) AS total_oprc,
                    SUM(CAST(c.oprct * c.ckamount * (100 - c.yhl) / 100 AS numeric(12,2))) AS total_discounted,
+                   CAST(SUM(c.oprct * c.ckamount * (100 - c.yhl) / 100.0) AS numeric(12,2)) AS total_oprct_discounted,
+                   CAST(SUM(c.oprc * c.ckamount * (100 - c.yhl) / 100.0) AS numeric(12,2)) AS total_oprc_discounted,
                    ISNULL(MAX(h.spname), '') AS spname
             FROM tbsada c WITH (NOLOCK)
             LEFT JOIN (SELECT paper, spname FROM tbsada_header WITH (NOLOCK)) h ON h.paper = c.paper
@@ -303,7 +312,8 @@ public sealed class DocQueryRepository(SqlConnectionFactory factory) : IDocQuery
         // 元组按位置映射（Dapper）：字段序必须与 SELECT 列序一致（perf B6 抓出 spname/decimal 错位）
         var row = await conn.QueryFirstOrDefaultAsync<(string paper, string type, string dpm, string gname, string gno,
             string pno, string per, string t_mode, string remark, string mark, string guno, DateTime outdate,
-            decimal total_oprct, decimal total_oprc, decimal total_discounted, string spname)>(cmd);
+            decimal total_oprct, decimal total_oprc, decimal total_discounted,
+            decimal total_oprct_discounted, decimal total_oprc_discounted, string spname)>(cmd);
         if (row.paper is null)
             throw new AppException("DOC_NOT_FOUND", $"单据 {paper} 不存在", 404);
         return new OutDocSummary
@@ -324,6 +334,8 @@ public sealed class DocQueryRepository(SqlConnectionFactory factory) : IDocQuery
             TotalOprct = row.total_oprct,
             TotalOprc = row.total_oprc,
             TotalDiscounted = row.total_discounted,
+            TotalOprctDiscounted = row.total_oprct_discounted,
+            TotalOprcDiscounted = row.total_oprc_discounted,
         };
     }
 }

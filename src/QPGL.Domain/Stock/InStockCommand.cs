@@ -61,9 +61,9 @@ public sealed class InStockLineInput
     public string Unit { get; set; } = "";
     /// <summary>入库数量（jkamount，正数）。</summary>
     public decimal Jkamount { get; set; }
-    /// <summary>进价单价（iprc）。</summary>
+    /// <summary>进价单价（iprc，不含税净成本 NETCOST）。</summary>
     public decimal Iprc { get; set; }
-    /// <summary>进价金额（iprj）。</summary>
+    /// <summary>进价单价（iprj，含税价 R-PRICE）。</summary>
     public decimal Iprj { get; set; }
     /// <summary>售价（oprc，0 或低于进价时按旧公式推导——一期保持输入值，公式属客户定制不迁移）。</summary>
     public decimal Oprc { get; set; }

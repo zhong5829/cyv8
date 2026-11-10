@@ -1,8 +1,10 @@
-using System.ComponentModel;
+﻿﻿using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows;
+using System.Windows.Controls;
 using CommunityToolkit.Mvvm.Input;
 using QPGL.Desktop.Services;
+using QPGL.Infrastructure;
 using QPGL.Domain.Common;
 using QPGL.Domain.Stock;
 
@@ -23,6 +25,39 @@ public partial class StockEditWindow : Window
             Changed = true;
             Close();
         };
+        // 2026-11-09 用户需求：库存数量只允许整数（复用 2026-11-07 IntegerInput 统一口径），
+        // 进价（不含税/含税）只允许两位小数
+        IntegerInput.Restrict(TxtKcamount);
+        RestrictDecimal(TxtIprc, 2);
+        RestrictDecimal(TxtIprj, 2);
+    }
+
+    /// <summary>价格输入约束（弹窗局部）：仅数字+一个小数点，小数位不超 decimals；粘贴同校验；允许 "12." 中间态。</summary>
+    private static void RestrictDecimal(TextBox box, int decimals)
+    {
+        box.PreviewTextInput += (_, e) =>
+        {
+            var newText = box.Text.Remove(box.SelectionStart, box.SelectionLength).Insert(box.SelectionStart, e.Text);
+            e.Handled = !IsValidDecimal(newText, decimals);
+        };
+        DataObject.AddPastingHandler(box, (_, e) =>
+        {
+            if (!e.DataObject.GetDataPresent(DataFormats.Text)) { e.Handled = true; return; }
+            var paste = (string?)e.DataObject.GetData(DataFormats.Text) ?? "";
+            var newText = box.Text.Remove(box.SelectionStart, box.SelectionLength).Insert(box.SelectionStart, paste);
+            e.Handled = !IsValidDecimal(newText, decimals);
+        });
+    }
+
+    private static bool IsValidDecimal(string text, int decimals)
+    {
+        if (text.Length == 0) return true;
+        if (text.EndsWith(".")) text = text[..^1];   // 允许 "12." 中间态
+        if (text.Length == 0) return false;
+        if (!decimal.TryParse(text, System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out _)) return false;
+        var dot = text.IndexOf('.');
+        return dot < 0 || text.Length - dot - 1 <= decimals;
     }
 
     public bool Changed { get; private set; }
@@ -73,8 +108,9 @@ public sealed class StockEditViewModel : INotifyPropertyChanged
     public string Ty { get => _ty; set { _ty = value; On(); } }
     public string Unit { get => _unit; set { _unit = value; On(); } }
     public decimal Kcamount { get => _kcamount; set { _kcamount = value; On(); } }
-    public decimal Iprc { get => _iprc; set { _iprc = value; On(); } }
-    public decimal Iprj { get => _iprj; set { _iprj = value; On(); } }
+    // 进价值层面统一两位小数（2026-11-09 用户需求；round 后 150.0000 显示 150.00、150.555 → 150.56）
+    public decimal Iprc { get => _iprc; set { _iprc = Math.Round(value, 2); On(); } }
+    public decimal Iprj { get => _iprj; set { _iprj = Math.Round(value, 2); On(); } }
     public decimal Oprc { get => _oprc; set { _oprc = value; On(); } }
     public decimal Oprb { get => _oprb; set { _oprb = value; On(); } }
     public string Posi { get => _posi; set { _posi = value; On(); } }
@@ -95,6 +131,12 @@ public sealed class StockEditViewModel : INotifyPropertyChanged
     private async System.Threading.Tasks.Task SaveAsync()
     {
         Message = "";
+        // 数量整数口径兜底（2026-11-07 统一口径）：输入约束已被 Restrict 拦截，此处拦历史小数原值提交，要求改整数不静默截断
+        if (Kcamount != _orig.Kcamount && !IntegerInput.IsInteger(Kcamount.ToString(), out _))
+        {
+            Message = "库存数量必须为整数（不能带小数）。";
+            return;
+        }
         try
         {
             var command = new UpdateStockCommand

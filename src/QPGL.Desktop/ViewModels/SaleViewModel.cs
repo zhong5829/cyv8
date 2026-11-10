@@ -1,4 +1,4 @@
-﻿﻿﻿﻿using System.Collections.ObjectModel;
+﻿﻿﻿﻿﻿﻿using System.Collections.ObjectModel;
 using System.Net.Http;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -393,6 +393,46 @@ public partial class SaleViewModel : ObservableObject, IDisposable
         {
             Message = ex.Message;
             MessageBox.Show(ex.Message, "修改库存售价", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    /// <summary>右键「库存修改」（2026-11-09 需求）：复用库存查询页的 StockEditWindow（tbisto 批次直改 +
+    /// tbistoch 留痕 + 保存前并发校验）；保存后 PartCacheService.Invalidate() + 按批次 id 回查整行替换
+    /// （修改窗可改数量/进价/售价/货位/名称/车型/单位/备注多项，WithStock 只刷数量不够）。</summary>
+    public async System.Threading.Tasks.Task OpenStockEditAsync(PartItem part)
+    {
+        if (part.Id <= 0)
+        {
+            MessageBox.Show("该行没有库存批次（属性库新增配件），不能修改库存。", "库存修改",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        var row = new QPGL.Domain.Stock.StockRow
+        {
+            Id = part.Id, Dpm = part.Dpm, Cp = part.Cp, Nno = part.Nno, Na1 = part.Na1, Ty = part.Ty,
+            Fa = part.Fa, Dc = part.Dc, Unit = part.Unit, Kcamount = part.Kcamount,
+            Iprj = part.Iprj, Iprc = part.Iprc, Oprc = part.Oprc, Oprb = part.Oprb,
+            Posi = part.Posi, Depotno = part.Depotno, Note = part.Note,
+        };
+        var window = new Views.StockEditWindow(row) { Owner = Application.Current.MainWindow };
+        window.ShowDialog();
+        if (!window.Changed) return;
+        try
+        {
+            IsBusy = true;
+            Services.PartCacheService.Invalidate();   // tbisto 直改 → 配件选择缓存失效
+            var latest = await Db.Parts.GetPartByIdAsync(part.Id, Dept);
+            var idx = latest is null ? -1 : PartResults.IndexOf(part);
+            if (latest is not null && idx >= 0) PartResults[idx] = latest;
+            Message = "库存已更新。";
+        }
+        catch (Exception ex)
+        {
+            Message = "库存修改后刷新失败：" + ex.Message;
         }
         finally
         {

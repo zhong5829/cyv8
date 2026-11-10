@@ -8,7 +8,10 @@ using QPGL.Domain.Partners;
 
 namespace QPGL.Desktop.ViewModels;
 
-/// <summary>供应商管理 VM（A6，M5）：查询+新增/修改/删除（tbgugys）。</summary>
+/// <summary>
+/// 供应商管理 VM（A6，M5）：查询+新增/修改/删除（tbgugys）。
+/// 2026-11-08 需求：改无限滚动——每次只取一批（PageSize 条），滚动接近底部再追加下一批，不再有翻页按钮。
+/// </summary>
 public partial class SupplierViewModel : ObservableObject
 {
     public ObservableCollection<SupplierRow> Rows { get; } = [];
@@ -20,33 +23,97 @@ public partial class SupplierViewModel : ObservableObject
     [ObservableProperty] private int _page = 1;
     [ObservableProperty] private int _total;
 
+    /// <summary>每批条数（原分页每页 50 条，保持一致）。</summary>
     private const int PageSize = 50;
-    public bool HasPrevPage => Page > 1;
-    public bool HasNextPage => Page * PageSize < Total;
 
-    [RelayCommand]
-    public async Task SearchAsync(CancellationToken ct)
+    /// <summary>是否还有未加载的批次（按服务端总数判断）。</summary>
+    public bool HasMore => Rows.Count < Total;
+
+    /// <summary>列表底部轻提示：加载中 / 已加载进度 / 已全部加载。</summary>
+    public string FooterText => IsBusy
+        ? "加载中…"
+        : Total == 0 ? "无数据"
+        : HasMore ? $"已加载 {Rows.Count} / 共 {Total} 行，继续下滑加载更多"
+        : $"共 {Total} 行，已全部加载";
+
+    partial void OnIsBusyChanged(bool value) => OnPropertyChanged(nameof(FooterText));
+    partial void OnTotalChanged(int value) => OnPropertyChanged(nameof(FooterText));
+
+    /// <summary>关键字查询：清空已加载数据并从第 1 批重新加载（等价原第一页；滚动位置由界面侧回到顶部）。</summary>
+    public async Task SearchAsync(CancellationToken ct) => await ResetAsync(PageSize, null, ct);
+
+    /// <summary>滚动接近底部时追加下一批：只追加、不重置已加载数据；IsBusy 防重复请求。</summary>
+    public async Task LoadMoreAsync(CancellationToken ct = default)
     {
-        Message = "";
+        if (IsBusy || !HasMore) return;
         IsBusy = true;
+        Message = "";
         try
         {
-            var result = await Db.Suppliers.SearchAsync(new PagedRequest { Page = Page, PageSize = PageSize, Keyword = NullIfEmpty(Keyword) }, ct);
-            Rows.Clear();
-            foreach (var r in result.Items) Rows.Add(r);
+            var result = await Db.Suppliers.SearchAsync(new PagedRequest
+            {
+                Page = Page + 1, PageSize = PageSize, Keyword = NullIfEmpty(Keyword),
+            }, ct);
+            if (result.Items.Count > 0)
+            {
+                Page = result.Page;
+                foreach (var r in result.Items) Rows.Add(r);
+            }
             Total = result.Total;
-            OnPropertyChanged(nameof(HasPrevPage));
-            OnPropertyChanged(nameof(HasNextPage));
         }
-        catch (Exception ex)
+        catch (Exception ex) { Message = ex.Message; }
+        finally
         {
-            Message = ex.Message;
+            IsBusy = false;
+            OnPropertyChanged(nameof(HasMore));
+            OnPropertyChanged(nameof(FooterText));
         }
-        finally { IsBusy = false; }
     }
 
-    [RelayCommand] private async Task PrevPageAsync(CancellationToken ct) { if (HasPrevPage) { Page--; await SearchAsync(ct); } }
-    [RelayCommand] private async Task NextPageAsync(CancellationToken ct) { if (HasNextPage) { Page++; await SearchAsync(ct); } }
+    /// <summary>
+    /// 从第 1 批重新加载（刷新/换关键字/保存删除后）。
+    /// keepRows：刷新前已加载的行数，循环补批到该数量，避免用户已滚动到的位置突然变空；
+    /// focusId：加载完成后定位选中的行（新增/修改后保持可见）。
+    /// </summary>
+    private async Task ResetAsync(int keepRows, int? focusId, CancellationToken ct)
+    {
+        if (IsBusy) return;
+        IsBusy = true;
+        Message = "";
+        try
+        {
+            Rows.Clear();
+            var first = await Db.Suppliers.SearchAsync(new PagedRequest
+            {
+                Page = 1, PageSize = PageSize, Keyword = NullIfEmpty(Keyword),
+            }, ct);
+            foreach (var r in first.Items) Rows.Add(r);
+            Page = 1;
+            Total = first.Total;
+
+            var target = Math.Max(PageSize, keepRows);
+            while (Rows.Count < target && Rows.Count < Total)
+            {
+                var next = await Db.Suppliers.SearchAsync(new PagedRequest
+                {
+                    Page = Page + 1, PageSize = PageSize, Keyword = NullIfEmpty(Keyword),
+                }, ct);
+                if (next.Items.Count == 0) break;
+                Page++;
+                foreach (var r in next.Items) Rows.Add(r);
+                Total = next.Total;
+            }
+
+            if (focusId is int id && Rows.FirstOrDefault(r => r.Id == id) is { } hit) SelectedRow = hit;
+        }
+        catch (Exception ex) { Message = ex.Message; }
+        finally
+        {
+            IsBusy = false;
+            OnPropertyChanged(nameof(HasMore));
+            OnPropertyChanged(nameof(FooterText));
+        }
+    }
 
     [RelayCommand]
     private async Task SaveAsync(CancellationToken ct)
@@ -54,19 +121,24 @@ public partial class SupplierViewModel : ObservableObject
         // 统一供应商编辑窗（2026-11-07 需求）：新增/修改共用一窗（标题按模式切换），
         // 取代原先「编号/名称/账期」逐字段 PromptWindow 弹框；落库仍走 Db.Suppliers.SaveAsync
         Message = "";
+        var wasNew = SelectedRow is null;
+        var loadedRows = Rows.Count;
         var w = new Views.SupplierEditWindow(SelectedRow);
         w.ShowDialog();
         if (!w.Saved) return;
-        if (SelectedRow is null)
+
+        if (wasNew)
         {
-            // 新增：按新编号重新检索并定位（列表按编号升序，新号可能落在后面的页；
-            // 固定回第 1 页会因为不在当页而看不到刚建的供应商）
-            Page = 1;
+            // 新增：按新编号检索（等价原「按新编号检索 + 定位选中」），确保无条件列表里也能立刻看到
             if (!string.IsNullOrWhiteSpace(w.SavedGyno)) Keyword = w.SavedGyno.Trim();
+            await ResetAsync(PageSize, w.SavedId, ct);
         }
-        await SearchAsync(ct);
-        if (Rows.FirstOrDefault(r => r.Id == w.SavedId) is { } saved) SelectedRow = saved;
-        else if (SelectedRow is null)
+        else
+        {
+            // 修改：保持已加载范围与排序，定位选中被修改行
+            await ResetAsync(loadedRows, w.SavedId, ct);
+        }
+        if (!Rows.Any(r => r.Id == w.SavedId))
             Message = $"已保存供应商 {w.SavedGyno}，但当前列表未显示该行，请点查询确认";
     }
 
@@ -81,7 +153,9 @@ public partial class SupplierViewModel : ObservableObject
         {
             await Db.Suppliers.DeleteAsync(SelectedRow.Id, ct);
             Message = "已删除";
-            await SearchAsync(ct);
+            SelectedRow = null;
+            // 删除后按原已加载条数减一刷新，列表与总数同步
+            await ResetAsync(Math.Max(PageSize, Rows.Count - 1), null, ct);
         }
         catch (Exception ex)
         {

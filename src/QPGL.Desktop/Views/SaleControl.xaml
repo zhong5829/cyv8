@@ -113,6 +113,8 @@
                                           ToolTip="打开零件属性编辑窗修改该配件的编码/名称/车型/价格等属性"/>
                                 <MenuItem Header="修改库存售价" Click="ChangeStockPrice_Click"
                                           ToolTip="修改该配件的仓位/产地/售价/批发价/最低售价（tbistoch 留痕）"/>
+                                <MenuItem Header="库存修改" Click="OpenStockEdit_Click"
+                                          ToolTip="复用库存查询页的库存修改窗：直接修改该批次数量/进价/售价/货位/属性（tbisto 直改+tbistoch 留痕）"/>
                             </ContextMenu>
                         </DataGrid.ContextMenu>
                         <DataGrid.RowStyle>
@@ -168,6 +170,12 @@
                             <Image x:Name="PartImage" Stretch="Uniform" Margin="4" Cursor="Hand"
                                    MouseLeftButtonUp="PartImage_Click"
                                    Visibility="Collapsed"/>
+                            <!-- 多图角标（2026-11-10 多图修复）：同配件多张图时提示张数，单击进大图窗翻页 -->
+                            <Border x:Name="PartImageBadge" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                    Margin="0,4,8,0" Background="#CC000000" CornerRadius="3" Padding="6,2"
+                                    Visibility="Collapsed">
+                                <TextBlock x:Name="PartImageBadgeText" Foreground="White" FontSize="11"/>
+                            </Border>
                             <TextBlock x:Name="PartImagePlaceholder" Text="无图片"
                                        HorizontalAlignment="Center" VerticalAlignment="Center"
                                        Foreground="#BBB" FontSize="13"/>

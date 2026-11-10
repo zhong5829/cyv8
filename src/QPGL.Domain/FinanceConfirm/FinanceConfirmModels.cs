@@ -138,11 +138,11 @@ public sealed class FinConfirmInCommand
 public sealed class FinConfirmTransferCommand
 {
     public string Paper { get; set; } = "";
-    /// <summary>付款方式（挂帐/托收/汇款 → 写 tbysyf）。</summary>
+    /// <summary>付款方式（仅「挂帐」写 tbysyf）。</summary>
     public string Fkfs { get; set; } = "";
-    /// <summary>转出方部门（c_db.dpm，写 tbysyf.dpm）。</summary>
+    /// <summary>转出方部门（tbsada.dpm，写 tbysyf.dpm）。</summary>
     public string Dpm { get; set; } = "";
-    /// <summary>客户（tbdpm dpmbh→dpm 转入方）。</summary>
+    /// <summary>客户/接收部门名（tbsada.gname，写 tbysyf.gname）。</summary>
     public string Gname { get; set; } = "";
 }
 
