@@ -316,12 +316,18 @@ public partial class Order4ViewModel : ObservableObject
 
     // ---------- 选料 ----------
 
-    /// <summary>打开选择配件窗口（2026-11-03 需求：选料区从页面移入独立窗口，PartPickWindow 同模式）。</summary>
+    /// <summary>打开选择配件窗口（2026-11-03 需求：选料区从页面移入独立窗口，PartPickWindow 同模式）。
+    /// 2026-11-13 需求：改非模态 Show（去掉 Owner，不压主窗口），订货途中可直接切到销售开单等其它页面；
+    /// 已开着再点按钮只把它带到前台，不重复开窗。</summary>
     [RelayCommand]
     public void OpenPick()
     {
-        var w = new Views.OrderPickWindow(this);
-        w.ShowDialog();
+        if (Application.Current.Windows.OfType<Views.OrderPickWindow>().FirstOrDefault() is { } w)
+        {
+            w.Activate();
+            return;
+        }
+        new Views.OrderPickWindow(this).Show();
     }
 
     [RelayCommand]

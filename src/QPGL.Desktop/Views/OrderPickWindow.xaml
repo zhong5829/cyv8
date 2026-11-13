@@ -3,8 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:conv="clr-namespace:QPGL.Desktop.Converters"
         Title="选择配件" Width="1200" Height="750"
-        WindowStartupLocation="CenterOwner" MinWidth="950" MinHeight="560"
-        ShowInTaskbar="False"
+        WindowStartupLocation="CenterScreen" MinWidth="950" MinHeight="560"
+        ShowInTaskbar="True"
         Background="{StaticResource WindowBackBrush}">
     <Window.Resources>
         <conv:LessThanOneConverter x:Key="LtOne"/>

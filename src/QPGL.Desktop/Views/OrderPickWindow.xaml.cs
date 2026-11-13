@@ -26,7 +26,7 @@ public partial class OrderPickWindow : Window
     public OrderPickWindow(Order4ViewModel vm)
     {
         InitializeComponent();
-        Owner = Application.Current.MainWindow;
+        // 2026-11-13 需求：非模态且不挂 Owner —— 窗口可被主窗口/销售开单盖住，不再强制置顶
         _vm = vm;
         DataContext = vm;
         _debounce.Tick += async (_, _) =>

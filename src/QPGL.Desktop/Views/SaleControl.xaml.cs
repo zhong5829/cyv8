@@ -450,8 +450,18 @@ public partial class SaleControl : UserControl
         await _vm.LoadForEditAsync(args.Paper, args.Type, args.Dpm, System.Threading.CancellationToken.None);
     }
 
-    /// <summary>F9 快捷键：清空开单输入与明细。</summary>
-    public void ClearBill() => _vm.ClearBill();
+    /// <summary>F9 快捷键：清空开单输入与明细；清空后光标定位到编码输入框，方便直接编码搜索（2026-11-13 需求）。</summary>
+    public void ClearBill()
+    {
+        _vm.ClearBill();
+        // 查询模式下开单面板隐藏，编码框不可见，跳过聚焦
+        if (_isQueryMode) return;
+        CpBox.Dispatcher.BeginInvoke(() =>
+        {
+            CpBox.Focus();
+            CpBox.SelectAll();
+        }, System.Windows.Threading.DispatcherPriority.Input);
+    }
 
     /// <summary>F3 快捷键入口（MainWindow KeyDown 路由到激活 Tab，仅开单类页面响应）。</summary>
     public void OnQuery()
