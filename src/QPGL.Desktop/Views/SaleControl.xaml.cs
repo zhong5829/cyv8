@@ -248,18 +248,26 @@ public partial class SaleControl : UserControl
 
     private async void PartGrid_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        // Ctrl+C 复制内部编号（2026-10-30 需求）：单击内部编号单元格选中行后，Ctrl+C 直接复制编号
+        // Ctrl+C 复制内部编号/车型（2026-10-30 / 2026-11-15 需求）：单击对应单元格选中行后，Ctrl+C 复制该值
         if (e.Key == Key.C && System.Windows.Input.Keyboard.Modifiers == System.Windows.Input.ModifierKeys.Control
-            && PartGrid.SelectedItem is Domain.Parts.PartItem sel
-            && string.Equals(PartGrid.CurrentColumn?.Header?.ToString(), "内部编号"))
+            && PartGrid.SelectedItem is Domain.Parts.PartItem sel)
         {
-            e.Handled = true;
-            var nno = sel.Nno.Trim();
-            if (TrySetClipboardTextNative(nno, out _, out _))
-                _vm.Message = $"已复制内部编号：{nno}";
-            else
-                _vm.Message = "复制失败：剪贴板被其它程序占用，请稍后重试";
-            return;
+            var header = PartGrid.CurrentColumn?.Header?.ToString();
+            var text = header switch
+            {
+                "内部编号" => sel.Nno.Trim(),
+                "车型" => sel.Ty?.Trim() ?? "",
+                _ => null,
+            };
+            if (text is not null)
+            {
+                e.Handled = true;
+                if (TrySetClipboardTextNative(text, out _, out _))
+                    _vm.Message = header == "车型" ? $"已复制车型：{text}" : $"已复制内部编号：{text}";
+                else
+                    _vm.Message = "复制失败：剪贴板被其它程序占用，请稍后重试";
+                return;
+            }
         }
         if (e.Key is Key.F4 or Key.Enter && PartGrid.SelectedItem is Domain.Parts.PartItem part)
         {

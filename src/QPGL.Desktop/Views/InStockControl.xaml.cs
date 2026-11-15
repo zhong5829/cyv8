@@ -109,9 +109,11 @@ public partial class InStockControl : UserControl
         pick.ShowDialog();
     }
 
-    /// <summary>处理一个选定配件：重复添加询问修改，否则弹入库明细编辑窗（数量/进价(含税)/进价(不含税)等），确认后写入明细行。</summary>
+    /// <summary>处理一个选定配件：重复添加询问修改，否则弹入库明细编辑窗（数量/进价(含税)/进价(不含税)等），确认后写入明细行。
+    /// 最低售价（2026-11-15 需求）：弹窗前查 tbprnoty.oprc_min 预填，确认后有变化即写回属性档（与销售开单右键改价同落点）。</summary>
     private async System.Threading.Tasks.Task AddPickedPartAsync(Window pick, PartItem part)
     {
+        var oprcMin = await Db.Prnoty.GetOprcMinAsync(part.Cp, part.Nno);
         // 重复添加判定（qp11 AddLineViaDialogAsync 同构：按零件号）
         var existing = VM.Lines.FirstOrDefault(l => string.Equals(l.Nno.Trim(), part.Nno.Trim(), StringComparison.OrdinalIgnoreCase));
         if (existing is not null)
@@ -120,7 +122,7 @@ public partial class InStockControl : UserControl
                 $"配件 {part.Nno}（{part.Na1}）已在明细中（数量 {existing.Jkamount:0.##}），是否修改该行？",
                 "该配件已添加", MessageBoxButton.YesNo, MessageBoxImage.Question);
             if (go != MessageBoxResult.Yes) return;
-            var edit = new InStockLineEditDialog(part, VM.Warehouses.ToList(), existing) { Owner = pick };
+            var edit = new InStockLineEditDialog(part, VM.Warehouses.ToList(), existing, oprcMin) { Owner = pick };
             if (edit.ShowDialog() != true) return;
             VM.UpdatePartRow(existing, new InStockLineEditResult
             {
@@ -129,10 +131,12 @@ public partial class InStockControl : UserControl
                 Depotno = edit.Depotno, Posi = edit.Posi,
                 Fa = edit.Fa, Dc = edit.Dc, Unit = edit.Unit, Ty = edit.Ty, Note = edit.Note,
             });
+            if (edit.OprcMin != oprcMin)
+                await Db.Prnoty.UpdateOprcMinAsync(part.Cp, part.Nno, edit.OprcMin);
             return;
         }
 
-        var dialog = new InStockLineEditDialog(part, VM.Warehouses.ToList()) { Owner = pick };
+        var dialog = new InStockLineEditDialog(part, VM.Warehouses.ToList(), null, oprcMin) { Owner = pick };
         if (dialog.ShowDialog() != true) return;
 
         VM.AddPartRow(part, new InStockLineEditResult
@@ -142,6 +146,8 @@ public partial class InStockControl : UserControl
             Depotno = dialog.Depotno, Posi = dialog.Posi,
             Fa = dialog.Fa, Dc = dialog.Dc, Unit = dialog.Unit, Ty = dialog.Ty, Note = dialog.Note,
         });
+        if (dialog.OprcMin != oprcMin)
+            await Db.Prnoty.UpdateOprcMinAsync(part.Cp, part.Nno, dialog.OprcMin);
         await System.Threading.Tasks.Task.CompletedTask;
     }
 
@@ -189,8 +195,9 @@ public partial class InStockControl : UserControl
     /// <summary>
     /// 双击明细行 = 弹入库编辑窗修改该行（2026-10-29 需求，与「重复添加询问修改」同一编辑窗）：
     /// 以行值构造最小 PartItem 传入编辑模式（预填该行当前值），确认后 UpdatePartRow 回写。
+    /// 最低售价（2026-11-15 需求）：弹窗前查 tbprnoty.oprc_min 预填，确认后有变化即写回属性档。
     /// </summary>
-    private void Lines_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    private async void Lines_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
         if (VM.SelectedLine is not InStockLineRow row) return;
         var part = new Domain.Parts.PartItem
@@ -198,7 +205,8 @@ public partial class InStockControl : UserControl
             Cp = row.Cp, Nno = row.Nno, Na1 = row.Na1,
             Depotno = row.Depotno, Posi = row.Posi,
         };
-        var edit = new InStockLineEditDialog(part, VM.Warehouses.ToList(), row) { Owner = Window.GetWindow(this) };
+        var oprcMin = await Db.Prnoty.GetOprcMinAsync(row.Cp, row.Nno);
+        var edit = new InStockLineEditDialog(part, VM.Warehouses.ToList(), row, oprcMin) { Owner = Window.GetWindow(this) };
         if (edit.ShowDialog() != true) return;
         VM.UpdatePartRow(row, new InStockLineEditResult
         {
@@ -207,6 +215,8 @@ public partial class InStockControl : UserControl
             Depotno = edit.Depotno, Posi = edit.Posi,
             Fa = edit.Fa, Dc = edit.Dc, Unit = edit.Unit, Ty = edit.Ty, Note = edit.Note,
         });
+        if (edit.OprcMin != oprcMin)
+            await Db.Prnoty.UpdateOprcMinAsync(row.Cp, row.Nno, edit.OprcMin);
     }
 
     // 供应商联想（旧 cmm_class row326 FRDM 下拉机制，与 SaleControl GnameBox 同构）：

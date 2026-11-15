@@ -79,7 +79,9 @@ public sealed class StockEditViewModel : INotifyPropertyChanged
         Na1 = row.Na1.Trim();
         Ty = row.Ty.Trim();
         Unit = row.Unit.Trim();
-        Kcamount = row.Kcamount;
+        // 2026-11-15 需求：历史小数库存打开时按整数显示（QtyInt 截断同口径）；未改动数量则不写库，
+        // 数据库原值保留，需要清零/改数时用户显式输入整数（并发基线 OrigKcamount 仍取库内原值）
+        Kcamount = Math.Truncate(row.Kcamount);
         Iprc = row.Iprc;
         Iprj = row.Iprj;
         Oprc = row.Oprc;
@@ -132,7 +134,8 @@ public sealed class StockEditViewModel : INotifyPropertyChanged
     {
         Message = "";
         // 数量整数口径兜底（2026-11-07 统一口径）：输入约束已被 Restrict 拦截，此处拦历史小数原值提交，要求改整数不静默截断
-        if (Kcamount != _orig.Kcamount && !IntegerInput.IsInteger(Kcamount.ToString(), out _))
+        // 2026-11-15：显示基线为截断值——历史小数库存未改动数量时不视为变更（不写库）
+        if (Kcamount != Math.Truncate(_orig.Kcamount) && !IntegerInput.IsInteger(Kcamount.ToString(), out _))
         {
             Message = "库存数量必须为整数（不能带小数）。";
             return;
@@ -147,7 +150,7 @@ public sealed class StockEditViewModel : INotifyPropertyChanged
                 Na1 = Changed(Na1, _orig.Na1) ? Na1 : null,
                 Ty = Changed(Ty, _orig.Ty) ? Ty : null,
                 Unit = Changed(Unit, _orig.Unit) ? Unit : null,
-                Kcamount = Kcamount != _orig.Kcamount ? Kcamount : null,
+                Kcamount = Kcamount != Math.Truncate(_orig.Kcamount) ? Kcamount : null,
                 Iprc = Iprc != _orig.Iprc ? Iprc : null,
                 Iprj = Iprj != _orig.Iprj ? Iprj : null,
                 Oprc = Oprc != _orig.Oprc ? Oprc : null,

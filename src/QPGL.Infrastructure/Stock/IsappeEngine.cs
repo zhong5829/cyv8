@@ -1,5 +1,6 @@
 using Dapper;
 using Microsoft.Data.SqlClient;
+using QPGL.Domain.Common;
 
 namespace QPGL.Infrastructure.Stock;
 
@@ -67,23 +68,21 @@ public static class IsappeEngine
     /// </summary>
     /// <param name="amount">冲减量（正入负出，旧 m.AMOUI）。</param>
     /// <param name="today">业务日期（旧 P_RQ；回放两侧必须同源传入）。</param>
+    /// <param name="splitBatches">拆分冲减（2026-11-15 负库存防护需求，仅入库退货启用）：按匹配键取全部批次
+    /// （kcamount DESC，UPDLOCK 锁至提交）从大到小逐批扣到扣够，Σ批次不足抛 STOCK_CONCURRENT 回滚；
+    /// 拆分模式不插入负数新批次。false（缺省）保持旧单批语义，散件入库/订单入库/调仓零影响。</param>
     public static async Task<(int BatchId, decimal? KcBefore, decimal KcAfter, bool Inserted)> ApplyAsync(
         SqlConnection conn, SqlTransaction tx, IsappeSource src, decimal amount, IsappeParams prm,
-        IsappeLibrary library, DateTime today, CancellationToken ct = default)
+        IsappeLibrary library, DateTime today, CancellationToken ct = default, bool splitBatches = false)
     {
-        var faFilter = prm.Xzfa ? " AND fa = @fa" : "";
+        if (splitBatches && amount < 0)
+            return await ApplySplitAsync(conn, tx, src, amount, prm, library, today, ct);
+
         var orderBy = library == IsappeLibrary.MainProc ? " ORDER BY kcamount DESC" : "";
-        var (matchSql, matchArgs) = prm.PWay switch
-        {
-            1 => ($"SELECT TOP (1) id, kcamount, iprj, iprc, oprc, oprb FROM tbisto WITH (UPDLOCK) " +
-                  $"WHERE cp = @cp AND nno = @nno AND iprc = @iprc AND posi = @posi AND depotno = @depotno AND dpm = @dpm{faFilter}{orderBy}",
-                  (object)new { cp = Ansi(src.Cp, 10), nno = Ansi(src.Nno, 18), iprc = src.Iprc, fa = Ansi(src.Fa, 8),
-                                posi = Ansi(src.Posi, 10), depotno = Ansi(src.Depotno, 10), dpm = Ansi(src.Dpm, 10) }),
-            _ => ($"SELECT TOP (1) id, kcamount, iprj, iprc, oprc, oprb FROM tbisto WITH (UPDLOCK) " +
-                  $"WHERE cp = @cp AND nno = @nno AND posi = @posi AND depotno = @depotno AND dpm = @dpm{faFilter}{orderBy}",
-                  (object)new { cp = Ansi(src.Cp, 10), nno = Ansi(src.Nno, 18), fa = Ansi(src.Fa, 8),
-                                posi = Ansi(src.Posi, 10), depotno = Ansi(src.Depotno, 10), dpm = Ansi(src.Dpm, 10) }),
-        };
+        var (filter, filterArgs) = BuildMatchFilter(src, prm);
+        var matchSql = $"SELECT TOP (1) id, kcamount, iprj, iprc, oprc, oprb FROM tbisto WITH (UPDLOCK) " +
+                       $"WHERE {filter}{orderBy}";
+        var matchArgs = filterArgs;
         var batch = await conn.QueryFirstOrDefaultAsync<(int id, decimal kc, decimal iprj, decimal iprc, decimal oprc, decimal oprb)>(
             new CommandDefinition(matchSql, matchArgs, transaction: tx, cancellationToken: ct));
 
@@ -187,6 +186,110 @@ public static class IsappeEngine
             }
         }
         return (newId, null, amount, true);
+    }
+
+    /// <summary>ISAPPE 批次匹配过滤（P_WAY=1 加 iprc；XZFA 加 fa）——单批与拆分两种模式共用，保证键一致。</summary>
+    private static (string Filter, object Args) BuildMatchFilter(IsappeSource src, IsappeParams prm)
+    {
+        var faFilter = prm.Xzfa ? " AND fa = @fa" : "";
+        return prm.PWay switch
+        {
+            1 => ($"cp = @cp AND nno = @nno AND iprc = @iprc AND posi = @posi AND depotno = @depotno AND dpm = @dpm{faFilter}",
+                  (object)new { cp = Ansi(src.Cp, 10), nno = Ansi(src.Nno, 18), iprc = src.Iprc, fa = Ansi(src.Fa, 8),
+                                posi = Ansi(src.Posi, 10), depotno = Ansi(src.Depotno, 10), dpm = Ansi(src.Dpm, 10) }),
+            _ => ($"cp = @cp AND nno = @nno AND posi = @posi AND depotno = @depotno AND dpm = @dpm{faFilter}",
+                  (object)new { cp = Ansi(src.Cp, 10), nno = Ansi(src.Nno, 18), fa = Ansi(src.Fa, 8),
+                                posi = Ansi(src.Posi, 10), depotno = Ansi(src.Depotno, 10), dpm = Ansi(src.Dpm, 10) }),
+        };
+    }
+
+    /// <summary>拆分冲减匹配过滤（2026-11-15 负库存防护）：放宽 posi——库存拆多仓位而任一仓位不足一行退货数时，
+    /// 单批键会误判"无批次"（旧系统此处扣成负库存）；拆分模式跨仓位聚合扣减，其余键（cp+nno+depotno+dpm
+    /// [+fa XZFA][+iprc P_WAY=1]）与单批模式一致。</summary>
+    private static (string Filter, object Args) BuildSplitMatchFilter(IsappeSource src, IsappeParams prm)
+    {
+        var faFilter = prm.Xzfa ? " AND fa = @fa" : "";
+        return prm.PWay switch
+        {
+            1 => ($"cp = @cp AND nno = @nno AND iprc = @iprc AND depotno = @depotno AND dpm = @dpm{faFilter}",
+                  (object)new { cp = Ansi(src.Cp, 10), nno = Ansi(src.Nno, 18), iprc = src.Iprc, fa = Ansi(src.Fa, 8),
+                                depotno = Ansi(src.Depotno, 10), dpm = Ansi(src.Dpm, 10) }),
+            _ => ($"cp = @cp AND nno = @nno AND depotno = @depotno AND dpm = @dpm{faFilter}",
+                  (object)new { cp = Ansi(src.Cp, 10), nno = Ansi(src.Nno, 18), fa = Ansi(src.Fa, 8),
+                                depotno = Ansi(src.Depotno, 10), dpm = Ansi(src.Dpm, 10) }),
+        };
+    }
+
+    /// <summary>
+    /// 拆分冲减（2026-11-15 负库存防护，仅入库退货）：按匹配键取全部批次（kcamount DESC，UPDLOCK 锁至提交），
+    /// 从大到小逐批扣减到扣够；每批沿用单批命中分支的加权价公式（P_WAY=2 逐批重算 iprc/iprj）。
+    /// Σ正库存批次不足 → STOCK_CONCURRENT（预检后被并发单据扣走的兜底）回滚；扣够即返回，
+    /// 不走「未命中 INSERT 负数新批次」路径。返回：首个（最大）批次 id 与冲减前库存（tbistoed.kcamount 快照语义不变）。
+    /// </summary>
+    private static async Task<(int BatchId, decimal? KcBefore, decimal KcAfter, bool Inserted)> ApplySplitAsync(
+        SqlConnection conn, SqlTransaction tx, IsappeSource src, decimal amount, IsappeParams prm,
+        IsappeLibrary library, DateTime today, CancellationToken ct)
+    {
+        var (filter, filterArgs) = BuildSplitMatchFilter(src, prm);
+        var sql = $"SELECT id, kcamount, iprj, iprc, oprc, oprb FROM tbisto WITH (UPDLOCK) WHERE {filter} ORDER BY kcamount DESC";
+        var batches = (await conn.QueryAsync<(int id, decimal kc, decimal iprj, decimal iprc, decimal oprc, decimal oprb)>(
+            new CommandDefinition(sql, filterArgs, transaction: tx, cancellationToken: ct))).AsList();
+
+        var remaining = -amount;   // 待扣总量（正数）
+        int? firstId = null;
+        decimal firstKcBefore = 0, firstKcAfter = 0;
+        foreach (var b in batches)
+        {
+            if (remaining <= 0) break;
+            if (b.kc <= 0) continue;   // 已是零/负的异常批次不参与扣减（防扩大负数）
+            var take = Math.Min(b.kc, remaining);
+            var delta = -take;
+
+            // 每批价格重算：与单批命中分支同公式（P_WAY=2 加权；冲减后=0 保持源行值；P_WAY=1 写库内原值）
+            var iprj = library == IsappeLibrary.Client ? b.iprj : src.Iprj;
+            var kcAfter = b.kc + delta;
+            decimal iprc;
+            if (prm.PWay == 2 && kcAfter != 0)
+            {
+                var iprcDigits = library == IsappeLibrary.Client ? 2 : 4;
+                iprc = Math.Round((Math.Max(b.iprc * b.kc, 0) + src.Iprc * delta) /
+                                  (Math.Max(b.kc, 0) + delta), iprcDigits);
+                if (prm.Wbtohs)
+                {
+                    iprj = library == IsappeLibrary.MainProc
+                        ? Math.Round((Math.Max(b.iprj * b.kc, 0) + src.Iprj * delta) /
+                                     (Math.Max(b.kc, 0) + delta), 2)
+                        : Math.Round((b.iprj * b.kc + src.Iprj * delta) / (b.kc + delta), 2);
+                }
+            }
+            else if (prm.PWay == 2)
+            {
+                iprc = library == IsappeLibrary.MainProc ? src.Iprc : b.iprc;
+            }
+            else
+            {
+                iprc = b.iprc;
+            }
+
+            await conn.ExecuteAsync(new CommandDefinition(
+                "UPDATE tbisto SET kcamount = kcamount + @delta, kcbhdate = @today, iprj = @iprj, " +
+                "oprc = @oprc, oprb = @oprb, iprc = @iprc WHERE id = @id",
+                new { delta, today, iprj, iprc, oprc = b.oprc, oprb = b.oprb, id = b.id },
+                transaction: tx, cancellationToken: ct));
+
+            if (firstId is null)
+            {
+                firstId = b.id;
+                firstKcBefore = b.kc;
+                firstKcAfter = kcAfter;
+            }
+            remaining -= take;
+        }
+
+        if (remaining > 0)
+            throw new AppException("STOCK_CONCURRENT",
+                $"{src.Cp.Trim()}{src.Nno.Trim()} 批次库存不足（差 {remaining:0.##}，可能已被并发单据扣减）", 409);
+        return (firstId!.Value, firstKcBefore, firstKcAfter, false);
     }
 
     /// <summary>S_NNO 串号映射（pg_proc L980-990：tbsysset type='cp' 行 cxnno 模板，生产未配置=''）。</summary>

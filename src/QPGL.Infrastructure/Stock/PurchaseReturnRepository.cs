@@ -26,6 +26,11 @@ public interface IPurchaseReturnRepository
 
     /// <summary>确认退货（契约 §6 核心写路径）。</summary>
     Task<ConfirmPurchaseReturnResult> ConfirmAsync(ConfirmPurchaseReturnCommand command, string dpm, string per, CancellationToken ct = default);
+
+    /// <summary>确认前库存预检（2026-11-15 负库存防护，不写库）：可退数/分店校验与 ConfirmAsync 同规则，
+    /// 2026-11-15 行级拆分需求：按购物车顺序模拟逐行扣减（同组共享正批次池），返回不足行（空列表=全部可扣）——
+    /// VM 据此弹窗列明后把不足行转「不扣库存」，够扣行正常扣减。</summary>
+    Task<IReadOnlyList<StockShortageLine>> CheckStockAsync(ConfirmPurchaseReturnCommand command, string dpm, CancellationToken ct = default);
 }
 
 /// <summary>拉单条件（旧简易查询窗 __.row144 / fr_find 通用条件的常用子集）。</summary>
@@ -317,42 +322,12 @@ public sealed class PurchaseReturnRepository(SqlConnectionFactory factory, IDocN
         var result = new ConfirmPurchaseReturnResult { Cno = cno };
         var prm = await IsappeEngine.LoadParamsAsync(conn, null, ct);
 
-        // 确认窗逐件校验（旧 L785-804：按 cp+nno+depotno[P_WAY=1 加 iprc] 汇总退库数 vs max(kcamount)——注意旧系统是 max）
-        // 先重读全部源行（校验 + 写入共用）
-        var sourceRows = new Dictionary<int, SrcRow>();
-        await using (var probe = (SqlTransaction)await conn.BeginTransactionAsync(ct))
-        {
-            foreach (var line in command.Lines)
-            {
-                var src = await ReadSourceAsync(conn, probe, line.SourceId, ct)
-                    ?? throw new AppException("SRC_NOT_FOUND", $"入库流水 id={line.SourceId} 不存在（已回滚）", 404);
-                if (!string.Equals(src.Dpm.Trim(), deptTrim, StringComparison.Ordinal))
-                    throw new AppException("DPM_MISMATCH", $"当前分店是 {deptTrim}，入库历史是 {src.Dpm.Trim()}，分店不一致不能退货", 409);
-                if (line.Amount > src.Jkamount - src.Ro)
-                    throw new AppException("AMOUNT_EXCEED", $"{src.Nno.Trim()} 退库数超过进库数（可退 {src.Jkamount - src.Ro}）", 409);
-                sourceRows[line.SourceId] = src;
-            }
-            await probe.RollbackAsync(CancellationToken.None);
-        }
+        // 确认窗逐件校验（旧 L785-804）：源行重读 + 分店一致 + 可退数（CheckStockAsync 共用 ProbeSourcesAsync）
+        var sourceRows = await ProbeSourcesAsync(conn, command, deptTrim, ct);
 
-        // 逐件库存校验（旧 max(kcamount) 口径；不扣库存行跳过——不冲减库存无占用）
-        var groups = command.Lines
-            .Where(l => !l.NoStock)
-            .Select(l => (Line: l, Src: sourceRows[l.SourceId]))
-            .GroupBy(x => new { x.Src.Cp, x.Src.Nno, Depotno = x.Line.Depotno.Trim(), Iprc = prm.PWay == 1 ? x.Src.IprcOld : (decimal?)null });
-        foreach (var g in groups)
-        {
-            var total = g.Sum(x => x.Line.Amount);
-            var maxKc = prm.PWay == 1
-                ? await conn.ExecuteScalarAsync<decimal>(new CommandDefinition(
-                    "SELECT ISNULL(MAX(kcamount), 0) FROM tbisto WITH (NOLOCK) WHERE cp = @cp AND nno = @nno AND depotno = @depotno AND iprc = @iprc AND dpm = @dpm",
-                    new { cp = Ansi(g.Key.Cp, 10), nno = Ansi(g.Key.Nno, 18), depotno = Ansi(g.Key.Depotno, 10), iprc = g.Key.Iprc!.Value, dpm = Ansi(deptTrim, 10) }, cancellationToken: ct))
-                : await conn.ExecuteScalarAsync<decimal>(new CommandDefinition(
-                    "SELECT ISNULL(MAX(kcamount), 0) FROM tbisto WITH (NOLOCK) WHERE cp = @cp AND nno = @nno AND depotno = @depotno AND dpm = @dpm",
-                    new { cp = Ansi(g.Key.Cp, 10), nno = Ansi(g.Key.Nno, 18), depotno = Ansi(g.Key.Depotno, 10), dpm = Ansi(deptTrim, 10) }, cancellationToken: ct));
-            if (maxKc < total)
-                throw new AppException("STOCK_EXCEED", $"{g.Key.Cp.Trim()}{g.Key.Nno.Trim()} 退库数 {total} 超过库存数 {maxKc}", 409);
-        }
+        // 库存校验（2026-11-15 行级拆分）：VM 确认前经 CheckStockAsync 行级模拟（同组共享正批次池），
+        // 不足行转 NoStock 后才进本方法；本处不再做组级 SUM 预检（口径含负批次会误拒），
+        // 预检后并发扣走由行级拆分冲减的 STOCK_CONCURRENT 兜底回滚。不扣库存行跳过冲减无占用。
 
         // 逐行写序列（行级事务；旧 L819-849 原样）
         var item = 0;
@@ -418,6 +393,8 @@ public sealed class PurchaseReturnRepository(SqlConnectionFactory factory, IDocN
                     }, transaction: tx, cancellationToken: ct));
 
                 // 4) ISAPPE 冲减（主程序库版语义；M_NOUPOPRC=.T. 无可观察差异——oprc/oprb 本就取库内原值）。
+                //    2026-11-15 负库存防护：splitBatches=true 拆分冲减（单批不足时跨批次扣到扣够，
+                //    Σ批次不足抛 STOCK_CONCURRENT 回滚，不再插入负数新批次）。
                 //    不扣库存行（NoStock，2026-11-04 需求）跳过冲减，只写负数流水。
                 decimal? kcBefore;
                 if (line.NoStock)
@@ -430,7 +407,7 @@ public sealed class PurchaseReturnRepository(SqlConnectionFactory factory, IDocN
                         conn, tx,
                         new IsappeSource(deptTrim, src.Cp, src.Nno, src.Na1, src.Ty, src.Fa, src.Unit,
                             line.Iprj, insertIprc, src.Oprc, 0, 0, finalPosi, line.Depotno, note, 0, src.Dc),
-                        -line.Amount, prm, IsappeLibrary.MainProc, today, ct);
+                        -line.Amount, prm, IsappeLibrary.MainProc, today, ct, splitBatches: true);
                     if (inserted || kb is null)
                         throw new AppException("CONTRACT_VIOLATION", $"退货冲减未命中批次（cp={src.Cp} nno={src.Nno}，已回滚）", 500);
                     kcBefore = kb;
@@ -467,6 +444,86 @@ public sealed class PurchaseReturnRepository(SqlConnectionFactory factory, IDocN
 
         result.LineCount = result.Lines.Count;
         return result;
+    }
+
+    /// <summary>
+    /// 确认前库存预检（2026-11-15 负库存防护，不写库）：可退数/分店校验与 ConfirmAsync 同规则；
+    /// 2026-11-15 行级拆分需求：同组共享「正批次池」（SUM 正 kcamount，拆分冲减只扣正批次同口径），
+    /// 按 command.Lines（购物车）顺序逐行模拟消耗——够扣行消耗池，不足行记入结果（转「不扣库存」，不占池）。
+    /// </summary>
+    public async Task<IReadOnlyList<StockShortageLine>> CheckStockAsync(ConfirmPurchaseReturnCommand command, string dpm, CancellationToken ct = default)
+    {
+        command.Validate();
+        var deptTrim = dpm.Trim();
+        await using var conn = await factory.OpenAsync(ct);
+        var prm = await IsappeEngine.LoadParamsAsync(conn, null, ct);
+        var sourceRows = await ProbeSourcesAsync(conn, command, deptTrim, ct);
+
+        // 组键与拆分冲减匹配键一致：cp+nno+depotno+dpm（P_WAY=1 加 iprc）
+        var shortages = new List<StockShortageLine>();
+        var pools = new Dictionary<(string Cp, string Nno, string Depotno, decimal? Iprc), decimal>();
+        for (var i = 0; i < command.Lines.Count; i++)
+        {
+            var line = command.Lines[i];
+            if (line.NoStock) continue;   // 不扣库存行不占池
+            var src = sourceRows[line.SourceId];
+            var key = (Cp: src.Cp, Nno: src.Nno, Depotno: line.Depotno.Trim(),
+                Iprc: prm.PWay == 1 ? src.IprcOld : (decimal?)null);
+            if (!pools.TryGetValue(key, out var pool))
+            {
+                pool = await SumPositiveBatchStockAsync(conn, prm, deptTrim, key.Cp, key.Nno, key.Depotno, key.Iprc, ct);
+                pools[key] = pool;
+            }
+            if (line.Amount > pool)
+            {
+                shortages.Add(new StockShortageLine
+                {
+                    LineIndex = i,
+                    Cp = key.Cp,
+                    Nno = key.Nno,
+                    Amount = line.Amount,
+                    Available = pool,
+                });
+            }
+            else
+            {
+                pools[key] = pool - line.Amount;   // 模拟消耗，后续行用剩余池判定
+            }
+        }
+        return shortages;
+    }
+
+    /// <summary>确认前源行重读校验（分店一致 + 可退数；校验用事务即开即回滚，不写库）——Confirm/CheckStock 共用。</summary>
+    private async Task<Dictionary<int, SrcRow>> ProbeSourcesAsync(SqlConnection conn, ConfirmPurchaseReturnCommand command, string deptTrim, CancellationToken ct)
+    {
+        var sourceRows = new Dictionary<int, SrcRow>();
+        await using var probe = (SqlTransaction)await conn.BeginTransactionAsync(ct);
+        foreach (var line in command.Lines)
+        {
+            var src = await ReadSourceAsync(conn, probe, line.SourceId, ct)
+                ?? throw new AppException("SRC_NOT_FOUND", $"入库流水 id={line.SourceId} 不存在（已回滚）", 404);
+            if (!string.Equals(src.Dpm.Trim(), deptTrim, StringComparison.Ordinal))
+                throw new AppException("DPM_MISMATCH", $"当前分店是 {deptTrim}，入库历史是 {src.Dpm.Trim()}，分店不一致不能退货", 409);
+            if (line.Amount > src.Jkamount - src.Ro)
+                throw new AppException("AMOUNT_EXCEED", $"{src.Nno.Trim()} 退库数超过进库数（可退 {src.Jkamount - src.Ro}）", 409);
+            sourceRows[line.SourceId] = src;
+        }
+        await probe.RollbackAsync(CancellationToken.None);
+        return sourceRows;
+    }
+
+    /// <summary>批次库存合计（2026-11-15 行级判定：SUM 正 kcamount——拆分冲减只扣正批次（kc<=0 跳过），
+    /// 同口径才不会误判；P_WAY=1 加 iprc）。CheckStockAsync 专用。</summary>
+    private static async Task<decimal> SumPositiveBatchStockAsync(SqlConnection conn, IsappeParams prm, string dpm,
+        string cp, string nno, string depotno, decimal? iprc, CancellationToken ct)
+    {
+        var sql = prm.PWay == 1
+            ? "SELECT ISNULL(SUM(CASE WHEN kcamount > 0 THEN kcamount ELSE 0 END), 0) FROM tbisto WITH (NOLOCK) WHERE cp = @cp AND nno = @nno AND depotno = @depotno AND iprc = @iprc AND dpm = @dpm"
+            : "SELECT ISNULL(SUM(CASE WHEN kcamount > 0 THEN kcamount ELSE 0 END), 0) FROM tbisto WITH (NOLOCK) WHERE cp = @cp AND nno = @nno AND depotno = @depotno AND dpm = @dpm";
+        var args = prm.PWay == 1
+            ? (object)new { cp = Ansi(cp, 10), nno = Ansi(nno, 18), depotno = Ansi(depotno, 10), iprc = iprc!.Value, dpm = Ansi(dpm, 10) }
+            : new { cp = Ansi(cp, 10), nno = Ansi(nno, 18), depotno = Ansi(depotno, 10), dpm = Ansi(dpm, 10) };
+        return await conn.ExecuteScalarAsync<decimal>(new CommandDefinition(sql, args, cancellationToken: ct));
     }
 
     private static async Task<SrcRow?> ReadSourceAsync(SqlConnection conn, SqlTransaction tx, int id, CancellationToken ct) =>

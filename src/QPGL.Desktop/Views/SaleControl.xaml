@@ -137,7 +137,13 @@
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
                             <DataGridTextColumn Header="名称" Binding="{Binding Na1}" Width="150"/>
-                            <DataGridTextColumn Header="车型" Binding="{Binding Ty}" Width="150"/>
+                            <DataGridTextColumn Header="车型" Binding="{Binding Ty}" Width="150">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="ToolTip" Value="单击选中该行后按 Ctrl+C 复制车型"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
                             <DataGridTextColumn Header="货位" Binding="{Binding Posi}" Width="70"/>
                             <!-- 库存整数显示（0.##：整数不带 .00，真实小数库存仍保留），与价格列区分 -->
                             <DataGridTextColumn Header="库存" Binding="{Binding Kcamount, Converter={StaticResource QtyInt}}" Width="70"

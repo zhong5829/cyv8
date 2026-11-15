@@ -35,8 +35,8 @@ public partial class PurchaseCartRow : ObservableObject
     [ObservableProperty] private decimal _iprc;         // 进价（可编辑；BA01 锁）
     [ObservableProperty] private string _posi = "";     // 仓位（可编辑）
     [ObservableProperty] private string _depotno = "";  // 库号（可编辑）
-    /// <summary>不扣库存（2026-11-04 需求：弹窗勾选，默认未勾选=正常扣库存）。</summary>
-    public bool NoStock { get; init; }
+    /// <summary>不扣库存（2026-11-04 需求：弹窗勾选；2026-11-15 防负库存：确认预检不足行自动转 true）。</summary>
+    public bool NoStock { get; set; }
 }
 
 /// <summary>
@@ -469,17 +469,29 @@ public partial class PurchaseReturnViewModel : ObservableObject
         {
             IsBusy = true;
             Message = "";
-            var result = await Db.PurchaseReturns.ConfirmAsync(new ConfirmPurchaseReturnCommand
+
+            // 2026-11-15 负库存防护（行级拆分需求）：确认前行级模拟扣减——不足行弹窗列明转「不扣库存」，
+            // 够扣行正常扣减；拒绝则整单中止
+            var shortages = await Db.PurchaseReturns.CheckStockAsync(BuildConfirmCommand(), AppSession.DeptNo, ct);
+            if (shortages.Count > 0)
             {
-                Fkfs = SelectedFkfs!,
-                ReturnReason = SelectedReason ?? "",
-                ReturnDate = ReturnDate,
-                Lines = Cart.Select(c => new PurchaseReturnLineInput
+                var detail = string.Join("\n", shortages.Select(s =>
+                    $"{s.Cp.Trim()} {s.Nno.Trim()}：退 {s.Amount:0.##}，可用 {s.Available:0.##}（将按“不扣库存”处理）"));
+                var normalCount = Cart.Count(c => !c.NoStock) - shortages.Count;
+                var hint = normalCount > 0 ? $"\n其余 {normalCount} 行库存充足，将正常扣减库存。" : "";
+                var toNoStock = MessageBox.Show(
+                    $"以下退货行库存不足：\n{detail}\n{hint}\n\n是否继续？（不足行写负数流水、车型标“未扣”，不冲减库存）",
+                    "入库退货", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                if (toNoStock != MessageBoxResult.Yes)
                 {
-                    SourceId = c.SourceId, Amount = c.Amount, Iprj = c.Iprj,
-                    Iprc = c.Iprc, Posi = c.Posi, Depotno = c.Depotno, NoStock = c.NoStock,
-                }).ToList(),
-            }, AppSession.DeptNo, AppSession.Operator, ct);
+                    Message = "已取消退货（库存不足）";
+                    return;
+                }
+                foreach (var idx in shortages.Select(s => s.LineIndex))
+                    Cart[idx].NoStock = true;
+            }
+
+            var result = await Db.PurchaseReturns.ConfirmAsync(BuildConfirmCommand(), AppSession.DeptNo, AppSession.Operator, ct);
 
             MessageBox.Show($"退货完成，退库单号 {result.Cno}，共 {result.LineCount} 行。",
                 "入库退货", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -497,4 +509,17 @@ public partial class PurchaseReturnViewModel : ObservableObject
             IsBusy = false;
         }
     }
+
+    /// <summary>退货车 → 确认命令（预检与确认共用同一构建，避免两处列集漂移）。</summary>
+    private ConfirmPurchaseReturnCommand BuildConfirmCommand() => new()
+    {
+        Fkfs = SelectedFkfs!,
+        ReturnReason = SelectedReason ?? "",
+        ReturnDate = ReturnDate,
+        Lines = Cart.Select(c => new PurchaseReturnLineInput
+        {
+            SourceId = c.SourceId, Amount = c.Amount, Iprj = c.Iprj,
+            Iprc = c.Iprc, Posi = c.Posi, Depotno = c.Depotno, NoStock = c.NoStock,
+        }).ToList(),
+    };
 }

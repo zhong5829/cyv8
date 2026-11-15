@@ -74,3 +74,17 @@ public sealed class PurchaseReturnLineResult
     /// <summary>冲减前批次库存（tbistoed.kcamount 回写值）。</summary>
     public decimal KcBefore { get; set; }
 }
+
+/// <summary>库存不足行（2026-11-15 负库存防护预检结果，CheckStockAsync 返回；空列表=全部可扣）。
+/// 2026-11-15 需求改为行级拆分处理：够扣的行实扣、不足的行转「不扣库存」，判定按购物车顺序模拟扣减。</summary>
+public sealed class StockShortageLine
+{
+    /// <summary>行索引（command.Lines / 退货车 Cart 顺序，0 起）。</summary>
+    public int LineIndex { get; set; }
+    public string Cp { get; set; } = "";
+    public string Nno { get; set; } = "";
+    /// <summary>该行退库数。</summary>
+    public decimal Amount { get; set; }
+    /// <summary>该行执行时的可用库存（同组正批次池剩余，前面可扣行已消耗）。</summary>
+    public decimal Available { get; set; }
+}

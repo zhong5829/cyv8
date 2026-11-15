@@ -84,7 +84,7 @@ public static class StockEditPermissions
             throw new AppException("NO_PERMISSION", "无库存数量修改权限（B301）", 403);
         if (cmd.Na1 is not null && string.IsNullOrWhiteSpace(cmd.Na1))
             throw new AppException("NA1_REQUIRED", "名称不能改为空", 422);
-        if (cmd.Kcamount is not null && cmd.Kcamount.Value == 0)
-            throw new AppException("KC_ZERO_VIA_EDIT", "库存数量改为 0 请使用删除功能（需 kcamount=0 语义一致）", 422);
+        // 2026-11-15 bug 修复：允许库存数量改为 0——原校验与删除功能（须 kcamount=0 才可删）互为死锁，
+        // 非 0 批次永远无法清零；改 0 后行保留（库存查询仅显示 kcamount<>0），需要清行再用删除功能
     }
 }

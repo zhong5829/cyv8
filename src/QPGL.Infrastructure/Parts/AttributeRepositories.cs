@@ -30,6 +30,12 @@ public interface IPrnotyRepository
     /// <summary>A1 最低售价（max(基准±×/系数) from tbisto → tbprnoty.oprc_min）。</summary>
     Task<decimal> CalcOprcMinAsync(long id, string nno, string cp, string dpmusem, int baseKind, int oper, decimal factor, int roundMode, CancellationToken ct = default);
 
+    /// <summary>读当前最低售价（2026-11-15 入库明细编辑窗需求：tbprnoty.oprc_min，无属性行返回 0）。</summary>
+    Task<decimal> GetOprcMinAsync(string cp, string nno, CancellationToken ct = default);
+
+    /// <summary>写最低售价（2026-11-15 入库明细编辑窗需求：行编辑窗确认后落 tbprnoty.oprc_min）。</summary>
+    Task UpdateOprcMinAsync(string cp, string nno, decimal oprcMin, CancellationToken ct = default);
+
     /// <summary>A1 属性传递到库存（row127：无行 INSERT / 有行 UPDATE）。</summary>
     Task<int> TransferToStockAsync(IReadOnlyList<long> ids, string dpm, string cp, string dpmusem, CancellationToken ct = default);
 
@@ -558,6 +564,33 @@ public sealed class PrnotyRepository(SqlConnectionFactory factory, IDmService dm
             "UPDATE tbprnoty SET oprc_min=@v WHERE rtrim(cp)=@cp AND id=@id",
             new { v, cp = new DbString { Value = cp, IsAnsi = true, Length = 10 }, id });
         return v;
+    }
+
+    /// <summary>读当前最低售价（2026-11-15 入库明细编辑窗需求）：tbprnoty 按 rtrim(cp)+rtrim(nno) 匹配，无行返回 0。</summary>
+    public async Task<decimal> GetOprcMinAsync(string cp, string nno, CancellationToken ct = default)
+    {
+        await using var conn = await factory.OpenAsync(ct);
+        return await conn.ExecuteScalarAsync<decimal>(new CommandDefinition(
+            "SELECT ISNULL(oprc_min, 0) FROM tbprnoty WITH (NOLOCK) WHERE rtrim(cp) = @cp AND rtrim(nno) = @nno",
+            new
+            {
+                cp = new DbString { Value = cp, IsAnsi = true, Length = 10 },
+                nno = new DbString { Value = nno, IsAnsi = true, Length = 18 },
+            }, cancellationToken: ct));
+    }
+
+    /// <summary>写最低售价（2026-11-15 入库明细编辑窗需求）：行编辑窗确认后落 tbprnoty.oprc_min。</summary>
+    public async Task UpdateOprcMinAsync(string cp, string nno, decimal oprcMin, CancellationToken ct = default)
+    {
+        await using var conn = await factory.OpenAsync(ct);
+        await conn.ExecuteAsync(new CommandDefinition(
+            "UPDATE tbprnoty SET oprc_min = @min WHERE rtrim(cp) = @cp AND rtrim(nno) = @nno",
+            new
+            {
+                min = oprcMin,
+                cp = new DbString { Value = cp, IsAnsi = true, Length = 10 },
+                nno = new DbString { Value = nno, IsAnsi = true, Length = 18 },
+            }, cancellationToken: ct));
     }
 
     public async Task<int> TransferToStockAsync(IReadOnlyList<long> ids, string dpm, string cp, string dpmusem, CancellationToken ct = default)

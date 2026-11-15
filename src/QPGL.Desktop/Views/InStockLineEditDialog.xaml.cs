@@ -14,6 +14,8 @@ public sealed class InStockLineEditResult
     public decimal Iprj { get; init; }
     public decimal Oprc { get; init; }
     public decimal Oprb { get; init; }
+    /// <summary>最低售价（2026-11-15 需求；调用方落 tbprnoty.oprc_min，不随明细行）。</summary>
+    public decimal OprcMin { get; init; }
     public string Depotno { get; init; } = "";
     public string Posi { get; init; } = "";
     public string Fa { get; init; } = "";
@@ -38,6 +40,8 @@ public partial class InStockLineEditDialog : Window
     public decimal Iprj { get; private set; }
     public decimal Oprc { get; private set; }
     public decimal Oprb { get; private set; }
+    /// <summary>最低售价（2026-11-15 需求；调用方比对后写 tbprnoty.oprc_min）。</summary>
+    public decimal OprcMin { get; private set; }
     public string Depotno { get; private set; } = "";
     public string Posi { get; private set; } = "";
     public string Fa { get; private set; } = "";
@@ -50,11 +54,14 @@ public partial class InStockLineEditDialog : Window
 
     public InStockLineEditDialog(PartItem part, IReadOnlyList<string> warehouses) : this(part, warehouses, null) { }
 
-    /// <summary>编辑已有明细行模式（existing 非空）：预填该行当前值，确认后回写该行。</summary>
-    public InStockLineEditDialog(PartItem part, IReadOnlyList<string> warehouses, InStockLineRow? existing)
+    /// <summary>编辑已有明细行模式（existing 非空）：预填该行当前值，确认后回写该行。
+    /// currentOprcMin=当前属性档最低售价（2026-11-15 需求：调用方查 tbprnoty 后传入，预填显示）。</summary>
+    public InStockLineEditDialog(PartItem part, IReadOnlyList<string> warehouses, InStockLineRow? existing,
+        decimal currentOprcMin = -1m)
     {
         InitializeComponent();
         IntegerInput.Restrict(TxtQty);   // 数量只允许整数录入（2026-11-07 需求：向零截断口径）
+        RestrictDecimal(TxtOprcMin, 2);  // 最低售价两位小数（2026-11-15 需求）
         Owner = Application.Current.MainWindow;
         _part = part;
         _warehouses = warehouses;
@@ -94,6 +101,9 @@ public partial class InStockLineEditDialog : Window
         if (ParseDecimal(TxtIprc.Text) <= 0 && ParseDecimal(TxtIprj.Text) > 0)
             TxtIprc.Text = TxtIprj.Text;
 
+        // 最低售价预填（2026-11-15 需求）：调用方查 tbprnoty.oprc_min 传入（<0=未知，显示 0）
+        TxtOprcMin.Text = (currentOprcMin >= 0 ? currentOprcMin : 0m).ToString("N2");
+
         CboDepotno.ItemsSource = _warehouses;
         CboDepotno.SelectedItem = _warehouses.Contains(existing?.Depotno ?? part.Depotno)
             ? (existing?.Depotno ?? part.Depotno) : _warehouses.FirstOrDefault();
@@ -128,12 +138,49 @@ public partial class InStockLineEditDialog : Window
         TxtIprc.Text = TxtIprj.Text;
     }
 
-    /// <summary>进价（含税）框回车 = 确认保存（2026-11-02 需求）。</summary>
+    /// <summary>进价（含税）框回车 → 跳转最低售价框并全选（2026-11-15 需求：回车链路覆盖最低售价）。</summary>
     private void Iprj_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key != System.Windows.Input.Key.Enter) return;
+        TxtOprcMin.Focus();
+        TxtOprcMin.SelectAll();
+        e.Handled = true;
+    }
+
+    /// <summary>最低售价框回车 = 确认保存（2026-11-15 需求：数量→进价(含税)→最低售价→确认）。</summary>
+    private void OprcMin_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
         if (e.Key != System.Windows.Input.Key.Enter) return;
         e.Handled = true;
         BtnOk_Click(sender, e);
+    }
+
+    /// <summary>最低售价输入约束（StockEditWindow 同款）：仅数字+一个小数点，两位小数；粘贴同校验；允许 "12." 中间态。</summary>
+    private static void RestrictDecimal(TextBox box, int decimals)
+    {
+        box.PreviewTextInput += (_, e) =>
+        {
+            var newText = box.Text.Remove(box.SelectionStart, box.SelectionLength).Insert(box.SelectionStart, e.Text);
+            e.Handled = !IsValidDecimal(newText, decimals);
+        };
+        DataObject.AddPastingHandler(box, (_, e) =>
+        {
+            if (!e.DataObject.GetDataPresent(DataFormats.Text)) { e.Handled = true; return; }
+            var paste = (string?)e.DataObject.GetData(DataFormats.Text) ?? "";
+            var newText = box.Text.Remove(box.SelectionStart, box.SelectionLength).Insert(box.SelectionStart, paste);
+            e.Handled = !IsValidDecimal(newText, decimals);
+        });
+    }
+
+    private static bool IsValidDecimal(string text, int decimals)
+    {
+        if (text.Length == 0) return true;
+        if (text.EndsWith(".")) text = text[..^1];   // 允许 "12." 中间态
+        if (text.Length == 0) return false;
+        if (!decimal.TryParse(text, System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out _)) return false;
+        var dot = text.IndexOf('.');
+        return dot < 0 || text.Length - dot - 1 <= decimals;
     }
 
     private void BtnOk_Click(object sender, RoutedEventArgs e)
@@ -155,12 +202,19 @@ public partial class InStockLineEditDialog : Window
             MessageBox.Show("进价不能为负", "入库明细编辑", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
+        var oprcMin = ParseDecimal(TxtOprcMin.Text);
+        if (oprcMin < 0)
+        {
+            MessageBox.Show("最低售价不能为负", "入库明细编辑", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
 
         Jkamount = qty;
         Iprc = ParseDecimal(TxtIprc.Text);
         Iprj = iprj;
         Oprc = ParseDecimal(TxtOprc.Text);
         Oprb = ParseDecimal(TxtOprb.Text);
+        OprcMin = oprcMin;
         Depotno = (CboDepotno.SelectedItem as string ?? "").Trim();
         Posi = TxtPosi.Text.Trim();
         Fa = TxtFa.Text.Trim();
