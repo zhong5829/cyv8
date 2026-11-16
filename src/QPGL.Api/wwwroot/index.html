@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>长远汽配 Web 销售开单</title>
-<link rel="stylesheet" href="style.css?v=1.2.6">
+<link rel="stylesheet" href="style.css?v=1.2.9">
 </head>
 <body>
 
@@ -26,7 +26,7 @@
       <div id="loginError" class="login-error" style="display:none"></div>
       <button class="btn btn-primary btn-lg login-btn" id="btnLogin" onclick="doLogin()">登 录</button>
     </div>
-    <div class="login-footer">Ver 8.0 Web</div>
+    <div class="login-footer">Ver 1.0.0 Web</div>
   </div>
 </div>
 
@@ -71,7 +71,7 @@
         <table class="data-table" id="partsTable">
           <thead><tr>
             <th>编号</th><th>内部编号</th><th>名称</th><th>车型</th><th>库存</th>
-            <th>零售价</th><th>批发价</th><th>货位</th><th>仓库</th>
+            <th>零售价</th><th>批发价</th><th>货位</th><th>仓库</th><th class="col-iprj">进价</th>
           </tr></thead>
           <tbody id="partsBody"><tr><td colspan="9" class="empty-hint">输入条件后回车或等待自动搜索...</td></tr></tbody>
         </table>
@@ -322,6 +322,6 @@
 <!-- Toast 提示 -->
 <div id="toast" class="toast"></div>
 
-<script src="app.js?v=1.2.9"></script>
+<script src="app.js?v=1.3.1"></script>
 </body>
 </html>

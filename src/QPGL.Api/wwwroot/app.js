@@ -336,6 +336,7 @@ function renderParts(parts) {
       <td style="text-align:right">${fmt(p.oprb)}</td>
       <td>${escHtml(p.posi)}</td>
       <td>${escHtml(p.depotno)}</td>
+      <td class="col-iprj" style="text-align:right">${fmt(p.iprj)}</td>
     </tr>`;
   }).join('');
 }
@@ -534,7 +535,7 @@ function closeHistoryDoc() {
 
 /** 销售单明细表（OutDocLine，列集对齐桌面端 HistoryDocDetailWindow） */
 function renderSaleLinesTable(lines) {
-  let html = `<div class="table-wrap"><table class="data-table"><thead><tr>
+  let html = `<div class="table-wrap"><table class="data-table sale-lines-tbl"><thead><tr>
     <th>编号</th><th>内部编号</th><th>名称</th><th>数量</th><th>单价</th><th>金额</th><th>车型</th><th>货位</th><th>备注</th>
   </tr></thead><tbody>`;
   lines.forEach(d => {
@@ -551,7 +552,7 @@ function renderSaleLinesTable(lines) {
 
 /** 入库单明细表（PartPurchaseDocLine） */
 function renderPurchaseLinesTable(lines) {
-  let html = `<div class="table-wrap"><table class="data-table"><thead><tr>
+  let html = `<div class="table-wrap"><table class="data-table purchase-lines-tbl"><thead><tr>
     <th>内部编号</th><th>名称</th><th>车型</th><th>数量</th><th>进价(含税)</th><th>供应商</th>
   </tr></thead><tbody>`;
   lines.forEach(d => {
@@ -1112,7 +1113,7 @@ function renderBillDetail(data) {
       <bdp><label>备注</label><value>${escHtml(s.remark) || '-'}</value></bdp>
     </div>
     <div class="table-wrap">
-      <table class="data-table">
+      <table class="data-table bill-lines-tbl">
         <thead><tr>
           <th>编号</th><th>内部编号</th><th>名称</th><th>数量</th>
           <th>单价</th><th>小计</th><th>车型</th><th>货位</th><th>备注</th>
