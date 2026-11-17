@@ -325,6 +325,8 @@ public partial class Order4ViewModel : ObservableObject
         if (Application.Current.Windows.OfType<Views.OrderPickWindow>().FirstOrDefault() is { } w)
         {
             w.Activate();
+            // 2026-11-17 需求：窗口已开时同样重新定位到当前计划单最后一次已订行（切换计划单后再开选择配件）
+            _ = w.LocateLastOrderedLineAsync();
             return;
         }
         new Views.OrderPickWindow(this).Show();

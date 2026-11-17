@@ -125,8 +125,10 @@ public sealed class FormDialog : Window
         }));
     }
 
-    /// <summary>追加确定/取消按钮并模态显示；返回是否确定。</summary>
-    public bool ShowOkCancel()
+    /// <summary>追加确定/取消按钮并模态显示；返回是否确定。
+    /// 2026-11-17 需求：owner 缺省回退到当前活动窗口——从「选择配件」等子窗口触发时，
+    /// 订货窗直接挂在该子窗口上（Owner + CenterOwner），不再弹到主窗口中央。</summary>
+    public bool ShowOkCancel(Window? owner = null)
     {
         var ok = new Button { Content = "确定", Width = 72, IsDefault = true, Style = Application.Current.TryFindResource("PrimaryButtonStyle") as Style };
         var cancel = new Button { Content = "取消", Width = 72, IsCancel = true, Margin = new Thickness(8, 0, 0, 0) };
@@ -135,7 +137,7 @@ public sealed class FormDialog : Window
         row.Children.Add(ok);
         row.Children.Add(cancel);
         _root.Children.Add(row);
-        Owner = Application.Current.MainWindow;
+        Owner = owner ?? Application.Current.Windows.OfType<Window>().FirstOrDefault(w => w.IsActive) ?? Application.Current.MainWindow;
         return ShowDialog() == true;
     }
 }

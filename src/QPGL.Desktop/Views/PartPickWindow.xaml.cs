@@ -30,6 +30,11 @@ public partial class PartPickWindow : Window
     private bool _hasCondition;
     private string _effectiveBrand = "";   // 当前生效厂牌（跨厂牌回退后为临时厂牌，LoadMore 沿用）
 
+    // 用户滚动手势门（2026-11-17 需求：拖住滚动条贴底不再无限加载，OrderPickWindow 同机制）：
+    // 每次自动加载后必须有「新的」用户手势（滚轮/拖滚动条/键盘翻页）才允许下一次加载。
+    private DateTime _lastUserScrollGesture = DateTime.MinValue;
+    private DateTime _lastLoadRequested = DateTime.MinValue;
+
     public ObservableCollection<PartItem> Parts { get; } = [];
 
     /// <summary>历史区（2026-11-03 双区域需求）：选中配件的进货历史与销售历史。</summary>
@@ -64,6 +69,10 @@ public partial class PartPickWindow : Window
             // 无限滚动：配件列表滚到底自动加载下一页
             var sv = FindDescendantScrollViewer(PartGrid);
             if (sv is not null) sv.ScrollChanged += PartGrid_ScrollChanged;
+            // 用户手势采样：滚动条拖动/按钮 + 滚轮（键盘导航在 PartGrid_PreviewKeyDown 里记录）
+            PartGrid.AddHandler(System.Windows.Controls.Primitives.ScrollBar.ScrollEvent,
+                new RoutedEventHandler((_, _) => _lastUserScrollGesture = DateTime.Now));
+            PartGrid.PreviewMouseWheel += (_, _) => _lastUserScrollGesture = DateTime.Now;
         };
     }
 
@@ -117,12 +126,16 @@ public partial class PartPickWindow : Window
         return null;
     }
 
-    // 滚动到距底部 2 行内即触发加载下一页
+    // 滚动到距底部 2 行内即触发加载下一页；触发要求「上次加载之后有过新的用户滚动手势」
     private async void PartGrid_ScrollChanged(object sender, ScrollChangedEventArgs e)
     {
         if (sender is not ScrollViewer sv) return;
-        if (sv.VerticalOffset + sv.ViewportHeight >= sv.ExtentHeight - 40 && e.VerticalChange != 0)
+        if (sv.VerticalOffset + sv.ViewportHeight >= sv.ExtentHeight - 40 && e.VerticalChange != 0
+            && _lastUserScrollGesture > _lastLoadRequested)
+        {
+            _lastLoadRequested = DateTime.Now;   // 消耗本次手势：下一次加载需新手势
             await LoadMoreAsync();
+        }
     }
 
     private void Box_TextChanged(object sender, TextChangedEventArgs e)
@@ -324,6 +337,7 @@ public partial class PartPickWindow : Window
 
     private void PartGrid_PreviewKeyDown(object sender, KeyEventArgs e)
     {
+        _lastUserScrollGesture = DateTime.Now;   // 键盘导航也算用户滚动手势
         if (e.Key is Key.Enter or Key.F4)
         {
             Confirm();

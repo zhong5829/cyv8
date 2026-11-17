@@ -23,6 +23,12 @@ public partial class OrderPickWindow : Window
     private readonly Order4ViewModel _vm;
     private readonly DispatcherTimer _debounce = new() { Interval = TimeSpan.FromMilliseconds(500) };
 
+    // 用户滚动手势门（2026-11-17 需求：拖住滚动条贴底不再无限加载）：
+    // 每次自动加载后必须有「新的」用户手势（滚轮/拖滚动条/键盘翻页）才允许下一次加载。
+    // 贴底不动时列表增长产生的 ScrollChanged 不带新手势 → 不再触发，杜绝拖住贴底拉完全表。
+    private DateTime _lastUserScrollGesture = DateTime.MinValue;
+    private DateTime _lastLoadRequested = DateTime.MinValue;
+
     public OrderPickWindow(Order4ViewModel vm)
     {
         InitializeComponent();
@@ -41,7 +47,84 @@ public partial class OrderPickWindow : Window
             // 无限滑动：配件列表滚到底自动加载下一页（PartPickWindow 同机制）
             var sv = FindDescendantScrollViewer(PickGrid);
             if (sv is not null) sv.ScrollChanged += PickGrid_ScrollChanged;
+            // 用户手势采样：滚动条拖动/按钮 + 滚轮（键盘导航在 PickGrid_PreviewKeyDown 里记录）
+            PickGrid.AddHandler(System.Windows.Controls.Primitives.ScrollBar.ScrollEvent,
+                new RoutedEventHandler((_, _) => _lastUserScrollGesture = DateTime.Now));
+            PickGrid.PreviewMouseWheel += (_, _) => _lastUserScrollGesture = DateTime.Now;
+            // 2026-11-17 需求：打开历史计划单的选择配件窗口时，自动定位到最后一次的已订行并选中
+            await LocateLastOrderedLineAsync();
         };
+        // 窗口激活时若焦点未落在选中行（Loaded 阶段定位的焦点被激活前的容器再生成带走），补一次聚焦保持蓝色选中
+        Activated += (_, _) =>
+        {
+            if (!PickGrid.IsKeyboardFocusWithin && PickGrid.SelectedItem is not null) RestoreSelectedRowFocus();
+        };
+    }
+
+    /// <summary>
+    /// 定位到当前计划单最后一次已订的配件行并选中（2026-11-17 需求）。
+    /// 目标 = 明细列表最后一行（最近一次订货）的编码；目标行不在已加载页时逐页加载直到命中或数据耗尽。
+    /// 无明细（新单）时静默跳过。窗口复用（OpenPick 对已开窗口 Activate）时由 OpenPick 再次调用实现重新定位。
+    /// </summary>
+    public async Task LocateLastOrderedLineAsync()
+    {
+        var target = _vm.Lines.LastOrDefault()?.Nno?.Trim();
+        if (string.IsNullOrEmpty(target)) return;
+        try
+        {
+            // 逐页加载直到目标行出现或数据耗尽
+            while (_vm.PickRows.All(r => !string.Equals(r.Nno?.Trim(), target, StringComparison.OrdinalIgnoreCase)))
+            {
+                var before = _vm.PickRows.Count;
+                await _vm.LoadMorePartsAsync(System.Threading.CancellationToken.None);
+                if (_vm.PickRows.Count == before) return;   // 没有新增 → 数据耗尽仍未命中
+            }
+            var row = _vm.PickRows.First(r => string.Equals(r.Nno?.Trim(), target, StringComparison.OrdinalIgnoreCase));
+            _vm.SelectedPick = row;
+            PickGrid.UpdateLayout();
+            PickGrid.ScrollIntoView(row);
+            if (PickGrid.ItemContainerGenerator.ContainerFromItem(row) is DataGridRow rr)
+            {
+                rr.ApplyTemplate();
+                var cell = FindFirstCell(rr);
+                if (cell is not null) cell.Focus();
+                else rr.Focus();
+            }
+            else
+            {
+                PickGrid.Focus();
+            }
+            // Loaded 阶段窗口尚未激活且行容器可能再生成，键盘焦点易被带走（选中呈灰色）：
+            // 延迟到输入优先级再补一次聚焦（此时窗口已激活、容器已稳定）
+            PickGrid.Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(() =>
+            {
+                if (!PickGrid.IsKeyboardFocusWithin) RestoreSelectedRowFocus();
+            }));
+        }
+        catch
+        {
+            // 定位失败不阻断（保持默认第 1 页视角）
+        }
+    }
+
+    /// <summary>把键盘焦点恢复到当前选中行的单元格（蓝色选中态要求 DataGrid 持有键盘焦点）。</summary>
+    private void RestoreSelectedRowFocus()
+    {
+        if (PickGrid.SelectedItem is null) return;
+        PickGrid.UpdateLayout();
+        PickGrid.ScrollIntoView(PickGrid.SelectedItem);
+        if (PickGrid.ItemContainerGenerator.ContainerFromItem(PickGrid.SelectedItem) is DataGridRow rr)
+        {
+            rr.ApplyTemplate();
+            var cell = FindFirstCell(rr);
+            if (cell is not null) cell.Focus();
+            else rr.Focus();
+        }
+        else
+        {
+            PickGrid.Focus();
+        }
+        if (!PickGrid.IsKeyboardFocusWithin) PickGrid.Focus();
     }
 
     private static ScrollViewer? FindDescendantScrollViewer(System.Windows.DependencyObject root)
@@ -93,12 +176,16 @@ public partial class OrderPickWindow : Window
         return null;
     }
 
-    /// <summary>滚动到距底部 2 行内即触发加载下一页。</summary>
+    /// <summary>滚动到距底部 2 行内即触发加载下一页；触发要求「上次加载之后有过新的用户滚动手势」。</summary>
     private async void PickGrid_ScrollChanged(object sender, ScrollChangedEventArgs e)
     {
         if (sender is not ScrollViewer sv) return;
-        if (sv.VerticalOffset + sv.ViewportHeight >= sv.ExtentHeight - 40 && e.VerticalChange != 0)
+        if (sv.VerticalOffset + sv.ViewportHeight >= sv.ExtentHeight - 40 && e.VerticalChange != 0
+            && _lastUserScrollGesture > _lastLoadRequested)
+        {
+            _lastLoadRequested = DateTime.Now;   // 消耗本次手势：下一次加载需新手势
             await _vm.LoadMorePartsAsync(System.Threading.CancellationToken.None);
+        }
     }
 
     /// <summary>条件变化（输入）：重置防抖计时。</summary>
@@ -157,7 +244,7 @@ public partial class OrderPickWindow : Window
         }
     }
 
-    /// <summary>选定配件 → 直接走订货流程；完成后重查刷新已订数，窗口保持打开。</summary>
+    /// <summary>选定配件 → 直接走订货流程；完成后原地刷新「已订」列并保持位置与选中，窗口保持打开。</summary>
     private async void Confirm()
     {
         if (PickGrid.SelectedItem is not PartPickRow row)
@@ -169,34 +256,27 @@ public partial class OrderPickWindow : Window
         try
         {
             await _vm.OrderLineAsync(System.Threading.CancellationToken.None);
-            await _vm.SearchPartsAsync(System.Threading.CancellationToken.None);
-            // 重查会整表重建 PickRows 导致选中丢失：按编号恢复选中并滚动到可见，保证连续选件
-            var again = _vm.PickRows.FirstOrDefault(r => r.Nno == row.Nno);
-            if (again is not null)
+            // 2026-11-17 需求：订货确认后保持原位与选中（订序号 415 确定后仍停留 415）。
+            // 订货仅影响「已订」列（c_dhorder 同码合计，Lines 已随 AddLineCoreAsync 重载为最新），
+            // 原地按 Nno 刷新即可；不再整表重查——重查会把列表重置回第 1 页（第 415 行在第 5 页），
+            // 确认后窗口跳回 80-100 区间且选中丢失。
+            var ordered = _vm.Lines.FirstOrDefault(l => l.Cno == _vm.CurrentCno && l.Nno == row.Nno)?.Oqty ?? 0;
+            foreach (var r in _vm.PickRows.Where(r => r.Nno == row.Nno))
+                r.Num = ordered;
+            // 行未重建、位置与选中不变；确保键盘焦点留在行单元格（连续选件 ↑/↓ 导航可用）
+            PickGrid.UpdateLayout();
+            PickGrid.ScrollIntoView(row);
+            if (PickGrid.ItemContainerGenerator.ContainerFromItem(row) is DataGridRow rr)
             {
-                _vm.SelectedPick = again;
-                PickGrid.ScrollIntoView(again);
+                rr.ApplyTemplate();
+                var cell = FindFirstCell(rr);
+                if (cell is not null) cell.Focus();
+                else rr.Focus();
             }
-            // 订货弹窗关闭 + 列表重建后键盘焦点掉到窗外：选中行呈灰色（失焦态）且 ↑/↓ 失效。
-            // 把焦点显式还回选中行单元格（Input 优先级等容器生成完毕），恢复蓝色选中与方向键导航
-            PickGrid.Dispatcher.BeginInvoke(() =>
+            else if (!PickGrid.IsKeyboardFocusWithin)
             {
-                if (PickGrid.SelectedItem is null) return;
-                PickGrid.UpdateLayout();
-                PickGrid.ScrollIntoView(PickGrid.SelectedItem);
-                if (PickGrid.ItemContainerGenerator.ContainerFromItem(PickGrid.SelectedItem) is DataGridRow row)
-                {
-                    row.ApplyTemplate();
-                    var cell = FindFirstCell(row);
-                    if (cell is not null) cell.Focus();
-                    else row.Focus();
-                }
-                else
-                {
-                    PickGrid.Focus();
-                }
-                if (!PickGrid.IsKeyboardFocusWithin) PickGrid.Focus();
-            }, DispatcherPriority.Input);
+                PickGrid.Focus();
+            }
         }
         catch (OperationCanceledException)
         {
@@ -279,6 +359,7 @@ public partial class OrderPickWindow : Window
 
     private void PickGrid_PreviewKeyDown(object sender, KeyEventArgs e)
     {
+        _lastUserScrollGesture = DateTime.Now;   // 键盘导航也算用户滚动手势
         // 警戒值编辑中（2026-11-04 需求）：回车=确定提交（不触发订货），Esc 默认取消，F4 屏蔽
         if (_jjEditing)
         {

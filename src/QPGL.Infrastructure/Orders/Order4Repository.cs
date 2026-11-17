@@ -169,7 +169,7 @@ public sealed class PartPickRow : System.ComponentModel.INotifyPropertyChanged
 
     private decimal _num;
     /// <summary>已订数（c_dhorder 同码合计）。已订（&gt;0）→ 绿档行色，优先于黄/红。</summary>
-    public decimal Num { get => _num; set { _num = value; OnChanged(); } }
+    public decimal Num { get => _num; set { _num = value; OnChanged(); OnChanged(nameof(IsOrdered)); } }
     /// <summary>已订标记（行样式触发器用）。</summary>
     public bool IsOrdered => Num > 0;
     public decimal Ckamount { get; set; }
@@ -725,13 +725,21 @@ public sealed class Order4Repository(SqlConnectionFactory factory, DocNo.IDocNoS
             else
             {
                 // I1（专订含 oprc）/I2（非专订）——列集原样 + dpm 自动补
+                // item（项号，2026-11-17 修复：此前 INSERT 未写 item 恒为 0）——旧契约 fr_jpgladd.row324：
+                // 按单取 max(item)+1（同 cno+type 范围），新单无行时为 1；UPDLOCK 防并发行号重号
+                var maxArgs = new DynamicParameters(new { cno = Ansi(input.Cno, 15) });
+                AddXzb(maxArgs, cp, dpmusem);
+                var nextItem = await conn.ExecuteScalarAsync<int>(new CommandDefinition(
+                    $"SELECT ISNULL(MAX(item), 0) + 1 FROM tborder WITH (UPDLOCK) WHERE cno = @cno AND type = ''{TborderXzb}",
+                    maxArgs, transaction: tx, cancellationToken: ct));
                 var hasOprc = input.Oprc is > 0;
-                var cols = "cp,nno,na1,ty,fa,unit,dc,oqty,iprj,cno,orderdate,bzlx,fkfs,gyname,gname,per" + (hasOprc ? ",oprc" : "") + ",dpm";
-                var values = "@cp,@nno,@na1,@ty,@fa,@unit,@dc,@oqty,@iprj,@cno,@orderdate,@bzlx,@fkfs,@gyname,@gname,@per" + (hasOprc ? ",@oprc" : "") + ",@dpm";
+                var cols = "item,cp,nno,na1,ty,fa,unit,dc,oqty,iprj,cno,orderdate,bzlx,fkfs,gyname,gname,per" + (hasOprc ? ",oprc" : "") + ",dpm";
+                var values = "@item,@cp,@nno,@na1,@ty,@fa,@unit,@dc,@oqty,@iprj,@cno,@orderdate,@bzlx,@fkfs,@gyname,@gname,@per" + (hasOprc ? ",@oprc" : "") + ",@dpm";
                 newId = await conn.ExecuteScalarAsync<int>(new CommandDefinition(
                     $"INSERT INTO tborder ({cols}) OUTPUT INSERTED.id VALUES ({values})",
                     new
                     {
+                        item = nextItem,
                         cp = Ansi(cp, 10), nno = Ansi(input.Nno, 18), na1 = Ansi(input.Na1, 40),
                         ty = Ansi(input.Ty, 14), fa = Ansi(input.Fa, 8), unit = Ansi(input.Unit, 4),
                         dc = Ansi(input.Dc, 8), oqty = input.Oqty, iprj = input.Iprj, cno = Ansi(input.Cno, 15),

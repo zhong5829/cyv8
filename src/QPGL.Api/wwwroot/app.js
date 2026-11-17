@@ -45,6 +45,13 @@ function formatDate(d) {
   try { return new Date(d).toISOString().slice(0, 10); } catch { return '-'; }
 }
 
+/** 本地时区的"今天"（YYYY-MM-DD）。toISOString() 返回 UTC 日期，UTC+8 的 8 点前会退一天（2026-11-17 修复）。 */
+function localToday() {
+  const d = new Date();
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
 function debounce(fn, ms) {
   let timer;
   return (...args) => { clearTimeout(timer); timer = setTimeout(() => fn(...args), ms); };
@@ -226,7 +233,7 @@ async function init() {
 }
 
 function setDefaultDates() {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localToday();
   $('qStart').value = today;
   $('qEnd').value = today;
 }
@@ -832,7 +839,7 @@ async function openConfirmDialog(createResult) {
   $('cfPaper').textContent = confirmState.paper;
   $('cfClient').textContent = confirmState.gname || '散客';
   $('cfAmountBefore').textContent = '¥' + fmt(confirmState.amountBefore);
-  $('cfOutdate').value = new Date().toISOString().slice(0, 10);
+  $('cfOutdate').value = localToday();
   $('cfYhl').value = '0';
   $('cfYhlType').value = '1';
   $('cfRemark').value = $('memoText').value.trim();
@@ -929,7 +936,7 @@ async function confirmDoc() {
       TMode: $('cfFhfs').value || '',
       Yhl: parseFloat($('cfYhl').value) || 0,
       YhlMode: parseInt($('cfYhlType').value, 10) || 1,
-      Outdate: $('cfOutdate').value || new Date().toISOString().slice(0, 10),
+      Outdate: $('cfOutdate').value || localToday(),
       Remark: $('cfRemark').value.trim(),
       Fphs: $('cfFphs').value.trim(),
       Wlgs: '',
