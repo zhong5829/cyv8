@@ -67,9 +67,10 @@ public partial class InStockLineEditDialog : Window
         _warehouses = warehouses;
         _existing = existing;
 
-        TxtCp.Text = part.Cp;
+        // 信息区顺序（2026-11-18 需求）：内部编号、配件名称、车型（头部车型=生效值，可编辑车型见下方 TxtTy）
         TxtNno.Text = part.Nno;
         TxtNa1.Text = part.Na1;
+        TxtTyHead.Text = existing?.Ty?.Trim().Length > 0 ? existing.Ty : part.Ty;
         TxtTy.Text = existing?.Ty?.Trim().Length > 0 ? existing.Ty : part.Ty;
         TxtUnit.Text = existing?.Unit?.Trim().Length > 0 ? existing.Unit : part.Unit;
         TxtFa.Text = existing?.Fa?.Trim().Length > 0 ? existing.Fa : part.Fa;

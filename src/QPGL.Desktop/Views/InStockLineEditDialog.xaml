@@ -12,15 +12,7 @@
         </Grid.RowDefinitions>
 
         <StackPanel>
-            <!-- 配件信息 -->
-            <Grid Margin="0,0,0,4">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-                <TextBlock Text="配件编号: " VerticalAlignment="Center"/>
-                <TextBlock x:Name="TxtCp" Grid.Column="1" VerticalAlignment="Center" FontWeight="Bold"/>
-            </Grid>
+            <!-- 配件信息（2026-11-18 需求：顺序=内部编号、配件名称、车型；原"配件编号"行改为显示车型） -->
             <Grid Margin="0,0,0,4">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
@@ -29,13 +21,21 @@
                 <TextBlock Text="内部编号: " VerticalAlignment="Center"/>
                 <TextBlock x:Name="TxtNno" Grid.Column="1" VerticalAlignment="Center" FontWeight="Bold"/>
             </Grid>
-            <Grid Margin="0,0,0,6">
+            <Grid Margin="0,0,0,4">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock Text="配件名称: " VerticalAlignment="Center"/>
                 <TextBlock x:Name="TxtNa1" Grid.Column="1" VerticalAlignment="Center" FontWeight="Bold" TextWrapping="Wrap"/>
+            </Grid>
+            <Grid Margin="0,0,0,6">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="车型: " VerticalAlignment="Center"/>
+                <TextBlock x:Name="TxtTyHead" Grid.Column="1" VerticalAlignment="Center" FontWeight="Bold"/>
             </Grid>
 
             <!-- 数量 -->
