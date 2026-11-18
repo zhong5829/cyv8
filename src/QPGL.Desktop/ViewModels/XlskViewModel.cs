@@ -436,9 +436,18 @@ public partial class XlskViewModel : ObservableObject
             }, AppSession.DeptNo, AppSession.Operator, ct);
             Cno = result.DocNo;
             IsEditMode = true;
-            Message = FinVouchEnabled
-                ? $"已确认并加入应收应付/收支流水帐/业务凭证。单号 {result.DocNo}，余额 {result.Yue:N2}"
-                : $"已确认并加入应收应付和收支流水帐。单号 {result.DocNo}，余额 {result.Yue:N2}";
+            if (result.VouchError is not null)
+            {
+                // 旧 ADDSUB MSG 弹窗语义（A_.row75 L230→L273）：凭证失败仅提示，收款已成功不回滚
+                MessageBox.Show(result.VouchError, Title, MessageBoxButton.OK, MessageBoxImage.Warning);
+                Message = $"已确认并加入应收应付和收支流水帐。单号 {result.DocNo}，余额 {result.Yue:N2}";
+            }
+            else
+            {
+                Message = FinVouchEnabled
+                    ? $"已确认并加入应收应付/收支流水帐/业务凭证。单号 {result.DocNo}，余额 {result.Yue:N2}"
+                    : $"已确认并加入应收应付和收支流水帐。单号 {result.DocNo}，余额 {result.Yue:N2}";
+            }
             await RefreshActiveCustomersAsync(ct);   // 未结数据已变化 → 活跃客户面板刷新
             // 保存后回到新增态（旧码 CONTAINER1.CMD增加.CLICK()）
             NewDoc();

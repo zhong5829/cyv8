@@ -3,6 +3,10 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Loaded="UserControl_Loaded">
     <!-- 复刻旧系统 fr_xlsk「业务收款单/业务付款单」布局：工具条 + 单头 + 信息区 + 明细网格 + 备注/合计底条 -->
+    <UserControl.InputBindings>
+        <!-- 确认（保存）快捷键 Alt+K -->
+        <KeyBinding Modifiers="Alt" Key="K" Command="{Binding SaveCommand}"/>
+    </UserControl.InputBindings>
     <DockPanel Margin="8">
 
         <!-- 工具条（旧界面图标按钮行） -->
@@ -18,7 +22,7 @@
                 <Button Content="全清" Command="{Binding ClearAllCommand}" Margin="6,0,0,0" Padding="12,4"/>
                 <Button Content="业务明细" Command="{Binding ShowBizDetailCommand}"
                         ToolTip="查看选中单据的业务明细（双击明细行同样打开）" Margin="6,0,0,0" Padding="12,4"/>
-                <Button Content="确认" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding SaveCommand}" Margin="16,0,0,0" Padding="20,4"/>
+                <Button Content="确认" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding SaveCommand}" ToolTip="确认收款/付款（快捷键 Alt+K）" Margin="16,0,0,0" Padding="20,4"/>
                 <Button Content="前单" Command="{Binding PrioCommand}" Margin="16,0,0,0" Padding="12,4"/>
                 <Button Content="后单" Command="{Binding NextCommand}" Margin="6,0,0,0" Padding="12,4"/>
                 <Button Content="收款导入" Command="{Binding SkdrImportCommand}" ToolTip="fr_skdr：按单号批量导入收款并回填（仅收款）" Margin="6,0,0,0" Padding="12,4"/>

@@ -1427,6 +1427,69 @@ public class ContractReplayTests
     }
 
     /// <summary>
+    /// 场景 21b（单向契约，无旧侧对拍——行为经用户决策有意偏离旧库残留）：finvouch 联动失败仅提示、不回滚收款。
+    /// 依据：复刻旧语义（fr_xlsk A_.row75 L230 ADDSUB MSG"无可使用科目代码！"+RETURN 后流程继续、收款成功；
+    /// 部署库取证 29 张 recoid=1 残缺凭证为旧无事务副产物），有意差异=凭证块独立事务原子回滚、不留残缺凭证。
+    /// 前提（rscar_replay 实测）：122 段最大码=122`99 终止、finsub_auto 池空、回放客户未预置科目
+    /// → AddSubClientAsync 走 `99 终止分支 → FIN_SUB_POOL_EMPTY。
+    /// 断言：收款本体全量落库（tbysyf 汇总/tblsz/skmoney 扣减）；finvouch 无该单行；finvid 未推进；可正常整单还原。
+    /// </summary>
+    [Fact]
+    public void Scenario21b_XlskFinVouchFail_ReceiptCommits()
+    {
+        var factory = new SqlConnectionFactory(new StaticCs(ReplayConfig.ConnectionString));
+        var repo = new XlskRepository(factory, new DocNoService(factory));
+        var per = ReplayConfig.Operator;
+        var dept = ReplayConfig.Dept;
+        var gname = ReplayConfig.Gname;
+        const string saleA = "REPLAYSA21B";
+        ReplayEnv.EnsureSnapshot();
+        ReplayEnv.ResetToSnapshot();
+        using var conn = ReplayEnv.Open();
+        conn.Open();
+        LegacyReplay.SeedReceivableSale(conn, dept, per, saleA, saleA, 100m, "挂帐");
+        var rows = LegacyReplay.XlskLoadOutstanding(conn, gname, "收款");
+        var yue = LegacyReplay.XlskCustomerYue(conn, gname);
+        var vidBefore = conn.ExecuteScalar<int>(
+            "SELECT ISNULL(MAX(vid), 0) FROM finvid WHERE dpm = @dpm", new { dpm = Ansi(dept, 10) });
+
+        var saved = repo.SaveAsync(new XlskSaveCommand
+        {
+            Type = "收款", Date = DateTime.Today, LszDate = DateTime.Today,
+            Fkfs = "挂帐", Pno = "", PaySum = 100m, Gname = gname, Xm = "", BankName = "人民币",
+            LjValue = 100m - yue, FinVouchEnabled = true, SkqxSubname = "人民币",
+            Lines = rows.Select(r => new XlskSaveLine
+            {
+                Id = r.id, Paper = r.cno, LineType = r.type,
+                Bcje = Math.Max(r.ys - r.skmoney, 0), Wsje = Math.Max(r.ys - r.skmoney, 0),
+            }).ToList(),
+        }, dept, per).GetAwaiter().GetResult();
+
+        // 凭证失败仅提示（旧 MSG 文案原样）
+        Assert.Equal("无可使用科目代码！", saved.VouchError);
+        // 收款本体已提交：汇总行 + 流水行 + skmoney 扣减
+        Assert.Equal(1, conn.ExecuteScalar<int>(
+            "SELECT COUNT(1) FROM tbysyf WHERE cno = @cno AND type = N'收款'", new { cno = Ansi(saved.DocNo, 30) }));
+        Assert.Equal(1, conn.ExecuteScalar<int>(
+            "SELECT COUNT(1) FROM tblsz WHERE skno = @cno", new { cno = Ansi(saved.DocNo, 10) }));
+        Assert.Equal(100m, conn.ExecuteScalar<decimal>(
+            "SELECT skmoney FROM tbysyf WHERE cno = @cno", new { cno = Ansi(saleA, 30) }));
+        // 凭证块原子回滚：无 finvouch 行、finvid 未推进
+        Assert.Equal(0, conn.ExecuteScalar<int>(
+            "SELECT COUNT(1) FROM finvouch WHERE rtrim(payno) = @cno", new { cno = Ansi(saved.DocNo, 30) }));
+        Assert.Equal(vidBefore, conn.ExecuteScalar<int>(
+            "SELECT ISNULL(MAX(vid), 0) FROM finvid WHERE dpm = @dpm", new { dpm = Ansi(dept, 10) }));
+        // 可正常整单还原（无凭证残留拦截）
+        var rlines = LegacyReplay.XlskDeriveRestoreLines(conn, saved.DocNo, "收款");
+        repo.RestoreAsync(saved.DocNo, "收款", gname, rlines.Select(l => new XlskRestoreLine
+        {
+            Id = l.id, Paper = l.paper, LineType = l.lineType, Bcje = l.bcje, Wsje = l.wsje, Checked = l.check,
+        }).ToList(), dept, per, finVouch: true).GetAwaiter().GetResult();
+        Assert.Equal(0, conn.ExecuteScalar<int>(
+            "SELECT COUNT(1) FROM tbysyf WHERE cno = @cno AND type = N'收款'", new { cno = Ansi(saved.DocNo, 30) }));
+    }
+
+    /// <summary>
     /// 场景 22：账务周期全循环（第七批：I34 结转损益 + I35 期末结帐 + N11 帐务初始 + N12 帐套选项 + N13 启用帐套）。
     /// 种子：专用期间 209901；syscontrol data 行 l_use=0/uperiod=period='209901'；
     /// 科目树 999（一级）→ 999001/999002/999009（二级）→ 99900999（三级末级）。

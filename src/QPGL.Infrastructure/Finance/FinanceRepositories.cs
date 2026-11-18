@@ -115,6 +115,12 @@ public sealed class XlskSaveResult
 {
     public string DocNo { get; set; } = "";
     public decimal Yue { get; set; }
+
+    /// <summary>
+    /// finvouch 联动失败提示（旧 ADDSUB MSG"无可使用科目代码！"语义，A_.row75 L230）：
+    /// 非空 = 收款业务已成功提交，但业务凭证未生成（凭证块独立事务已整体回滚）。
+    /// </summary>
+    public string? VouchError { get; set; }
 }
 
 public sealed class XlskRestoreLine
@@ -626,8 +632,23 @@ public sealed class XlskRepository(SqlConnectionFactory factory, IDocNoService d
                 }
             }
 
-            // 5.5) finvouch 联动（A_.row75 L190-237，P_FINANCE && FINVOUCH）：两行分录
-            if (cmd.FinVouchEnabled)
+            // 业务事务提交（旧 A_.row75 L76-189 为无事务 SPT 直写、即时生效）。
+            // 凭证联动失败仅提示、不回滚收款（旧 ADDSUB MSG+RETURN 语义；部署库取证：29 张 recoid=1 残缺凭证）。
+            // 有意差异：凭证块独立事务原子回滚，不留单行不平衡残缺凭证。
+            await tx.CommitAsync(ct);
+        }
+        catch
+        {
+            await tx.RollbackAsync(CancellationToken.None);
+            throw;
+        }
+
+        // 5.5) finvouch 联动（A_.row75 L190-237，P_FINANCE && FINVOUCH）：两行分录——独立事务，失败仅提示
+        string? vouchError = null;
+        if (cmd.FinVouchEnabled)
+        {
+            await using var vtx = (SqlTransaction)await conn.BeginTransactionAsync(ct);
+            try
             {
                 if (string.IsNullOrWhiteSpace(cmd.SkqxSubname))
                     throw new AppException("SKQX_REQUIRED", $"请确定{type}去向.", 422);
@@ -637,19 +658,19 @@ public sealed class XlskRepository(SqlConnectionFactory factory, IDocNoService d
                     FROM finsub WITH (NOLOCK)
                     WHERE rtrim(subname) = @n AND detacode = 1 AND (type = 'C' OR type = 'B')
                     ORDER BY id
-                    """, new { n = Ansi(cmd.SkqxSubname.Trim(), 40) }, transaction: tx, cancellationToken: ct))).FirstOrDefault();
+                    """, new { n = Ansi(cmd.SkqxSubname.Trim(), 40) }, transaction: vtx, cancellationToken: ct))).FirstOrDefault();
                 if (skqx.Subcode is null)
                     throw new AppException("SKQX_NOT_FOUND", "收付去向科目不存在", 422);
                 // finvid 全行推进（SPT "update finvid set vid=vid+1" 无 WHERE，旧码原样）；取 dpm 行新号
                 await conn.ExecuteAsync(new CommandDefinition(
-                    "UPDATE finvid SET vid = vid + 1", transaction: tx, cancellationToken: ct));
+                    "UPDATE finvid SET vid = vid + 1", transaction: vtx, cancellationToken: ct));
                 var fvid = await conn.ExecuteScalarAsync<int>(new CommandDefinition(
                     "SELECT vid FROM finvid WITH (NOLOCK) WHERE dpm = @dpm", new { dpm = Ansi(dpm, 10) },
-                    transaction: tx, cancellationToken: ct));
+                    transaction: vtx, cancellationToken: ct));
                 var fperiod = cmd.Date.ToString("yyyyMM");
                 var fvcode = await conn.ExecuteScalarAsync<int>(new CommandDefinition(
                     "SELECT ISNULL(MAX(vcode), 0) + 1 FROM finvouch WITH (NOLOCK) WHERE period = @p",
-                    new { p = Ansi(fperiod, 6) }, transaction: tx, cancellationToken: ct));
+                    new { p = Ansi(fperiod, 6) }, transaction: vtx, cancellationToken: ct));
                 var bcje = cmd.Lines.Where(l => l.Bcje != 0).Sum(l => l.Bcje);   // SUM BCJE FOR BZ='√'（原值，非 ABS）
                 var note = $"第-{newDocNo}-号{type}";
                 var dcdir1 = type == "收款" ? "借" : "贷";
@@ -673,11 +694,11 @@ public sealed class XlskRepository(SqlConnectionFactory factory, IDocNoService d
                         debit = type == "收款" ? bcje : 0m, credit = type == "付款" ? bcje : 0m,
                         dcdir = Ansi(dcdir1, 2), vouword = Ansi(type, 8), client = Ansi(gname, 60),
                         invcode = Ansi(cmd.Pno.Trim(), 20), maker = Ansi(per, 10), dpm = Ansi(dpm, 10),
-                    }, transaction: tx, cancellationToken: ct));
+                    }, transaction: vtx, cancellationToken: ct));
                 // 行 2：往来科目行（ADDSUB 尾码进位）
                 var cty = type == "收款" ? "A" : "P";
-                var clientSub = await FinSubCodes.AddSubClientAsync(conn, tx, gname, cty, dpm, ct);
-                var clientSubName = await FinSubCodes.GSubNameAsync(conn, tx, clientSub, ct);
+                var clientSub = await FinSubCodes.AddSubClientAsync(conn, vtx, gname, cty, dpm, ct);
+                var clientSubName = await FinSubCodes.GSubNameAsync(conn, vtx, clientSub, ct);
                 await conn.ExecuteAsync(new CommandDefinition(
                     """
                     INSERT INTO finvouch (vouchid, vcode, date, period, recoid, note, subcode, subname, type,
@@ -696,10 +717,28 @@ public sealed class XlskRepository(SqlConnectionFactory factory, IDocNoService d
                         debit = type == "付款" ? bcje : 0m, credit = type == "收款" ? bcje : 0m,
                         dcdir = Ansi(dcdir2, 2), vouword = Ansi(type, 8), client = Ansi(gname, 60),
                         maker = Ansi(per, 10), dpm = Ansi(dpm, 10),
-                    }, transaction: tx, cancellationToken: ct));
+                    }, transaction: vtx, cancellationToken: ct));
+                await vtx.CommitAsync(ct);
             }
+            catch (AppException ex)
+            {
+                // 凭证失败仅提示不回滚收款：旧系统 ADDSUB MSG+RETURN 后 row75 继续执行（行2 静默缺失）；
+                // 有意差异：本事务原子回滚——finvid 不推进、不留 recoid=1 单行残缺凭证。
+                await vtx.RollbackAsync(CancellationToken.None);
+                vouchError = ex.Message;
+            }
+            catch (OperationCanceledException)
+            {
+                await vtx.RollbackAsync(CancellationToken.None);
+                throw;
+            }
+        }
 
-            // 6) 发票管理（A_.row75 L244-265）：发票号非空 → INSERT tbfpgl（ctype=首个勾选行类型）
+        // 6)/7) 发票台账 + 余额刷新（旧 A_.row75 L244-269：位于凭证块之后，凭证失败不影响）
+        decimal yue;
+        await using var atx = (SqlTransaction)await conn.BeginTransactionAsync(ct);
+        try
+        {
             if (!string.IsNullOrWhiteSpace(cmd.Pno))
             {
                 var ctype = cmd.Lines.FirstOrDefault(l => l.Bcje != 0)?.LineType ?? "销售";
@@ -719,20 +758,18 @@ public sealed class XlskRepository(SqlConnectionFactory factory, IDocNoService d
                         ctype = Ansi(ctype, 10),
                         fkfs = Ansi(cmd.Fkfs, 10),
                         dpm = Ansi(dpm, 10),
-                    }, transaction: tx, cancellationToken: ct));
+                    }, transaction: atx, cancellationToken: ct));
             }
-
-            // 7) 余额刷新（存储过程会逐行回写 tbysyf.lj，属契约写路径）
-            var yue = await CallYsyfRefreshAsync(conn, tx, gname, ct);
-
-            await tx.CommitAsync(ct);
-            return new XlskSaveResult { DocNo = newDocNo, Yue = yue };
+            yue = await CallYsyfRefreshAsync(conn, atx, gname, ct);
+            await atx.CommitAsync(ct);
         }
         catch
         {
-            await tx.RollbackAsync(CancellationToken.None);
+            await atx.RollbackAsync(CancellationToken.None);
             throw;
         }
+
+        return new XlskSaveResult { DocNo = newDocNo, Yue = yue, VouchError = vouchError };
     }
 
     public async Task<decimal> RestoreAsync(string cno, string type, string gname,
