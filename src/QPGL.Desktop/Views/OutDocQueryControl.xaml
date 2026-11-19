@@ -76,7 +76,17 @@
                       CanUserSortColumns="False"
                       HeadersVisibility="Column" FontSize="12" Margin="1"
                       RowStyle="{StaticResource ReturnRowStyle}"
-                      VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
+                      VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                      PreviewMouseRightButtonDown="DgBills_PreviewMouseRightButtonDown">
+                <!-- 手动标记打印状态（2026-11-19 需求：右键人工补正） -->
+                <DataGrid.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="标记为已打印" Click="MarkPrintedMenu_Click"
+                                  ToolTip="漏记时人工补正：写打印状态（记当前操作员与时间）"/>
+                        <MenuItem Header="标记为未打印" Click="MarkUnprintedMenu_Click"
+                                  ToolTip="误标时人工补正：清除打印状态，重新计入未打印提醒"/>
+                    </ContextMenu>
+                </DataGrid.ContextMenu>
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="单号" Binding="{Binding Paper}" Width="90"/>
                     <DataGridTextColumn Header="类型" Binding="{Binding Type}" Width="50"/>
@@ -84,7 +94,20 @@
                     <DataGridTextColumn Header="门店/仓库" Binding="{Binding Papertype}" Width="70"/>
                     <DataGridTextColumn Header="出库日期" Binding="{Binding Outdate, StringFormat=yyyy-MM-dd}" Width="85"/>
                     <DataGridTextColumn Header="客户" Binding="{Binding Gname}" Width="150"/>
-                    <DataGridTextColumn Header="行数" Binding="{Binding LineCount}" Width="45"/>
+                    <!-- 打印状态列（2026-11-19 需求：替换原「行数」列；print_log 无记录=未打印） -->
+                    <DataGridTextColumn Header="打印" Binding="{Binding PrintStatus}" Width="55">
+                        <DataGridTextColumn.ElementStyle>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="VerticalAlignment" Value="Center"/>
+                                <Setter Property="Margin" Value="2,0"/>
+                                <Style.Triggers>
+                                    <Trigger Property="Text" Value="未打印">
+                                        <Setter Property="Foreground" Value="Red"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </DataGridTextColumn.ElementStyle>
+                    </DataGridTextColumn>
                     <DataGridTextColumn Header="数量" Binding="{Binding TotalQty, Converter={StaticResource QtyInt}}" Width="60"/>
                     <DataGridTextColumn Header="实收总额" Binding="{Binding TotalOprct, StringFormat=N2}" Width="85"/>
                     <DataGridTextColumn Header="付款方式" Binding="{Binding Guno}" Width="70"/>

@@ -152,6 +152,7 @@ public partial class OutDocQueryViewModel : ObservableObject
             _page = 1;
             var request = BuildRequest();
             var result = await Db.DocQuery.SearchOutDocBillsAsync(request, ct);
+            await FillPrintStatusAsync(result.Items, ct);
             Bills.Clear();
             foreach (var r in result.Items) Bills.Add(r);
             Total = result.Total;
@@ -185,6 +186,7 @@ public partial class OutDocQueryViewModel : ObservableObject
             _page++;
             var request = BuildRequest();
             var result = await Db.DocQuery.SearchOutDocBillsAsync(request, ct);
+            await FillPrintStatusAsync(result.Items, ct);
             foreach (var r in result.Items) Bills.Add(r);
             SumAmount = Bills.Sum(r => r.TotalAmount);
             SumText = $"已加载折后合计：{SumAmount:N2}（共 {Bills.Count} 行）";
@@ -230,9 +232,34 @@ public partial class OutDocQueryViewModel : ObservableObject
         }
     }
 
-    /// <summary>排序白名单列头切换（§7.1）。</summary>
-    public void SortBy(string field)
+    /// <summary>按当前页单号批量查打印状态（print_log；2026-11-19 需求：查询列表「行数」列改显示打印状态）。
+    /// print_log 只记已打印（上线前历史单无记录），显示为「未打印」属预期，与 qp11 同语义。</summary>
+    private static async Task FillPrintStatusAsync(IEnumerable<OutDocBillRow> rows, CancellationToken ct)
     {
+        var list = rows.ToList();
+        if (list.Count == 0) return;
+        HashSet<string> printed;
+        try { printed = await Db.PrintLog.GetPrintedSnsAsync(list.Select(r => r.Paper), ct); }
+        catch { return; /* 状态查询失败不阻断列表，留空 */ }
+        foreach (var r in list)
+            r.PrintStatus = printed.Contains(r.Paper.Trim()) ? "已打印" : "未打印";
+    }
+
+    /// <summary>手动标记打印状态（2026-11-19 需求：右键人工补正，漏记/多记时修正）。
+    /// 已打印=写 print_log（记操作员与时间）；未打印=删除记录重新计入未打印提醒。</summary>
+    public async Task SetPrintStatusManuallyAsync(OutDocBillRow row, bool printed, CancellationToken ct = default)
+    {
+        var paper = row.Paper.Trim();
+        if (printed)
+            await Db.PrintLog.MarkPrintedAsync("销售", paper, AppSession.Operator, ct);
+        else
+            await Db.PrintLog.UnmarkPrintedAsync(paper, ct);
+        row.PrintStatus = printed ? "已打印" : "未打印";
+        Message = $"单据 {paper} 已手动标记为「{(printed ? "已打印" : "未打印")}」（操作员 {AppSession.Operator}）";
+    }
+
+    /// <summary>排序白名单列头切换（§7.1）。</summary>
+    public void SortBy(string field)    {
         if (!OutDocSortFields.TryResolve(field, out _)) return;
         if (string.Equals(_sort, field, StringComparison.OrdinalIgnoreCase))
             _sortDesc = !_sortDesc;
@@ -315,6 +342,10 @@ public partial class OutDocQueryViewModel : ObservableObject
         {
             // 查询模式重打印：预览窗点「打印」成功后自动关闭（2026-10-31 需求）
             await QPGL.Desktop.Printing.PrintService.PreviewSaleAsync(SelectedBill.Paper.Trim(), "销售", ct, closeAfterPrint: true);
+            // 打印状态列刷新（2026-11-19 需求）：重查该单 print_log，预览内实际打印成功则变「已打印」（取消则不变）
+            var paper = SelectedBill.Paper.Trim();
+            var printed = await Db.PrintLog.GetPrintedSnsAsync([paper], ct);
+            SelectedBill.PrintStatus = printed.Contains(paper) ? "已打印" : "未打印";
         }
         catch (Exception ex)
         {

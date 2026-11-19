@@ -120,7 +120,7 @@ public sealed class OutDocLine
 /// <summary>
 /// 出库单据级行（按 paper+type+dpm 聚合，一行 = 一张单；qp11 查询模式单据列表同构）。
 /// </summary>
-public sealed class OutDocBillRow
+public sealed class OutDocBillRow : System.ComponentModel.INotifyPropertyChanged
 {
     public string Paper { get; set; } = "";
     public string Type { get; set; } = "";
@@ -130,6 +130,14 @@ public sealed class OutDocBillRow
     public string Per { get; set; } = "";
     /// <summary>明细行数。</summary>
     public int LineCount { get; set; }
+    /// <summary>打印状态（print_log 查询后填充的 UI 列「打印」；非 SQL 直查列，qp11 查询列表同语义）。</summary>
+    private string _printStatus = "";
+    public string PrintStatus
+    {
+        get => _printStatus;
+        set { _printStatus = value; PropertyChanged?.Invoke(this, new(nameof(PrintStatus))); }
+    }
+    public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
     /// <summary>Σ数量。</summary>
     public decimal TotalQty { get; set; }
     /// <summary>Σ折后金额（旧 yhloprct 公式聚合）。</summary>

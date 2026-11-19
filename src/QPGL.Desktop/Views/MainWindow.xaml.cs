@@ -16,6 +16,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         DataContext = _vm;
         _vm.RequestClose += Close;
+        _vm.UnprintedReminderReady += bills => ShowUnprintedDialog(bills, isReminder: true);
         Loaded += (_, _) => _vm.OpenDefault();
         // 启动静默检查更新（appsettings.json Update:AutoCheck=false 可关闭）
         Loaded += async (_, _) => await StartupUpdateCheckAsync();
@@ -158,6 +159,36 @@ public partial class MainWindow : Window
     private void OpenPrintSettings_Click(object sender, RoutedEventArgs e)
     {
         new PrintFooterSettingsWindow().ShowDialog();
+    }
+
+    // ==== 未打印单据提醒（§8.3.1，qp11 MainWindow 同构）====
+
+    /// <summary>到点提醒弹窗（非模态置顶+提示音，不阻塞主窗口操作；去重已在 MainViewModel 按「当天已提醒单号」完成）。</summary>
+    private void ShowUnprintedDialog(IReadOnlyList<Infrastructure.Printing.UnprintedBill> bills, bool isReminder)
+    {
+        var dialog = new UnprintedBillRemindDialog(bills.ToList(), isReminder) { Owner = this };
+        dialog.Show();
+    }
+
+    /// <summary>点击状态栏「未打印单据 N 张」：现查现显查看清单（qp11 UnprintedCount_Click 同构）。</summary>
+    private async void UnprintedCount_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        try
+        {
+            var bills = await _vm.GetUnprintedNowAsync();
+            if (bills.Count == 0)
+            {
+                MessageBox.Show(this, "当前没有未打印的单据。", "未打印单据",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            ShowUnprintedDialog(bills, isReminder: false);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, $"查询未打印单据失败：{ex.Message}", "未打印单据",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
     }
 
     /// <summary>系统管理(S) → 标签打印（qp11 复刻：三条件查询 + 模板/条码/预览编辑 + 批量打印，以标签页打开）。</summary>

@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using QPGL.Desktop.Services;
 using QPGL.Desktop.Views;
+using QPGL.Infrastructure.Printing;
 
 namespace QPGL.Desktop.ViewModels;
 
@@ -22,6 +23,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
 {
     private readonly DispatcherTimerEx _clock = new();
     private readonly DispatcherTimerEx _health = new();
+    private readonly DispatcherTimerEx _unprinted = new();
+
+    /// <summary>未打印单据提醒去重：记录「今天已提醒过的单号」，仅在出现新未打印单号时才再次弹窗（qp11 同构）。</summary>
+    private readonly HashSet<string> _remindedUnprintedSns = new();
+    private DateTime _remindedUnprintedDate = DateTime.MinValue;
 
     public ObservableCollection<DocumentTab> Tabs { get; } = [];
 
@@ -46,6 +52,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private int _unprintedCount;
 
+    /// <summary>未打印计数 > 0 时状态栏才显示该项（qp11 UpdateUnprintedIndicator 同语义）。</summary>
+    [ObservableProperty]
+    private bool _unprintedVisible;
+
+    partial void OnUnprintedCountChanged(int value) => UnprintedVisible = value > 0;
+
+    /// <summary>扫描发现新未打印单据时抛出（MainWindow 弹提醒窗，非模态不阻塞）。</summary>
+    public event Action<List<UnprintedBill>>? UnprintedReminderReady;
+
     public event Action? RequestClose;
 
     public MainViewModel()
@@ -62,6 +77,23 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _health.Tick += async (_, _) => await CheckHealthAsync();
         _health.Start();
         _ = CheckHealthAsync();
+
+        // 未打印单据检测（§8.3.1，qp11 同构）：每 2 分钟扫描一次（计数 + 弹窗提醒），
+        // 全店当天范围，本机按单号集合去重；启动即扫一次让当天存量立刻可见。
+        // 打印/手动标记后经 PrintStatusChanged 事件立即重扫（2026-11-19 需求：状态栏计数实时刷新）
+        _unprinted.Interval = TimeSpan.FromMinutes(2);
+        _unprinted.Tick += async (_, _) => await CheckUnprintedRemindersAsync();
+        _unprinted.Start();
+        _ = CheckUnprintedRemindersAsync();
+        Db.PrintLog.PrintStatusChanged += OnPrintStatusChanged;
+    }
+
+    /// <summary>打印状态变化（本机打印成功/手动标记）：立即重扫刷新计数；跨机打印由定时扫描兜底。</summary>
+    private void OnPrintStatusChanged()
+    {
+        // 事件源可能在任意线程（当前均为 UI 线程路径），调度回 UI 线程保证 ObservableProperty 安全
+        System.Windows.Threading.Dispatcher.CurrentDispatcher.BeginInvoke(
+            async () => await CheckUnprintedRemindersAsync());
     }
 
     public void OpenDefault()
@@ -589,6 +621,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         _clock.Stop();
         _health.Stop();
+        _unprinted.Stop();
         AppSession.SignOut();
         RequestClose?.Invoke();
     }
@@ -608,10 +641,58 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    // ---- 未打印单据提醒（§8.3.1，qp11 MainWindow.CheckUnprintedRemindersAsync 同构）----
+
+    /// <summary>
+    /// 未打印单据扫描：全店当天未打印的销售单/退货单（含 AH 号段退货）。
+    /// 状态栏常驻计数始终反映当天未打印数量（0 时隐藏）；弹窗当天首次命中弹一次，
+    /// 之后仅在出现「新的」未打印单号时才再弹，避免反复骚扰。补打后计数自动减少。
+    /// </summary>
+    private async System.Threading.Tasks.Task CheckUnprintedRemindersAsync()
+    {
+        try
+        {
+            // 跨天时清空当日已提醒记录，使新的一天重新提醒
+            var today = DateTime.Today;
+            if (_remindedUnprintedDate != today)
+            {
+                _remindedUnprintedDate = today;
+                _remindedUnprintedSns.Clear();
+            }
+
+            var unprinted = await Db.PrintLog.GetUnprintedTodayAsync();
+
+            // 常驻计数：无论是否弹窗都要刷新（未补打的单据即使不再弹窗也能被看到）
+            UnprintedCount = unprinted.Count;
+
+            var fresh = unprinted.Where(b => !string.IsNullOrEmpty(b.Sn) && !_remindedUnprintedSns.Contains(b.Sn)).ToList();
+            if (fresh.Count == 0) return;
+
+            foreach (var b in fresh)
+                _remindedUnprintedSns.Add(b.Sn);
+
+            UnprintedReminderReady?.Invoke(unprinted);
+        }
+        catch
+        {
+            // 扫描失败（库不可达/首访建表失败）静默，下轮定时重试
+        }
+    }
+
+    /// <summary>点击状态栏计数现查现显未打印清单（保证数据最新）；同时把状态栏计数对齐现查结果，
+    /// 修复「点击提示无未打印、状态栏仍显示旧计数」的不同步（2026-11-19 需求）。</summary>
+    public async System.Threading.Tasks.Task<List<UnprintedBill>> GetUnprintedNowAsync()
+    {
+        var list = await Db.PrintLog.GetUnprintedTodayAsync();
+        UnprintedCount = list.Count;
+        return list;
+    }
+
     public void Dispose()
     {
         _clock.Stop();
         _health.Stop();
+        _unprinted.Stop();
     }
 }
 

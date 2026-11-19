@@ -30,6 +30,45 @@ public partial class OutDocQueryControl : UserControl
             await _vm.LoadMoreAsync(System.Threading.CancellationToken.None);
     }
 
+    // ---- 手动标记打印状态（2026-11-19 需求：右键人工补正）----
+
+    /// <summary>右键按下时选中鼠标所在行（SaleControl PartGrid 同款模式）：右键菜单操作的是光标下的单据。</summary>
+    private void DgBills_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.OriginalSource is DependencyObject d &&
+            ItemsControl.ContainerFromElement(DgBills, d) is DataGridRow row)
+            row.IsSelected = true;
+    }
+
+    private async void MarkPrintedMenu_Click(object sender, RoutedEventArgs e)
+        => await MarkManuallyAsync(printed: true);
+
+    private async void MarkUnprintedMenu_Click(object sender, RoutedEventArgs e)
+        => await MarkManuallyAsync(printed: false);
+
+    private async Task MarkManuallyAsync(bool printed)
+    {
+        if (_vm.SelectedBill is null)
+        {
+            MessageBox.Show("请先在单据列表中选中一行", "手动标记",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        if (MessageBox.Show(
+                $"确认将单据 {_vm.SelectedBill.Paper.Trim()} 手动标记为「{(printed ? "已打印" : "未打印")}」？",
+                "手动标记", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+            return;
+        try
+        {
+            await _vm.SetPrintStatusManuallyAsync(_vm.SelectedBill, printed);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"标记失败：{ex.Message}", "手动标记",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
     // 客户联想（与开单模式 GnameBox 同机制）：输入即搜（300ms 防抖），支持拼音码/数字码/编号/名称
     private void GnameBox_TextChanged(object sender, TextChangedEventArgs e)
     {

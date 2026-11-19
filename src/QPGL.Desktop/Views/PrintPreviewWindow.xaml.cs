@@ -23,6 +23,8 @@ public partial class PrintPreviewWindow : Window
     private readonly string _docName;
     /// <summary>点「打印」成功后是否自动关闭窗口（查询模式重打印入口传 true）。</summary>
     private readonly bool _closeAfterPrint;
+    /// <summary>点「打印」成功后的回调（写打印状态 print_log，未打印提醒数据源；PrintService 注入）。</summary>
+    private readonly Func<Task>? _onPrintSuccess;
     /// <summary>枚举结果缓存（名→队列）：共享打印机连接复用枚举成功的对象，打印时不再按名重建。</summary>
     private readonly Dictionary<string, PrintQueue> _queues = new(StringComparer.OrdinalIgnoreCase);
     /// <summary>票面编号临时覆盖（行 Seq → (编码单元格, 原文本)）：打印成功后按此恢复原编号。</summary>
@@ -30,12 +32,13 @@ public partial class PrintPreviewWindow : Window
     /// <summary>双击编号单元格弹出的内联编辑框（Enter 确认 / Esc 或点击别处取消）。</summary>
     private Popup? _nnoPopup;
 
-    public PrintPreviewWindow(FixedDocument document, string title, bool closeAfterPrint = false)
+    public PrintPreviewWindow(FixedDocument document, string title, bool closeAfterPrint = false, Func<Task>? onPrintSuccess = null)
     {
         InitializeComponent();
         _document = document;
         _docName = title;
         _closeAfterPrint = closeAfterPrint;
+        _onPrintSuccess = onPrintSuccess;
         DocInfoText.Text = title;
         Viewer.Document = document;
         Viewer.MouseDoubleClick += Viewer_MouseDoubleClick;
@@ -73,7 +76,7 @@ public partial class PrintPreviewWindow : Window
             CmbPrinter.SelectedIndex = 0;
     }
 
-    private void Print_Click(object sender, RoutedEventArgs e)
+    private async void Print_Click(object sender, RoutedEventArgs e)
     {
         var printerName = CmbPrinter.SelectedItem?.ToString();
         if (string.IsNullOrEmpty(printerName))
@@ -88,6 +91,12 @@ public partial class PrintPreviewWindow : Window
         {
             WriteToPrinter(printerName, copies);
             SaveLastPrinter(printerName);
+            // 打印成功回调（写打印状态；失败不影响打印结果）
+            if (_onPrintSuccess != null)
+            {
+                try { await _onPrintSuccess(); }
+                catch { /* 状态写入失败已在 PrintService 记审计日志 */ }
+            }
             // 编号覆盖仅本次打印生效：发送成功后恢复票面原编号（2026-11-05 需求）
             RestoreNnoEdits();
             // 查询模式重打印：发送成功后自动关闭预览窗（失败保持窗口便于重试）

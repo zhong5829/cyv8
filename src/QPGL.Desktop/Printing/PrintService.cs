@@ -31,16 +31,19 @@ public static class PrintService
 
         dialog.PrintDocument(fixedDoc.DocumentPaginator, $"{docType}单 {paper}");
         LogPrinted(paper);
+        await MarkPrintedAsync(docType, paper, ct);
     }
 
     /// <summary>打印预览（DocumentViewer 全屏逐页查看，§8.3.1）。
-    /// closeAfterPrint=true 时，预览窗内点「打印」成功后自动关闭（查询模式重打印用）。</summary>
+    /// closeAfterPrint=true 时，预览窗内点「打印」成功后自动关闭（查询模式重打印用）；
+    /// 预览窗内实际打印成功同样写打印状态（§8.3.1 未打印提醒数据源）。</summary>
     public static async System.Threading.Tasks.Task PreviewSaleAsync(string paper, string docType = "销售", CancellationToken ct = default, bool closeAfterPrint = false)
     {
         var doc = await LoadSaleDocAsync(paper, docType, ct);
         var fixedDoc = SaleTicketDocument.Build(doc);
 
-        var window = new PrintPreviewWindow(fixedDoc, $"预览 - {docType}单 {paper}", closeAfterPrint);
+        var window = new PrintPreviewWindow(fixedDoc, $"预览 - {docType}单 {paper}", closeAfterPrint,
+            onPrintSuccess: () => MarkPrintedAsync(docType, paper, CancellationToken.None));
         window.ShowDialog();
     }
 
@@ -55,6 +58,7 @@ public static class PrintService
         FitToPrintableArea(dialog, fixedDoc);
         dialog.PrintDocument(fixedDoc.DocumentPaginator, $"{docType}单 {paper}");
         LogPrinted(paper);
+        await MarkPrintedAsync(docType, paper, ct);
         return printerName;
     }
 
@@ -91,5 +95,33 @@ public static class PrintService
         Directory.CreateDirectory(dir);
         File.AppendAllText(Path.Combine(dir, "print.log"),
             $"{DateTime.Now:yyyy-MM-dd HH:mm:ss} [INF] 打印单据 {paper} 操作员 {AppSession.Operator}{Environment.NewLine}");
+    }
+
+    /// <summary>
+    /// 打印成功后写库级打印状态（print_log，§8.3.1 未打印单据提醒数据源）。
+    /// 状态写入失败不阻断打印流程（打印已实际完成），仅记本地审计日志便查。
+    /// </summary>
+    private static async System.Threading.Tasks.Task MarkPrintedAsync(string docType, string paper, CancellationToken ct)
+    {
+        try
+        {
+            await Db.PrintLog.MarkPrintedAsync(docType, paper, AppSession.Operator, ct);
+        }
+        catch (Exception ex)
+        {
+            LogPrintFailed(paper, ex);
+        }
+    }
+
+    private static void LogPrintFailed(string paper, Exception ex)
+    {
+        try
+        {
+            var dir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs");
+            Directory.CreateDirectory(dir);
+            File.AppendAllText(Path.Combine(dir, "print.log"),
+                $"{DateTime.Now:yyyy-MM-dd HH:mm:ss} [ERR] 打印状态写入失败 {paper} {ex.Message}{Environment.NewLine}");
+        }
+        catch { /* 审计日志失败不影响主流程 */ }
     }
 }

@@ -37,6 +37,7 @@ public static class Db
     public static ISaleRepository Sales { get; private set; } = null!;
     public static ISaleReturnRepository SaleReturns { get; private set; } = null!;
     public static IPrintRepository Print { get; private set; } = null!;
+    public static IPrintLogRepository PrintLog { get; private set; } = null!;
     public static IPrintSettingsRepository PrintSettings { get; private set; } = null!;
     public static IPermissionRepository Permissions { get; private set; } = null!;
     public static IDocQueryRepository DocQuery { get; private set; } = null!;
@@ -121,6 +122,7 @@ public static class Db
         Sales = new SaleRepository(Factory, DocNo);
         SaleReturns = new SaleReturnRepository(Factory, DocNo);
         Print = new PrintRepository(Factory);
+        PrintLog = new PrintLogRepository(Factory);
         PrintSettings = new PrintSettingsRepository(Factory);
         Permissions = new PermissionRepository(Factory);
         Brands = new BrandRepository(Factory);

@@ -14,16 +14,9 @@
     <DockPanel>
         <!-- ===== 顶部：菜单条 + 工具条 ===== -->
         <StackPanel DockPanel.Dock="Top">
-            <!-- 标题栏品牌带 -->
-            <Border Background="{StaticResource BrandBrush}" Padding="12,6">
-                <DockPanel>
-                    <TextBlock Text="QP12 配件管理系统" Foreground="White" FontSize="15" FontWeight="Bold"/>
-                    <TextBlock DockPanel.Dock="Right" Text="重构版 · 结构零改动 · QPGL.Api" Foreground="#C7D6E8"
-                               FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                </DockPanel>
-            </Border>
+            <!-- 标题栏品牌带已移除（2026-11-19 需求）：窗口标题由系统标题栏 Window.Title 承担 -->
 
-            <!-- 传统菜单条（1:1 映射旧菜单 A~S；维修管理置灰=排除，附录A）；
+            <!-- 传统菜单条（1:1 映射旧菜单 A~S；维修管理菜单项已移除，2026-11-19 需求）；
                  右侧 VIN 快捷查询框（2026-11-01 需求）：任意页面连按两次 Alt 键定位到此框，回车/查询直接进 VIN 查询窗执行 -->
             <DockPanel>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0">
@@ -147,7 +140,6 @@
                     <MenuItem Header="报表（I.5）" Command="{Binding OpenFinReportCommand}" ToolTip="试算平衡/凭证汇总/损益/资产负债/现金流（fr_finreport 中心）"/>
                     <MenuItem Header="辅助工具/固定资产" Command="{Binding OpenFinToolCommand}" ToolTip="I.8 工具（汇总/帐簿初始化）+ N.7-N.8 固定资产类别/变动方式"/>
                 </MenuItem>
-                <MenuItem Header="维修管理(W)" IsEnabled="False" ToolTip="按约定排除（开发文档附录A）"/>
                 <MenuItem Header="系统管理(S)">
                     <MenuItem Header="修改密码" Command="{Binding NotImplementedCommand}"/>
                     <MenuItem Header="打印设置（票头/票尾）" Click="OpenPrintSettings_Click"/>
@@ -175,8 +167,11 @@
                 </TextBlock>
                 <TextBlock DockPanel.Dock="Right" Margin="0,0,4,0" Text="●" Foreground="#7CFC00" FontSize="12"
                            Visibility="{Binding IsConnected, Converter={StaticResource BoolToVis}}"/>
-                <TextBlock DockPanel.Dock="Right" Margin="0,0,16,0" Foreground="#FFD" FontSize="12"
-                           Text="{Binding UnprintedCount, StringFormat=未打印单据 {0} 张}"/>
+                <TextBlock DockPanel.Dock="Right" Margin="0,0,16,0" Foreground="#FFD" FontSize="12" Cursor="Hand"
+                           MouseLeftButtonDown="UnprintedCount_Click"
+                           Visibility="{Binding UnprintedVisible, Converter={StaticResource BoolToVis}}"
+                           Text="{Binding UnprintedCount, StringFormat=未打印单据 {0} 张}"
+                           ToolTip="点击查看未打印单据清单"/>
                 <TextBlock DockPanel.Dock="Right" Margin="0,0,16,0" Foreground="White" FontSize="12"
                            Text="{Binding StatusOperator, StringFormat=操作员：{0}}"/>
                 <TextBlock DockPanel.Dock="Right" Margin="0,0,16,0" Foreground="White" FontSize="12"
