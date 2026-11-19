@@ -23,6 +23,13 @@ public static class PartCacheService
     /// <summary>实时刷新超时（用户 2026-11-04 确认 1.5 秒；超时降级为缓存值并提示）。</summary>
     public static readonly TimeSpan LiveTimeout = TimeSpan.FromSeconds(1.5);
 
+    /// <summary>
+    /// 选料聚合二次补查窗口（2026-11-19 根因A修复）：1.5 秒实时聚合超时后，首见页/新翻页行无聚合缓存，
+    /// "降级为缓存值"实际落 0（库存列显示错误）。改对无缓存行用更长窗口重查一次，超时窗口与
+    /// GetPickAggregatesAsync 的重聚合开销（5 个子查询）匹配。
+    /// </summary>
+    private static readonly TimeSpan AggRetryTimeout = TimeSpan.FromSeconds(10);
+
     private static readonly TimeSpan AttrTtl = TimeSpan.FromMinutes(30);
     private static readonly TimeSpan StockTtl = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan ResultTtl = TimeSpan.FromSeconds(60);
@@ -290,20 +297,46 @@ public static class PartCacheService
         var state = cacheable ? GetState(dpm) : null;
         if (state is not null)
         {
+            var sw = System.Diagnostics.Stopwatch.StartNew();
             var rows = FilterPick(state, cp, query);
             // 实时聚合补齐 + 新增属性实时并入（1.5s 超时降级）；返回非 null = 属性增量并入后内存重过滤的新页
             var fresh = await FetchPickLiveAsync(state, query, rows, dpm, cp, dpmusem, ct);
-            return fresh ?? rows;
+            var result = fresh ?? rows;
+            LogPickPage("快照+实时聚合", query.Page, result, sw.ElapsedMilliseconds);
+            return result;
         }
 
         var key = ResultKey("pick", dpm, cp, dpmusem, query.Nno, query.Na1, query.Ty,
             query.Date1.Ticks, query.Date2.Ticks, query.Num1, query.Num2, query.Kc1, query.Kc2,
             query.Page, query.PageSize, suggestExp ?? "");
         if (TryGetResult<IReadOnlyList<PartPickRow>>(key, out var cachedRows))
+        {
+            // 诊断埋点（2026-11-19）：结果缓存路径不实时刷新库存——60 秒内重复检索显示的是缓存旧值
+            QPGL.Infrastructure.DebugLog.Log($"[PartCache] 选料页{query.Page} 走结果缓存(60s)：{cachedRows.Count} 行（库存为缓存值，不实时刷新）");
             return cachedRows;
+        }
+        var swDb = System.Diagnostics.Stopwatch.StartNew();
         var db = await Db.Order4.SearchPartsAsync(query, dpm, cp, dpmusem, suggestExp, ct);
+        QPGL.Infrastructure.DebugLog.Log($"[PartCache] 选料页{query.Page} 走DB直查（{(cacheable ? "快照未就绪" : "条件不可缓存")}）：{db.Count} 行 耗时{swDb.ElapsedMilliseconds}ms");
         _results[key] = (DateTime.Now, db);
         return db;
+    }
+
+    /// <summary>
+    /// 选料页诊断埋点（2026-11-19，二次复现定位用，debug.log）：
+    /// 每页检索一行日志——路径/行数/耗时/降级提示/零库存行清单（前 8 个编码）。
+    /// 库存 0 但实际有货的复现场景下，配合聚合超时/二次补查日志即可定位 0 值产生环节。
+    /// </summary>
+    private static void LogPickPage(string path, int page, IReadOnlyList<PartPickRow> rows, long ms)
+    {
+        try
+        {
+            var zeros = rows.Where(r => r.Kcamount <= 0).Select(r => r.Nno).ToList();
+            QPGL.Infrastructure.DebugLog.Log(
+                $"[PartCache] 选料页{page} {path}：{rows.Count} 行 耗时{ms}ms 提示:{LastHint ?? "无"}" +
+                (zeros.Count > 0 ? $" 零库存{zeros.Count}行：{string.Join(",", zeros.Take(8))}" : " 零库存0行"));
+        }
+        catch { /* 日志失败不影响业务 */ }
     }
 
     /// <summary>
@@ -347,16 +380,65 @@ public static class PartCacheService
         }
         catch (TimeoutException)
         {
+            // 降级 + 二次补查（2026-11-19 根因A修复）：先回填聚合缓存，再对无缓存行
+            // （首见页/新翻页行——超时降级对它们等于落 0）用更长窗口重查一次；
+            // 补查成功且本页无缓存行时清除降级提示，补查后仍不在聚合集的行 = 真实无库存（0 即真实值）
             LastHint = "（库存/在途为缓存值：网络超时）";
-            FillFromAggCache(rows, cp);
+            var cacheFilled = FillFromAggCache(rows, cp);
+            var missingCount = rows.Count(r => !_aggs.ContainsKey($"{cp.Trim()}|{r.Nno}"));
+            QPGL.Infrastructure.DebugLog.Log(
+                $"[PartCache] 选料页{query.Page} 聚合实时查询超时({LiveTimeout.TotalSeconds:0.#}s)：{rows.Count} 行 缓存回填{cacheFilled} 无缓存行{missingCount} → 二次补查({AggRetryTimeout.TotalSeconds:0.#}s窗口)");
+            if (await RetryMissingAggsAsync(state, rows, cp, dpm, dpmusem, query, ct) && cacheFilled == 0)
+                LastHint = null;
         }
-        catch (OperationCanceledException) { }
-        catch
+        catch (OperationCanceledException)
+        {
+            QPGL.Infrastructure.DebugLog.Log($"[PartCache] 选料页{query.Page} 聚合实时查询被取消（检索竞态），{rows.Count} 行未补库存值");
+        }
+        catch (Exception ex)
         {
             LastHint = "（库存/在途为缓存值：网络异常）";
+            QPGL.Infrastructure.DebugLog.Log($"[PartCache] 选料页{query.Page} 聚合实时查询异常：{ex.Message}");
             FillFromAggCache(rows, cp);
         }
         return null;
+    }
+
+    /// <summary>
+    /// 选料聚合超时二次补查（2026-11-19 根因A修复）：仅重查无聚合缓存的行，10 秒窗口；
+    /// 成功则回填行值并更新聚合缓存（后续超时降级可用）。返回是否补查成功。
+    /// </summary>
+    private static async Task<bool> RetryMissingAggsAsync(State state, List<PartPickRow> rows, string cp, string dpm,
+        string dpmusem, PartPickQuery query, CancellationToken ct)
+    {
+        var cpKey = cp.Trim();
+        var missing = rows.Where(r => !_aggs.ContainsKey($"{cpKey}|{r.Nno}"))
+            .Select(r => (r.Nno ?? "").Trim()).Where(n => n.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        if (missing.Count == 0) return false;
+        try
+        {
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            var live = await Db.Order4.GetPickAggregatesAsync(cp, dpm, dpmusem, missing, query.Date1, query.Date2,
+                state.LastMaxAttrId, ct).WaitAsync(AggRetryTimeout, ct);
+            var resolved = 0;
+            foreach (var r in rows)
+                if (live.Aggs.TryGetValue(r.Nno, out var a))
+                {
+                    _aggs[$"{cpKey}|{r.Nno}"] = a;
+                    ApplyAgg(r, a);
+                    resolved++;
+                }
+            // resolved < missing.Count 的差额 = 该编码在库内确实无批次行（0 即真实值）
+            QPGL.Infrastructure.DebugLog.Log(
+                $"[PartCache] 选料页{query.Page} 二次补查成功：回填{resolved}行(补查{missing.Count}行) 耗时{sw.ElapsedMilliseconds}ms");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            QPGL.Infrastructure.DebugLog.Log($"[PartCache] 选料页{query.Page} 二次补查失败({missing.Count}行)：{ex.Message}");
+            return false;
+        }
     }
 
     private static void ApplyAgg(PartPickRow r, PickAggregate a)
@@ -372,11 +454,17 @@ public static class PartCacheService
         r.Bmjj = a.Bmjj;
     }
 
-    private static void FillFromAggCache(List<PartPickRow> rows, string cp)
+    /// <summary>聚合缓存降级回填。返回回填行数（0=本页无缓存行，供提示文案与诊断日志判断）。</summary>
+    private static int FillFromAggCache(List<PartPickRow> rows, string cp)
     {
+        var filled = 0;
         foreach (var r in rows)
             if (_aggs.TryGetValue($"{cp.Trim()}|{r.Nno}", out var a))
+            {
                 ApplyAgg(r, a);
+                filled++;
+            }
+        return filled;
     }
 
     // ---------- 历史区缓存（进货/销售历史）：秒显 + 调用方后台重查 ----------
