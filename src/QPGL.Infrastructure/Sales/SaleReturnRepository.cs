@@ -4,6 +4,7 @@ using QPGL.Domain.Common;
 using QPGL.Domain.Sales;
 using QPGL.Infrastructure.Db;
 using QPGL.Infrastructure.DocNo;
+using QPGL.Infrastructure.Stock;
 
 namespace QPGL.Infrastructure.Sales;
 
@@ -109,6 +110,10 @@ public sealed class SaleReturnRepository(SqlConnectionFactory factory, IDocNoSer
             var lineCount = 0;
             var resolvedBatches = new List<(int kcid, decimal qty)>();
 
+            // 批次重解析运行参数（旧登录装载，tbsysset type='system'；「均价」缺省 2——2026-11-19 生产库
+            // 配件重复 bug 修复：退货批次匹配须与旧 KCID 一致支持 P_WAY=2 无 iprc 回退）
+            var prm = await IsappeEngine.LoadParamsAsync(conn, tx, ct);
+
             foreach (var line in command.Lines)
             {
                 var src = sourceRows.First(r => r.id == line.RowId);
@@ -134,8 +139,9 @@ public sealed class SaleReturnRepository(SqlConnectionFactory factory, IDocNoSer
                 }
                 else
                 {
-                    // 3) 批次重解析（旧 KCID('c_th') 链）：id 全匹配 → cp+nno+iprc+posi+depotno(+dpm) → 未命中新建批次
-                    kcid = await ResolveKcidAsync(conn, tx, src, depotno, posi, ct);
+                    // 3) 批次重解析（旧 KCID('c_th') 链）：id 全匹配 → cp+nno+iprc+posi+depotno(+dpm)
+                    //    → P_WAY=2 无 iprc 回退 → 未命中新建批次
+                    kcid = await ResolveKcidAsync(conn, tx, src, depotno, posi, prm.PWay, ct);
                 }
 
                 // 快照以解析后批次为准（断言 sale_up 回补语义；废品行 kcid=0 无批次，不参与断言/快照）
@@ -521,10 +527,14 @@ public sealed class SaleReturnRepository(SqlConnectionFactory factory, IDocNoSer
     /// <summary>
     /// 批次重解析（旧 pg_proc KCID L2817 链，部署 P_FGS=.T./P_XZFA=.F.）：
     /// ① id=原kcid 且 cp/nno/iprc/posi/depotno/dpm 全匹配 → ② 去掉 id 按 cp+nno+iprc+posi+depotno+dpm 匹配
-    /// → ③ 未命中 INSERT 新 tbisto 批次（列集同旧码）。急件已在上方拒绝（旧 KCID 急件跳过新建不适用）。
+    /// → ③ P_WAY=2 时按 cp+nno+posi+depotno+dpm 匹配（不含 iprc——原单 iprc 是销售时点的快照，
+    ///   期间入库加权平均已变动，缺此层会每次退货都 INSERT 幽灵批次，2026-11-19 生产库配件重复 bug 根因）
+    /// → ④ 未命中 INSERT 新 tbisto 批次（列集同旧码；旧码另有 Y_TYPE='报价'/CP='急件' 豁免，
+    ///   本处来源行 type ∈ {销售,历史} 且急件已在上方拒绝，豁免不适用）。
+    /// 沙河丰田定制第四层（P_CLIENT='沙河丰田'）本部署不适用，未实现。
     /// </summary>
     private static async Task<int> ResolveKcidAsync(
-        SqlConnection conn, SqlTransaction tx, SourceRow src, string depotno, string posi, CancellationToken ct)
+        SqlConnection conn, SqlTransaction tx, SourceRow src, string depotno, string posi, int pWay, CancellationToken ct)
     {
         var kcid = await conn.ExecuteScalarAsync<int?>(new CommandDefinition(
             """
@@ -543,6 +553,19 @@ public sealed class SaleReturnRepository(SqlConnectionFactory factory, IDocNoSer
             new { cp = Ansi(src.cp.Trim(), 10), nno = Ansi(src.nno.Trim(), 18), iprc = src.iprc, posi = Ansi(posi, 10), depotno = Ansi(depotno, 10), dpm = Ansi(src.dpm.Trim(), 10) },
             transaction: tx, cancellationToken: ct));
         if (kcid.HasValue) return kcid.Value;
+
+        // ③ P_WAY=2 无 iprc 回退（旧 KCID L2834-2835）；命中即复用既有批次行（iprc 不回写，同旧码）
+        if (pWay == 2)
+        {
+            kcid = await conn.ExecuteScalarAsync<int?>(new CommandDefinition(
+                """
+                SELECT TOP 1 id FROM tbisto WITH (NOLOCK)
+                WHERE cp = @cp AND nno = @nno AND posi = @posi AND depotno = @depotno AND dpm = @dpm
+                """,
+                new { cp = Ansi(src.cp.Trim(), 10), nno = Ansi(src.nno.Trim(), 18), posi = Ansi(posi, 10), depotno = Ansi(depotno, 10), dpm = Ansi(src.dpm.Trim(), 10) },
+                transaction: tx, cancellationToken: ct));
+            if (kcid.HasValue) return kcid.Value;
+        }
 
         // 未命中：新建批次（旧 KCID L2841 列集 cp,nno,na1,ty,fa,dc,unit,iprc,oprc,iprj,posi,depotno,dpm,cxnno）
         return await conn.ExecuteScalarAsync<int>(new CommandDefinition(

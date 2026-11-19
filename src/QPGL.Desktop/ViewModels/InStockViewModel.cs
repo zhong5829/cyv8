@@ -365,10 +365,6 @@ public partial class InStockViewModel : ObservableObject
         });
     }
 
-    /// <summary>同步包装（View 事件处理器用 async void 语义自由调用）。</summary>
-    public void AddImportedRow(Views.ImportRowResult item) =>
-        _ = AddImportedRowAsync(item);
-
     /// <summary>直接追加导入行（不弹窗，含金额联动）。</summary>
     private void AddPartRowDirect(InStockLineRow row)
     {

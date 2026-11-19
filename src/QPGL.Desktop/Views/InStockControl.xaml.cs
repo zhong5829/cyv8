@@ -155,13 +155,15 @@ public partial class InStockControl : UserControl
     /// 表格导入（qp11 采购进货 ExcelImportDialog 同构）：弹导入对话框（xls/xlsx 解析 + 列映射 + 预览状态），
     /// 确认后行集写入明细网格（属性库命中带出名称/车型/进价，未命中新配件生效时自动建档）。
     /// </summary>
-    private void ImportButton_Click(object sender, RoutedEventArgs e)
+    private async void ImportButton_Click(object sender, RoutedEventArgs e)
     {
         var dlg = new InStockImportDialog { Owner = Window.GetWindow(this) };
         if (dlg.ShowDialog() != true || !dlg.ImportedRows.Any()) return;
 
+        // 逐行 await 顺序追加（2026-11-19 修复：fire-and-forget 时各行异步查询完成先后不定，
+        // 明细区行序会与表格不一致；顺序追加保证导入后明细区与表格行序一一对应）
         foreach (var item in dlg.ImportedRows)
-            VM.AddImportedRow(item);
+            await VM.AddImportedRowAsync(item);
     }
 
     /// <summary>

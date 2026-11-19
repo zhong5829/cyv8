@@ -2535,6 +2535,88 @@ public class ContractReplayTests
     }
 
     /// <summary>
+    /// 场景 36：销售退货批次重解析——iprc 漂移复用批次（2026-11-19 生产库配件重复 bug 修复验证）。
+    /// 背景：退货批次匹配按原单 iprc 快照比对库存行；期间入库加权平均（P_WAY=2）使 iprc 漂移后
+    /// 快照≠现值，② 层必失配。旧 KCID（pg_proc L2834-2835）P_WAY=2 下有第三层无 iprc 回退
+    /// （cp+nno+posi+depotno+dpm）复用既有批次；修复前新系统缺此层 → 每次退货 INSERT 幽灵批次行
+    /// （kcbhdate=1900-01-01，生产库 16 行同机理）。序列：部门内仅单行批次配件 → 销售 1 →
+    /// tbisto.iprc/iprj 漂移（模拟加权重算）→ 退货。旧侧 ReturnOneLine 固定 kcid=原行批次
+    /// （单批次键下旧 KCID ③ 层的唯一结果）；新侧 ①② 失配 → ③ 命中原批次。
+    /// 断言：tbisto 行数不变（无幽灵行）+ 全表逐字段 diff（回补落在原批次）。
+    /// </summary>
+    [Fact]
+    public void Scenario36_SaleReturn_IprcDrift_ReusesBatch_LegacyVsModern()
+    {
+        var (sale, ret) = NewRepos();
+        var per = ReplayConfig.Operator;
+        const string SeedSql = """
+            SELECT TOP (1) id, RTRIM(cp) cp, RTRIM(nno) nno, RTRIM(na1) na1, RTRIM(ty) ty, RTRIM(fa) fa,
+                   RTRIM(dc) dc, RTRIM(unit) unit, kcamount kc, iprj, iprc, oprc,
+                   RTRIM(posi) posi, RTRIM(depotno) depotno, xno, tno, RTRIM(cxnno) cxnno, oprb
+            FROM tbisto b WITH (NOLOCK)
+            WHERE b.dpm = @dpm AND b.kcamount > 5
+              AND NOT EXISTS (SELECT 1 FROM tbisto b2 WITH (NOLOCK)
+                              WHERE b2.cp = b.cp AND b2.nno = b.nno AND b2.dpm = b.dpm AND b2.id <> b.id)
+            ORDER BY b.kcamount DESC, b.id ASC
+            """;
+
+        List<LegacyReplay.Batch> seed = [];
+
+        var legacy = Run(() =>
+        {
+            using var conn = ReplayEnv.Open();
+            var r = conn.QueryFirst<(int id, string cp, string nno, string na1, string ty, string fa,
+                string dc, string unit, decimal kc, decimal iprj, decimal iprc, decimal oprc,
+                string posi, string depotno, int xno, int tno, string cxnno, decimal oprb)>(
+                SeedSql, new { dpm = Ansi(ReplayConfig.Dept, 10) });
+            seed = [new LegacyReplay.Batch(r.id, r.cp, r.nno, r.na1, r.ty, r.fa, r.dc, r.unit,
+                r.kc, r.iprj, r.iprc, r.oprc, r.posi, r.depotno, r.xno, r.tno, r.cxnno, r.oprb)];
+            var paper = LegacyReplay.Sale(conn, new List<(LegacyReplay.Batch, decimal)> { (seed[0], 1m) }, per);
+            // 退款方式两侧统一补「现金」（tbsada.guno 默认空、Validator 必填，保证 diff 可对齐）
+            conn.Execute("UPDATE tbsada SET guno = N'现金' WHERE paper = @paper", new { paper = Ansi(paper, 10) });
+            // iprc 漂移：模拟后续入库 P_WAY=2 加权平均重算，使原单 iprc 快照与批次现值不一致
+            conn.Execute("UPDATE tbisto SET iprc = iprc + 5, iprj = iprj + 5 WHERE id = @id", new { id = seed[0].Id });
+            var retPaper = LegacyReplay.ReturnOneLine(conn, paper, 1m, per);
+            // ReturnOneLine 简化回放未带确认退货窗 CBOPAPERTYPE 默认「门店」（原单头为空时），此处补齐对齐
+            conn.Execute("UPDATE tbsada_header SET papertype = N'门店' WHERE paper = @paper", new { paper = Ansi(retPaper, 10) });
+            return new List<string> { paper, retPaper };
+        });
+
+        var modern = Run(() =>
+        {
+            var paper = sale.CreateAsync(new CreateSaleCommand
+            {
+                Dept = ReplayConfig.Dept,
+                Gno = ReplayConfig.Gno,
+                Gname = ReplayConfig.Gname,
+                Lines = [new SaleLineInput { Cp = seed[0].Cp, Nno = seed[0].Nno, Qty = 1m }],
+            }, per).GetAwaiter().GetResult().Paper;
+
+            using var conn = ReplayEnv.Open();
+            conn.Execute("UPDATE tbsada SET guno = N'现金' WHERE paper = @paper", new { paper = Ansi(paper, 10) });
+            conn.Execute("UPDATE tbisto SET iprc = iprc + 5, iprj = iprj + 5 WHERE id = @id", new { id = seed[0].Id });
+
+            var source = ret.GetSourceAsync(paper, CancellationToken.None).GetAwaiter().GetResult();
+            var retPaper = ret.CreateAsync(new CreateSaleReturnCommand
+            {
+                Dept = ReplayConfig.Dept,
+                SourcePaper = paper,
+                RefundMethod = "现金",
+                Lines = [new SaleReturnLineInput { RowId = source.Lines[0].RowId, Qty = 1m }],
+            }, per).GetAwaiter().GetResult().Paper;
+
+            // 直接断言：未产生幽灵批次——同配件 tbisto 仍只有 1 行（修复前此处 = 2）
+            var batchRows = conn.Query<int>(
+                "SELECT COUNT(1) FROM tbisto WITH (NOLOCK) WHERE cp = @cp AND nno = @nno AND dpm = @dpm",
+                new { cp = Ansi(seed[0].Cp, 10), nno = Ansi(seed[0].Nno, 18), dpm = Ansi(ReplayConfig.Dept, 10) }).Single();
+            Assert.Equal(1, batchRows);
+            return new List<string> { paper, retPaper };
+        });
+
+        AssertIdentical(legacy, modern);
+    }
+
+    /// <summary>
     /// 场景 31：C2 预售互转（销售开单 → 销售转预售 → 预售转销售）。旧=row53 UPDATE 路径重放
     /// （SaleToPresale/PresaleToSale）；新=SaleRepository.ConvertSaleToPresaleAsync/ConvertPresaleToSaleAsync。
     /// 语义点：UPDATE 不触发 sale_in/sale_del → tbisto 零变动（tbisto 全表窗口兜底）；
