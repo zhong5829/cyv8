@@ -112,6 +112,8 @@ public partial class Order4ViewModel : ObservableObject
         if (SelectedPlan is null) return;
         CurrentCno = SelectedPlan.Cno;
         await LoadLinesAsync(ct);
+        // 2026-11-19 修复：切单后已开的选择配件窗口行色/已订数/定位仍停留上一单 → 重查+重定位
+        await RefreshPickWindowForPlanSwitchAsync(ct);
     }
 
     private async Task LoadLinesAsync(CancellationToken ct)
@@ -132,6 +134,8 @@ public partial class Order4ViewModel : ObservableObject
     // 单头随首行订货写入，之后行继承）
     private DateTime? _newPlanDate;
     private string? _newPlanGyname;
+    /// <summary>新建计划单付款方式（2026-11-19 需求：弹窗下拉默认挂帐，随单头行落库）。</summary>
+    private string _newPlanFkfs = "";
     /// <summary>选料查询竞态序号（实时+防抖下旧请求晚到丢弃）。</summary>
     private int _pickSeq;
     /// <summary>选料无限滑动分页（2026-11-03 需求，PartPickWindow 同机制）。</summary>
@@ -159,11 +163,13 @@ public partial class Order4ViewModel : ObservableObject
             CurrentCno = d.PlanCno;
             _newPlanDate = d.Orderdate;
             _newPlanGyname = d.Gyname;
+            _newPlanFkfs = d.Fkfs;
             // 单头行立即落库（nno=''、oqty=0）→ 计划单列表马上出现，关软件后可继续
-            await Db.Order4.EnsureHeadRowAsync(CurrentCno, d.Orderdate, d.Gyname,
+            await Db.Order4.EnsureHeadRowAsync(CurrentCno, d.Orderdate, d.Gyname, d.Fkfs,
                 AppSession.DeptNo, Cp.Trim(), AppSession.DeptPermissions, AppSession.Operator, ct);
             await LoadPlansAsync(ct);
             await LoadLinesAsync(ct);
+            await RefreshPickWindowForPlanSwitchAsync(ct);   // 新单明细为空：清行色/已订列，定位静默跳过
         }
         catch (AppException ex)
         {
@@ -194,6 +200,7 @@ public partial class Order4ViewModel : ObservableObject
             await Db.Order4.EnsureHeadRowAsync(CurrentCno,
                 head?.Orderdate ?? _newPlanDate ?? DateTime.Today,
                 head?.Gyname?.Trim() ?? _newPlanGyname ?? "",
+                head?.Fkfs?.Trim() ?? _newPlanFkfs ?? "挂帐",
                 AppSession.DeptNo, Cp.Trim(), AppSession.DeptPermissions, AppSession.Operator, ct);
             await LoadPlansAsync(ct);
             Message = $"计划单 {CurrentCno} 已保存，关闭软件后可继续订货。";
@@ -233,6 +240,7 @@ public partial class Order4ViewModel : ObservableObject
             CurrentCno = d.NewCno;
             await LoadPlansAsync(ct);
             await LoadLinesAsync(ct);
+            await RefreshPickWindowForPlanSwitchAsync(ct);   // 改单头可能换单号 → 同步选料窗口
         }
         catch (AppException ex)
         {
@@ -263,8 +271,10 @@ public partial class Order4ViewModel : ObservableObject
             CurrentCno = "";
             _newPlanDate = null;
             _newPlanGyname = null;
+            _newPlanFkfs = "";
             Lines.Clear();
             await LoadPlansAsync(ct);
+            await RefreshPickWindowForPlanSwitchAsync(ct);   // 清行色/已订列（已订行已删），定位静默跳过
         }
         catch (AppException ex)
         {
@@ -300,8 +310,10 @@ public partial class Order4ViewModel : ObservableObject
             CurrentCno = "";
             _newPlanDate = null;
             _newPlanGyname = null;
+            _newPlanFkfs = "";
             Lines.Clear();
             await LoadPlansAsync(ct);
+            await RefreshPickWindowForPlanSwitchAsync(ct);   // 并入在途后清选料窗口行色/已订列，定位静默跳过
         }
         catch (AppException ex)
         {
@@ -330,6 +342,20 @@ public partial class Order4ViewModel : ObservableObject
             return;
         }
         new Views.OrderPickWindow(this).Show();
+    }
+
+    /// <summary>
+    /// 计划单切换后刷新选料状态（2026-11-19 修复）：
+    /// 无论选择配件窗口是否开着都重查——PickRows 与页面共享且切单不自动清，窗口关着时下次开窗
+    /// Loaded 因 Count&gt;0 跳过检索 → 显示上一单的行色（已订绿/警戒红黄）与已订数；重查后按新单 Lines 重算。
+    /// 窗口开着再重新定位到新单最后一次已订行（无明细/新单时静默跳过）。
+    /// 覆盖：双击计划单/新建/改单头/删除/并入在途。
+    /// </summary>
+    public async Task RefreshPickWindowForPlanSwitchAsync(CancellationToken ct = default)
+    {
+        await SearchPartsAsync(ct);
+        if (Application.Current.Windows.OfType<Views.OrderPickWindow>().FirstOrDefault() is { } w)
+            await w.LocateLastOrderedLineAsync();
     }
 
     [RelayCommand]
@@ -533,7 +559,7 @@ public partial class Order4ViewModel : ObservableObject
             Oprc = ParseDec(tOprc.Text) is > 0 ? ParseDec(tOprc.Text) : null,
             Orderdate = head?.Orderdate ?? firstLine?.Orderdate ?? _newPlanDate ?? DateTime.Today,
             Bzlx = head?.Bzlx?.Trim() ?? firstLine?.Bzlx ?? "",
-            Fkfs = head?.Fkfs?.Trim() ?? firstLine?.Fkfs ?? "",
+            Fkfs = head?.Fkfs?.Trim() ?? firstLine?.Fkfs ?? _newPlanFkfs ?? "",
             Gyname = head?.Gyname?.Trim() ?? firstLine?.Gyname ?? _newPlanGyname ?? "",
             Gname = head?.Gname?.Trim() ?? firstLine?.Gname ?? "",
         };

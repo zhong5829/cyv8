@@ -16,6 +16,11 @@
                 <DatePicker x:Name="DatePick" VerticalAlignment="Center"/>
             </DockPanel>
             <DockPanel Margin="0,2">
+                <TextBlock Text="付款方式" Width="100" VerticalAlignment="Center" DockPanel.Dock="Left"/>
+                <ComboBox x:Name="FkfsCombo" IsEditable="True" VerticalAlignment="Center"
+                          DisplayMemberPath="Name" ToolTip="从下拉选择付款方式，默认挂帐"/>
+            </DockPanel>
+            <DockPanel Margin="0,2">
                 <TextBlock Text="供应商" Width="100" VerticalAlignment="Center" DockPanel.Dock="Left"/>
                 <Grid>
                     <TextBox x:Name="GysBox" VerticalAlignment="Center"

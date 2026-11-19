@@ -11,7 +11,7 @@ public interface IOrder4Repository
     /// <summary>计划单列表（c_dhht：type='' 按 cno 聚合，契约 §3.4）。</summary>
     Task<IReadOnlyList<PlanHeadRow>> GetPlanListAsync(string dpm, string cp, string dpmusem, CancellationToken ct = default);
     /// <summary>确保单头行存在（nno=''、oqty=0；新建/保存按钮用，无行时插入 → 空单也出现在计划单列表）。</summary>
-    Task<bool> EnsureHeadRowAsync(string cno, DateTime orderdate, string gyname, string dpm, string cp, string dpmusem, string per, CancellationToken ct = default);
+    Task<bool> EnsureHeadRowAsync(string cno, DateTime orderdate, string gyname, string fkfs, string dpm, string cp, string dpmusem, string per, CancellationToken ct = default);
 
     /// <summary>新增计划单号防重（cno or orno 双向，契约 §4）。</summary>
     Task ValidateNewCnoAsync(string cno, CancellationToken ct = default);
@@ -354,10 +354,11 @@ public sealed class Order4Repository(SqlConnectionFactory factory, DocNo.IDocNoS
         if (exists > 0) throw new AppException("CNO_EXISTS", "订货单已存在该合同号", 409);
     }
 
-    public async Task<bool> EnsureHeadRowAsync(string cno, DateTime orderdate, string gyname, string dpm, string cp, string dpmusem, string per, CancellationToken ct = default)
+    public async Task<bool> EnsureHeadRowAsync(string cno, DateTime orderdate, string gyname, string fkfs, string dpm, string cp, string dpmusem, string per, CancellationToken ct = default)
     {
         // 2026-11-03 需求：新建计划单/保存按钮——tborder 行式存储，空单无行 → 列表不显示；
         // 插入单头行（nno=''、oqty=0）使计划单立即可见，关闭软件后可继续订货。
+        // 2026-11-19 需求：单头行带付款方式（新建计划单弹窗下拉，默认挂帐）。
         // 明细查询/并入在途已排除 nno=''；AddLine 去重按 nno 匹配不受影响；删除整单/修改单头按 cno 覆盖。
         await using var conn = await factory.OpenAsync(ct);
         await using var tx = (SqlTransaction)await conn.BeginTransactionAsync(ct);
@@ -373,11 +374,11 @@ public sealed class Order4Repository(SqlConnectionFactory factory, DocNo.IDocNoS
             }
             await conn.ExecuteAsync(new CommandDefinition(
                 "INSERT INTO tborder (cp, nno, na1, ty, fa, unit, dc, oqty, iprj, cno, orderdate, bzlx, fkfs, gyname, gname, per, dpm) " +
-                "VALUES (@cp, '', '', '', '', '', '', 0, 0, @cno, @orderdate, '', '', @gyname, '', @per, @dpm)",
+                "VALUES (@cp, '', '', '', '', '', '', 0, 0, @cno, @orderdate, '', @fkfs, @gyname, '', @per, @dpm)",
                 new
                 {
                     cp = Ansi(cp, 10), cno = Ansi(cno, 15), orderdate = orderdate.Date,
-                    gyname = Ansi(gyname, 60), per = Ansi(per, 10), dpm = Ansi(dpm, 10),
+                    gyname = Ansi(gyname, 60), fkfs = Ansi(fkfs, 10), per = Ansi(per, 10), dpm = Ansi(dpm, 10),
                 }, transaction: tx, cancellationToken: ct));
             await tx.CommitAsync(ct);
             return true;

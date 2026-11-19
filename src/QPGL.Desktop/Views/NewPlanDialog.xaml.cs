@@ -4,12 +4,14 @@ using System.Windows.Input;
 using System.Windows.Threading;
 using QPGL.Domain.Common;
 using QPGL.Domain.Partners;
+using QPGL.Domain.Receipt;
 using QPGL.Desktop.Services;
 
 namespace QPGL.Desktop.Views;
 
 /// <summary>
 /// 新建计划单对话框（2026-11-03 需求）：计划单号 + 订货日期 + 供应商（拼音码联想）。
+/// 2026-11-19 需求：订货日期下新增付款方式下拉（tbsysset type='guno'，默认挂帐——与修改单头同机制）。
 /// 供应商联想与入库页同机制（Db.Suppliers.SearchMergedAsync：合并 tbgu + tbgugys，按 gyname/gyno/code 拼音码/code1 数字码
 /// 前缀匹配，300ms 防抖；↑/↓ 选行、回车确认、Esc 关联想），确定后由 VM 校验单号并存为新单默认单头。
 /// </summary>
@@ -20,6 +22,7 @@ public partial class NewPlanDialog : Window
     public string PlanCno => CnoBox.Text.Trim();
     public DateTime Orderdate => DatePick.SelectedDate ?? DateTime.Today;
     public string Gyname => GysBox.Text.Trim();
+    public string Fkfs => FkfsCombo.SelectedItem is PaymentMethod pm ? pm.Name.Trim() : FkfsCombo.Text.Trim();
 
     public NewPlanDialog()
     {
@@ -31,7 +34,27 @@ public partial class NewPlanDialog : Window
             _debounce.Stop();
             await SearchAsync();
         };
-        Loaded += (_, _) => CnoBox.Focus();
+        Loaded += async (_, _) =>
+        {
+            await LoadPaymentMethodsAsync();
+            CnoBox.Focus();
+        };
+    }
+
+    /// <summary>付款方式下拉（tbsysset type='guno'）：默认挂帐，无则回退列表第一项（EditHeadDialog 同机制）。</summary>
+    private async System.Threading.Tasks.Task LoadPaymentMethodsAsync()
+    {
+        try
+        {
+            var methods = await Db.Receipts.GetPaymentMethodsAsync();
+            FkfsCombo.ItemsSource = methods;
+            var hit = methods.FirstOrDefault(m => m.Name.Trim() == "挂帐") ?? methods.FirstOrDefault();
+            FkfsCombo.SelectedItem = hit;
+        }
+        catch
+        {
+            // 下拉加载失败不阻断，保留默认可手输
+        }
     }
 
     private async System.Threading.Tasks.Task SearchAsync()
