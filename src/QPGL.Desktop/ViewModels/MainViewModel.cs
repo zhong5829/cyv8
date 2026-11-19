@@ -24,10 +24,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private readonly DispatcherTimerEx _clock = new();
     private readonly DispatcherTimerEx _health = new();
     private readonly DispatcherTimerEx _unprinted = new();
-
-    /// <summary>未打印单据提醒去重：记录「今天已提醒过的单号」，仅在出现新未打印单号时才再次弹窗（qp11 同构）。</summary>
-    private readonly HashSet<string> _remindedUnprintedSns = new();
-    private DateTime _remindedUnprintedDate = DateTime.MinValue;
+    private readonly DispatcherTimerEx _reminder = new();   // 每日 19:00 未打印单据统一提醒
 
     public ObservableCollection<DocumentTab> Tabs { get; } = [];
 
@@ -78,14 +75,58 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _health.Start();
         _ = CheckHealthAsync();
 
-        // 未打印单据检测（§8.3.1，qp11 同构）：每 2 分钟扫描一次（计数 + 弹窗提醒），
-        // 全店当天范围，本机按单号集合去重；启动即扫一次让当天存量立刻可见。
-        // 打印/手动标记后经 PrintStatusChanged 事件立即重扫（2026-11-19 需求：状态栏计数实时刷新）
+        // 状态栏未打印计数（§8.3.1）：每 2 分钟定时扫描 + 启动即扫一次；
+        // 打印/手动标记后经 PrintStatusChanged 事件立即重扫（2026-11-19 需求：计数实时刷新）。
+        // 计数只显示不弹窗；弹窗改由每日 19:00 统一提醒（2026-11-19 需求变更）
         _unprinted.Interval = TimeSpan.FromMinutes(2);
-        _unprinted.Tick += async (_, _) => await CheckUnprintedRemindersAsync();
+        _unprinted.Tick += async (_, _) => await CheckUnprintedCountAsync();
         _unprinted.Start();
-        _ = CheckUnprintedRemindersAsync();
+        _ = CheckUnprintedCountAsync();
         Db.PrintLog.PrintStatusChanged += OnPrintStatusChanged;
+
+        // 每日 19:00 未打印单据统一提醒：有未打印才弹、每日只弹一次；
+        // 已过 19:00 才启动软件（今天未弹过）→ 启动后立即补弹，保证每天至少提醒一次
+        _reminder.Tick += OnDailyReminderTick;
+        if (DateTime.Now >= DateTime.Today.AddHours(19))
+            _ = TryShowDailyReminderAsync();
+        ArmDailyReminder();
+    }
+
+    /// <summary>上次已弹提醒的日期（每日只弹一次的幂等标记；休眠唤醒重复触发也由它拦截）。</summary>
+    private DateTime _lastReminderDate = DateTime.MinValue;
+
+    /// <summary>按当前时刻武装每日 19:00 定时器：未到 19:00 定今天，已过定明天。</summary>
+    private void ArmDailyReminder()
+    {
+        var due = DateTime.Today.AddHours(19);
+        if (DateTime.Now >= due) due = due.AddDays(1);
+        _reminder.Interval = due - DateTime.Now;
+        _reminder.Start();
+    }
+
+    private async void OnDailyReminderTick(object? sender, EventArgs e)
+    {
+        _reminder.Stop();
+        await TryShowDailyReminderAsync();
+        ArmDailyReminder();   // 明天 19:00 再弹
+    }
+
+    /// <summary>每日提醒扫描：当天未打印清单有单据才弹窗（0 张不弹不打扰）；当日已弹过直接跳过。</summary>
+    private async Task TryShowDailyReminderAsync()
+    {
+        try
+        {
+            var today = DateTime.Today;
+            if (_lastReminderDate == today) return;
+            var bills = await Db.PrintLog.GetUnprintedTodayAsync();
+            if (bills.Count == 0) return;
+            _lastReminderDate = today;
+            UnprintedReminderReady?.Invoke(bills);
+        }
+        catch
+        {
+            // 扫描失败（库不可达等）静默，不弹窗
+        }
     }
 
     /// <summary>打印状态变化（本机打印成功/手动标记）：立即重扫刷新计数；跨机打印由定时扫描兜底。</summary>
@@ -93,7 +134,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         // 事件源可能在任意线程（当前均为 UI 线程路径），调度回 UI 线程保证 ObservableProperty 安全
         System.Windows.Threading.Dispatcher.CurrentDispatcher.BeginInvoke(
-            async () => await CheckUnprintedRemindersAsync());
+            async () => await CheckUnprintedCountAsync());
     }
 
     public void OpenDefault()
@@ -622,6 +663,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _clock.Stop();
         _health.Stop();
         _unprinted.Stop();
+        _reminder.Stop();
         AppSession.SignOut();
         RequestClose?.Invoke();
     }
@@ -641,37 +683,19 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
     }
 
-    // ---- 未打印单据提醒（§8.3.1，qp11 MainWindow.CheckUnprintedRemindersAsync 同构）----
+    // ---- 状态栏未打印计数（§8.3.1）----
 
     /// <summary>
-    /// 未打印单据扫描：全店当天未打印的销售单/退货单（含 AH 号段退货）。
-    /// 状态栏常驻计数始终反映当天未打印数量（0 时隐藏）；弹窗当天首次命中弹一次，
-    /// 之后仅在出现「新的」未打印单号时才再弹，避免反复骚扰。补打后计数自动减少。
+    /// 状态栏计数扫描：全店当天未打印的销售单/退货单（含 AH 号段退货）。
+    /// 常驻计数始终反映当天未打印数量（0 时隐藏），只显示不弹窗——
+    /// 弹窗改由每日 19:00 统一提醒（2026-11-19 需求变更）。补打后计数自动减少。
     /// </summary>
-    private async System.Threading.Tasks.Task CheckUnprintedRemindersAsync()
+    private async System.Threading.Tasks.Task CheckUnprintedCountAsync()
     {
         try
         {
-            // 跨天时清空当日已提醒记录，使新的一天重新提醒
-            var today = DateTime.Today;
-            if (_remindedUnprintedDate != today)
-            {
-                _remindedUnprintedDate = today;
-                _remindedUnprintedSns.Clear();
-            }
-
             var unprinted = await Db.PrintLog.GetUnprintedTodayAsync();
-
-            // 常驻计数：无论是否弹窗都要刷新（未补打的单据即使不再弹窗也能被看到）
             UnprintedCount = unprinted.Count;
-
-            var fresh = unprinted.Where(b => !string.IsNullOrEmpty(b.Sn) && !_remindedUnprintedSns.Contains(b.Sn)).ToList();
-            if (fresh.Count == 0) return;
-
-            foreach (var b in fresh)
-                _remindedUnprintedSns.Add(b.Sn);
-
-            UnprintedReminderReady?.Invoke(unprinted);
         }
         catch
         {
@@ -693,6 +717,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _clock.Stop();
         _health.Stop();
         _unprinted.Stop();
+        _reminder.Stop();
     }
 }
 

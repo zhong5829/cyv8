@@ -104,6 +104,10 @@
                                     <Trigger Property="Text" Value="未打印">
                                         <Setter Property="Foreground" Value="Red"/>
                                     </Trigger>
+                                    <!-- 已打印绿色（2026-11-19 需求） -->
+                                    <Trigger Property="Text" Value="已打印">
+                                        <Setter Property="Foreground" Value="#1A7F37"/>
+                                    </Trigger>
                                 </Style.Triggers>
                             </Style>
                         </DataGridTextColumn.ElementStyle>
