@@ -71,6 +71,8 @@ public sealed class FinConfirmInRow
     public decimal Iprc { get; set; }
     /// <summary>cast(sum(jkamount*iprj) as dec(10,2))。</summary>
     public decimal Iprj { get; set; }
+    /// <summary>部门（进货历史查询键 nno+dpm 用）。</summary>
+    public string Dpm { get; set; } = "";
 }
 
 /// <summary>页3 调拨确认行（tbsada type='调拨' 按单聚合，旧 c_db 语义）。</summary>

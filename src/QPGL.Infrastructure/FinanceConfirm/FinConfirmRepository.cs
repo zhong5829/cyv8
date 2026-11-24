@@ -127,6 +127,7 @@ public sealed class FinConfirmRepository(SqlConnectionFactory factory) : IFinCon
         var sql = """
             SELECT c.seano AS cno, c.gyno, c.gyname, c.indate, c.fkfs, c.pno, c.per, RTRIM(c.mark) AS mark, c.isord,
                    MAX(c.ywr) AS ywr, SUM(c.jkamount) AS jkamount, c.qrr, MAX(c.qrdate) AS qrdate,
+                   MAX(c.dpm) AS dpm,
                    CAST(SUM(c.jkamount * c.iprc) AS numeric(10,2)) AS iprc,
                    CAST(SUM(c.jkamount * c.iprj) AS numeric(10,2)) AS iprj
             FROM tbistoed c WITH (NOLOCK)

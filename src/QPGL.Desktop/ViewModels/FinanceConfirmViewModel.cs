@@ -6,6 +6,7 @@ using QPGL.Desktop.Services;
 using QPGL.Domain.Common;
 using QPGL.Domain.FinanceConfirm;
 using QPGL.Domain.Partners;
+using QPGL.Domain.Parts;
 using QPGL.Infrastructure.FinanceConfirm;
 
 namespace QPGL.Desktop.ViewModels;
@@ -45,6 +46,70 @@ public partial class FinanceConfirmViewModel : ObservableObject
 
     /// <summary>单号明细（旧 GRDMX：选中行联动，三页共用列集 cp/nno/na1/ty/fa/unit/数量/售价/实售价/进价/外币价/仓库）。</summary>
     public ObservableCollection<FinConfirmLine> Lines { get; } = [];
+
+    // ── 进货历史（入库页明细右侧，2026-11-24 需求；模式对齐散件入库页 InStockViewModel） ──
+
+    /// <summary>选中明细行（入库页选中零件 → 右侧显示该配件进货历史）。</summary>
+    [ObservableProperty]
+    private FinConfirmLine? _selectedLine;
+
+    /// <summary>选中明细配件的进货历史（tbistoed type in('入库','历史')，GetPurchaseHistoryAsync 同散件入库）。</summary>
+    public ObservableCollection<PartPurchaseHistory> PurchaseHistory { get; } = [];
+
+    /// <summary>进货历史区状态/空态提示（空字符串时隐藏）。</summary>
+    [ObservableProperty]
+    private string _purchaseHistoryHint = "未选中配件：请在明细中选择配件后查看进货历史";
+
+    private const int PurchaseHistoryDebounceMs = 200;
+    private CancellationTokenSource? _purchaseHistoryCts;
+
+    partial void OnSelectedLineChanged(FinConfirmLine? value)
+    {
+        if (ActivePage == PageIn) _ = LoadPurchaseHistoryDebouncedAsync();
+    }
+
+    /// <summary>进货历史防抖加载（取消旧查询；dpm 取选中入库单部门，空回退登录部门）。</summary>
+    private async Task LoadPurchaseHistoryDebouncedAsync()
+    {
+        _purchaseHistoryCts?.Cancel();
+        var line = SelectedLine;
+        PurchaseHistory.Clear();
+        if (line is null || string.IsNullOrWhiteSpace(line.Nno))
+        {
+            PurchaseHistoryHint = "未选中配件：请在明细中选择配件后查看进货历史";
+            return;
+        }
+
+        var cts = _purchaseHistoryCts = new CancellationTokenSource();
+        var ct = cts.Token;
+        PurchaseHistoryHint = $"正在加载 {line.Nno.Trim()} 的进货历史…";
+        try
+        {
+            await Task.Delay(PurchaseHistoryDebounceMs, ct);
+            var dpm = _selectedInDpm.Length > 0 ? _selectedInDpm : AppSession.DeptNo;
+            var rows = await Db.Parts.GetPurchaseHistoryAsync(line.Nno, dpm, 0, null, ct);
+            if (ct.IsCancellationRequested || !ReferenceEquals(SelectedLine, line)) return;
+            foreach (var r in rows) PurchaseHistory.Add(r);
+            PurchaseHistoryHint = rows.Count == 0 ? $"配件 {line.Nno.Trim()} 暂无进货记录" : "";
+        }
+        catch (OperationCanceledException)
+        {
+            // 快速切换选中行：旧查询被取消，静默丢弃
+        }
+        catch (AppException ex)
+        {
+            if (!ct.IsCancellationRequested) PurchaseHistoryHint = ex.Message;
+        }
+    }
+
+    /// <summary>清空进货历史区（切页/明细重载时）。</summary>
+    private void ResetPurchaseHistory()
+    {
+        _purchaseHistoryCts?.Cancel();
+        SelectedLine = null;
+        PurchaseHistory.Clear();
+        PurchaseHistoryHint = "未选中配件：请在明细中选择配件后查看进货历史";
+    }
 
     [ObservableProperty]
     private int _activePage = PageOut;
@@ -120,6 +185,9 @@ public partial class FinanceConfirmViewModel : ObservableObject
 
     [ObservableProperty]
     private FinConfirmInRow? _selectedIn;
+
+    /// <summary>选中入库单的部门（进货历史查询键 nno+dpm）。</summary>
+    private string _selectedInDpm = "";
 
     [ObservableProperty]
     private FinConfirmTransferRow? _selectedTransfer;
@@ -249,6 +317,7 @@ public partial class FinanceConfirmViewModel : ObservableObject
     partial void OnActivePageChanged(int value)
     {
         // 旧页框 Activate：首次进入自动 SETSOURCE（TAG 空判断；此处简化为切换即重查）
+        ResetPurchaseHistory();   // 进货历史仅入库页展示，切页即清空
         _ = SearchAsync();
     }
 
@@ -276,6 +345,7 @@ public partial class FinanceConfirmViewModel : ObservableObject
     {
         Message = "";
         IsBusy = true;
+        ResetPurchaseHistory();   // 列表重查 → 明细/历史随选中行失效
         try
         {
             switch (ActivePage)
@@ -384,6 +454,7 @@ public partial class FinanceConfirmViewModel : ObservableObject
     partial void OnSelectedInChanged(FinConfirmInRow? value)
     {
         if (value is null) return;
+        _selectedInDpm = value.Dpm.Trim();
         _ = LoadLinesAsync(Db.FinConfirm.GetInLinesAsync(value.Cno.Trim(), value.Gyname.Trim(), value.Indate, value.Isord.Trim()));
     }
 
@@ -412,6 +483,7 @@ public partial class FinanceConfirmViewModel : ObservableObject
             var lines = await task;
             Lines.Clear();
             foreach (var l in lines) Lines.Add(l);
+            ResetPurchaseHistory();   // 明细重载 → 旧选中配件行已失效，清空历史区
         }
         catch (Exception ex)
         {
